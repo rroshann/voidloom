@@ -80,8 +80,6 @@ private struct DockDivider: View {
 private struct DockAIHint: View {
     let errorMessage: String?
 
-    @State private var isHovering = false
-
     private var message: String {
         errorMessage ?? "Try: add agent, add note, reset canvas"
     }
@@ -95,33 +93,18 @@ private struct DockAIHint: View {
     }
 
     var body: some View {
-        HStack(spacing: isHovering ? 10 : 0) {
-            Image(systemName: iconName)
-                .font(.system(size: 15, weight: .bold))
-                .foregroundStyle(accentColor)
-                .frame(width: 38, height: 38)
-
-            if isHovering {
-                Text(message)
-                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.white.opacity(errorMessage == nil ? 0.68 : 0.86))
-                    .lineLimit(1)
-                    .transition(.opacity.combined(with: .move(edge: .trailing)))
-            }
-        }
-        .padding(.trailing, isHovering ? 14 : 0)
+        Image(systemName: iconName)
+            .font(.system(size: 15, weight: .bold))
+            .foregroundStyle(accentColor)
+            .frame(width: 38, height: 38)
         .background(
             RoundedRectangle(cornerRadius: 15, style: .continuous)
-                .fill(.white.opacity(isHovering ? 0.11 : 0.08))
+                .fill(.white.opacity(0.08))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 15, style: .continuous)
                 .stroke(.white.opacity(0.11), lineWidth: 1)
         )
-        .animation(.spring(response: 0.28, dampingFraction: 0.82), value: isHovering)
-        .onHover { hovering in
-            isHovering = hovering
-        }
         .help(message)
     }
 }
