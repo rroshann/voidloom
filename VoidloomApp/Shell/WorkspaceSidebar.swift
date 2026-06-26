@@ -18,7 +18,9 @@ struct WorkspaceSidebar: View {
     @State private var draggedWorkspaceID: UUID?
     @State private var dragTargetWorkspaceID: UUID?
     @State private var dragTranslationY: CGFloat = 0
-    @State private var dragRowStride: CGFloat = 64
+    @State private var dragFingerY: CGFloat = 0
+    @State private var dragPointerOffsetInRow: CGFloat = 0
+    @State private var dragLayoutMinY: CGFloat = 0
     @State private var workspaceRowFrames: [UUID: CGRect] = [:]
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -177,19 +179,25 @@ struct WorkspaceSidebar: View {
             .onChanged { value in
                 if draggedWorkspaceID == nil {
                     draggedWorkspaceID = workspaceID
-                    if let frame = workspaceRowFrames[workspaceID] {
-                        dragRowStride = frame.height + 10
-                    }
+                    let rowMinY = workspaceRowFrames[workspaceID]?.minY ?? value.startLocation.y
+                    dragLayoutMinY = rowMinY
+                    dragPointerOffsetInRow = value.startLocation.y - rowMinY
                 }
 
                 guard draggedWorkspaceID == workspaceID else { return }
 
-                dragTranslationY = value.translation.height
+                dragFingerY = value.location.y
+                syncDragTranslation(for: workspaceID)
                 updateReorderTarget(for: workspaceID, at: value.location.y)
             }
             .onEnded { _ in
                 resetWorkspaceDrag()
             }
+    }
+
+    private func syncDragTranslation(for workspaceID: UUID) {
+        guard draggedWorkspaceID == workspaceID else { return }
+        dragTranslationY = dragFingerY - dragPointerOffsetInRow - dragLayoutMinY
     }
 
     private func updateReorderTarget(for draggedID: UUID, at locationY: CGFloat) {
@@ -220,13 +228,13 @@ struct WorkspaceSidebar: View {
 
         dragTargetWorkspaceID = targetID
 
-        guard let targetID, let targetIndex else {
+        guard let targetID, let targetFrame = workspaceRowFrames[targetID] else {
             return
         }
 
-        let indexDelta = draggedIndex - targetIndex
         onMoveWorkspace(draggedID, targetID)
-        dragTranslationY += CGFloat(indexDelta) * dragRowStride
+        dragLayoutMinY = targetFrame.minY
+        syncDragTranslation(for: draggedID)
     }
 
     private func resetWorkspaceDrag() {
@@ -234,6 +242,9 @@ struct WorkspaceSidebar: View {
             draggedWorkspaceID = nil
             dragTargetWorkspaceID = nil
             dragTranslationY = 0
+            dragFingerY = 0
+            dragPointerOffsetInRow = 0
+            dragLayoutMinY = 0
         }
     }
 }
