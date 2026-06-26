@@ -16,19 +16,17 @@ struct RootView: View {
                     .padding(.top, 18)
 
                 Spacer()
-
-                CommandBar(errorMessage: store.lastPersistenceError)
-                    .padding(.bottom, 24)
             }
             .padding(.horizontal, 24)
             .allowsHitTesting(false)
 
-            HStack {
-                ToolRail(store: store)
-                    .padding(.leading, 22)
-
+            VStack {
                 Spacer()
+
+                ToolDock(store: store, errorMessage: store.lastPersistenceError)
+                    .padding(.bottom, 24)
             }
+            .padding(.horizontal, 24)
         }
         .preferredColorScheme(.dark)
     }
