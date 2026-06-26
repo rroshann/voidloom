@@ -17,8 +17,8 @@ struct WorkspaceSidebar: View {
     @State private var workspaceToDelete: WorkspaceSummary?
     @State private var draggedWorkspaceID: UUID?
     @State private var dragTargetWorkspaceID: UUID?
-    @State private var dragLocationY: CGFloat?
-    @State private var dragGrabOffsetY: CGFloat = 0
+    @State private var dragTranslationY: CGFloat = 0
+    @State private var dragRowStride: CGFloat = 64
     @State private var workspaceRowFrames: [UUID: CGRect] = [:]
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -69,7 +69,12 @@ struct WorkspaceSidebar: View {
                             .disabled(!canDeleteWorkspaces)
                         }
                         .background(WorkspaceSidebarRowFrameReader(workspaceID: workspace.id))
-                        .offset(y: dragOffset(for: workspace.id))
+                        .offset(y: draggedWorkspaceID == workspace.id ? dragTranslationY : 0)
+                        .animation(nil, value: dragTranslationY)
+                        .animation(
+                            draggedWorkspaceID == workspace.id ? nil : reorderAnimation,
+                            value: library.workspaces.map(\.id)
+                        )
                         .zIndex(draggedWorkspaceID == workspace.id ? 1 : 0)
                         .highPriorityGesture(workspaceDragGesture(for: workspace.id))
                     }
@@ -78,7 +83,6 @@ struct WorkspaceSidebar: View {
                 .onPreferenceChange(WorkspaceSidebarRowFramePreferenceKey.self) { frames in
                     workspaceRowFrames = frames
                 }
-                .animation(reorderAnimation, value: library.workspaces.map(\.id))
 
                 Spacer()
 
@@ -161,7 +165,7 @@ struct WorkspaceSidebar: View {
     }
 
     private var reorderAnimation: Animation? {
-        reduceMotion ? nil : .interactiveSpring(response: 0.16, dampingFraction: 0.9, blendDuration: 0.03)
+        reduceMotion ? nil : .spring(response: 0.22, dampingFraction: 0.92)
     }
 
     private var rowStateAnimation: Animation? {
@@ -173,13 +177,14 @@ struct WorkspaceSidebar: View {
             .onChanged { value in
                 if draggedWorkspaceID == nil {
                     draggedWorkspaceID = workspaceID
-                    let rowMinY = workspaceRowFrames[workspaceID]?.minY ?? value.startLocation.y
-                    dragGrabOffsetY = value.startLocation.y - rowMinY
+                    if let frame = workspaceRowFrames[workspaceID] {
+                        dragRowStride = frame.height + 10
+                    }
                 }
 
                 guard draggedWorkspaceID == workspaceID else { return }
 
-                dragLocationY = value.location.y
+                dragTranslationY = value.translation.height
                 updateReorderTarget(for: workspaceID, at: value.location.y)
             }
             .onEnded { _ in
@@ -187,46 +192,48 @@ struct WorkspaceSidebar: View {
             }
     }
 
-    private func dragOffset(for workspaceID: UUID) -> CGFloat {
-        guard draggedWorkspaceID == workspaceID,
-              let dragLocationY,
-              let frame = workspaceRowFrames[workspaceID] else {
-            return 0
+    private func updateReorderTarget(for draggedID: UUID, at locationY: CGFloat) {
+        guard let draggedIndex = library.workspaces.firstIndex(where: { $0.id == draggedID }) else {
+            return
         }
 
-        return dragLocationY - dragGrabOffsetY - frame.minY
-    }
+        var targetID: UUID?
+        var targetIndex: Int?
 
-    private func updateReorderTarget(for draggedID: UUID, at locationY: CGFloat) {
-        let hitSlop: CGFloat = 8
-        let targetID = library.workspaces.first { workspace in
-            guard workspace.id != draggedID,
-                  let frame = workspaceRowFrames[workspace.id] else {
-                return false
+        for (index, workspace) in library.workspaces.enumerated() where workspace.id != draggedID {
+            guard let frame = workspaceRowFrames[workspace.id] else { continue }
+
+            if draggedIndex < index, locationY > frame.midY {
+                if targetIndex == nil || index > targetIndex! {
+                    targetID = workspace.id
+                    targetIndex = index
+                }
+            } else if draggedIndex > index, locationY < frame.midY {
+                if targetIndex == nil || index < targetIndex! {
+                    targetID = workspace.id
+                    targetIndex = index
+                }
             }
-
-            return locationY >= frame.minY - hitSlop && locationY <= frame.maxY + hitSlop
-        }?.id
+        }
 
         guard targetID != dragTargetWorkspaceID else { return }
 
         dragTargetWorkspaceID = targetID
 
-        guard let targetID else {
+        guard let targetID, let targetIndex else {
             return
         }
 
-        withAnimation(reorderAnimation) {
-            onMoveWorkspace(draggedID, targetID)
-        }
+        let indexDelta = draggedIndex - targetIndex
+        onMoveWorkspace(draggedID, targetID)
+        dragTranslationY += CGFloat(indexDelta) * dragRowStride
     }
 
     private func resetWorkspaceDrag() {
         withAnimation(rowStateAnimation) {
             draggedWorkspaceID = nil
             dragTargetWorkspaceID = nil
-            dragLocationY = nil
-            dragGrabOffsetY = 0
+            dragTranslationY = 0
         }
     }
 }
@@ -286,10 +293,9 @@ struct WorkspaceSidebarRow: View {
                     lineWidth: isDropTarget ? 1.5 : 1
                 )
         )
-        .shadow(color: .black.opacity(isDragging ? 0.26 : 0), radius: isDragging ? 14 : 0, x: 0, y: 8)
-        .opacity(isDragging ? 0.96 : 1)
-        .scaleEffect(isDragging ? 1.015 : 1)
-        .animation(rowAnimation, value: isDragging)
+        .shadow(color: .black.opacity(isDragging ? 0.22 : 0), radius: isDragging ? 12 : 0, x: 0, y: 6)
+        .opacity(isDragging ? 0.98 : 1)
+        .animation(isDragging ? nil : rowAnimation, value: isDragging)
         .animation(rowAnimation, value: isDropTarget)
     }
 }
