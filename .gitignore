@@ -1,6 +1,7 @@
 # Local research and reference material
 references/
 docs/
+handoff/
 
 # macOS
 .DS_Store
