@@ -136,3 +136,9 @@ private struct CanvasGrid: View {
         return path
     }
 }
+
+#Preview("Canvas Workspace") {
+    CanvasWorkspaceView(store: PreviewSupport.makeStore())
+        .frame(width: 900, height: 580)
+        .background(.black)
+}

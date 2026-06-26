@@ -193,3 +193,8 @@ private struct CommandBar: View {
         .shadow(color: .black.opacity(0.3), radius: 24, x: 0, y: 16)
     }
 }
+
+#Preview("Voidloom Shell") {
+    RootView(store: PreviewSupport.makeStore())
+        .frame(width: 1180, height: 760)
+}

@@ -8,15 +8,10 @@ let package = Package(
         .macOS(.v14)
     ],
     products: [
-        .executable(name: "Voidloom", targets: ["Voidloom"]),
         .library(name: "VoidloomCore", targets: ["VoidloomCore"])
     ],
     targets: [
         .target(name: "VoidloomCore"),
-        .executableTarget(
-            name: "Voidloom",
-            dependencies: ["VoidloomCore"]
-        ),
         .testTarget(
             name: "VoidloomTests",
             dependencies: ["VoidloomCore"]

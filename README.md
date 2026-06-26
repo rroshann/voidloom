@@ -21,16 +21,26 @@ Voidloom is a native macOS v0 for a canvas-first agent workspace. This prototype
 
 ## Run
 
-This project is a Swift Package with a native SwiftUI executable:
+Voidloom is now a native Xcode macOS app backed by a local Swift package for reusable core logic.
+
+Run the app from Xcode beta:
 
 ```bash
-swift run Voidloom
+open Voidloom.xcodeproj
 ```
 
-Run tests with:
+Then select the `Voidloom` scheme and press `Cmd+R`.
+
+You can also build the app from the command line:
+
+```bash
+xcodebuild -scheme Voidloom -destination 'platform=macOS' build
+```
+
+Run core tests with SwiftPM:
 
 ```bash
 swift test
 ```
 
-The current machine has Command Line Tools selected but no full Xcode installation. SwiftPM is failing before compilation because the selected toolchain is missing `BuildServerProtocol.framework`, and direct SwiftUI type-checking is missing `SwiftUIMacros`. Install full Xcode or repair/reinstall Command Line Tools, then rerun the commands above.
+`swift run Voidloom` is no longer the primary app path. The app bundle, previews, assets, signing, and future archive/export workflow live in `Voidloom.xcodeproj`.

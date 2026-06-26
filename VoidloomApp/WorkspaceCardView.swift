@@ -213,3 +213,14 @@ private struct CardPalette {
         }
     }
 }
+
+#Preview("Workspace Cards") {
+    LazyVGrid(columns: [GridItem(.fixed(380)), GridItem(.fixed(380))], spacing: 20) {
+        ForEach(PreviewSupport.cards) { card in
+            WorkspaceCardView(card: card)
+                .frame(width: CGFloat(card.size.width), height: CGFloat(card.size.height))
+        }
+    }
+    .padding(28)
+    .background(Color(red: 0.04, green: 0.05, blue: 0.07))
+}

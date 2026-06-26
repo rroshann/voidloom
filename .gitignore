@@ -3,3 +3,9 @@ references/
 
 # macOS
 .DS_Store
+
+# Swift/Xcode build output
+.build/
+.swiftpm/
+DerivedData/
+xcuserdata/
