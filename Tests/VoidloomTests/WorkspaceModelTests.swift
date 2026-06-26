@@ -36,6 +36,52 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(card.position.y, 10, accuracy: 0.0001)
     }
 
+    func testWorkspaceSelectionStartsEmptyAndCanBeCleared() throws {
+        let cardID = try XCTUnwrap(UUID(uuidString: "B232D327-344C-446B-B577-53C326856252"))
+        var state = WorkspaceState(
+            cards: [
+                WorkspaceCard(
+                    id: cardID,
+                    kind: .browser,
+                    position: CanvasPoint(x: 120, y: 160),
+                    size: CardSize(width: 380, height: 240),
+                    title: "Preview",
+                    content: "Canvas selection target."
+                )
+            ]
+        )
+
+        XCTAssertNil(state.selectedCardID)
+
+        state.selectCard(id: cardID)
+        XCTAssertEqual(state.selectedCardID, cardID)
+
+        state.clearSelection()
+        XCTAssertNil(state.selectedCardID)
+    }
+
+    func testSelectingUnknownCardDoesNotReplaceCurrentSelection() throws {
+        let cardID = try XCTUnwrap(UUID(uuidString: "2E870590-D9B4-49ED-A77D-6823D3C89DDE"))
+        let missingCardID = try XCTUnwrap(UUID(uuidString: "E9B47781-7987-419F-AEC6-4763C6817E78"))
+        var state = WorkspaceState(
+            cards: [
+                WorkspaceCard(
+                    id: cardID,
+                    kind: .agent,
+                    position: CanvasPoint(x: 80, y: 110),
+                    size: CardSize(width: 360, height: 240),
+                    title: "Agent",
+                    content: "Existing selection."
+                )
+            ]
+        )
+
+        state.selectCard(id: cardID)
+        state.selectCard(id: missingCardID)
+
+        XCTAssertEqual(state.selectedCardID, cardID)
+    }
+
     func testWorkspaceStateEncodesAndDecodesCards() throws {
         let state = WorkspaceState(
             viewport: CanvasViewport(origin: CanvasPoint(x: 12, y: -34), scale: 0.85),

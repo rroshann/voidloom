@@ -11,12 +11,17 @@ struct DraggableWorkspaceCard: View {
         WorkspaceCardView(card: card)
             .frame(width: CGFloat(card.size.width), height: CGFloat(card.size.height))
             .offset(x: CGFloat(card.position.x), y: CGFloat(card.position.y))
+            .onTapGesture {
+                store.selectCard(id: card.id)
+            }
             .highPriorityGesture(cardDragGesture)
     }
 
     private var cardDragGesture: some Gesture {
         DragGesture(minimumDistance: 1)
             .onChanged { value in
+                store.selectCard(id: card.id)
+
                 let delta = CGSize(
                     width: value.translation.width - lastDragTranslation.width,
                     height: value.translation.height - lastDragTranslation.height

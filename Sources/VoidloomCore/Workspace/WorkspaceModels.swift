@@ -36,10 +36,16 @@ public struct WorkspaceCard: Codable, Equatable, Identifiable, Sendable {
 
 public struct WorkspaceState: Codable, Equatable, Sendable {
     public var viewport: CanvasViewport
+    public var selectedCardID: UUID?
     public var cards: [WorkspaceCard]
 
-    public init(viewport: CanvasViewport = CanvasViewport(), cards: [WorkspaceCard] = []) {
+    public init(
+        viewport: CanvasViewport = CanvasViewport(),
+        selectedCardID: UUID? = nil,
+        cards: [WorkspaceCard] = []
+    ) {
         self.viewport = viewport
+        self.selectedCardID = selectedCardID
         self.cards = cards
     }
 
@@ -57,5 +63,14 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public mutating func replaceCard(_ card: WorkspaceCard) {
         guard let index = cards.firstIndex(where: { $0.id == card.id }) else { return }
         cards[index] = card
+    }
+
+    public mutating func selectCard(id: UUID) {
+        guard cards.contains(where: { $0.id == id }) else { return }
+        selectedCardID = id
+    }
+
+    public mutating func clearSelection() {
+        selectedCardID = nil
     }
 }

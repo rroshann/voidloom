@@ -33,6 +33,16 @@ public final class WorkspaceStore: ObservableObject {
         persist()
     }
 
+    public func selectCard(id: UUID) {
+        state.selectCard(id: id)
+        persist()
+    }
+
+    public func clearSelection() {
+        state.clearSelection()
+        persist()
+    }
+
     public func addCard(kind: CardKind) {
         state.addCard(Self.makeCard(kind: kind, index: state.cards.count))
         persist()
