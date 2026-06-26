@@ -16,10 +16,6 @@ struct TopToolbar: View {
             Label("\(cardCount) cards", systemImage: "square.grid.3x2")
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
                 .foregroundStyle(.white.opacity(0.72))
-
-            Label("local canvas", systemImage: "externaldrive")
-                .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.62))
         }
         .padding(.horizontal, 18)
         .padding(.vertical, 10)

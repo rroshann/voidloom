@@ -13,7 +13,7 @@ struct RootView: View {
 
             VStack {
                 TopToolbar(cardCount: store.state.cards.count)
-                    .padding(.top, 18)
+                    .padding(.top, 6)
 
                 Spacer()
             }
