@@ -129,6 +129,53 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(loadedState, state)
     }
 
+    @MainActor
+    func testPanDoesNotSynchronouslyPersistWorkspaceState() {
+        let state = WorkspaceState(
+            viewport: CanvasViewport(origin: .zero, scale: 1),
+            cards: []
+        )
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(
+            state: state,
+            storageURL: url,
+            persistenceDelay: 60
+        )
+
+        store.pan(by: CanvasVector(dx: 12, dy: -8))
+
+        XCTAssertEqual(store.state.viewport.origin, CanvasPoint(x: 12, y: -8))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
+
+    @MainActor
+    func testPanPersistsWorkspaceStateAfterDebounce() async throws {
+        let state = WorkspaceState(
+            viewport: CanvasViewport(origin: .zero, scale: 1),
+            cards: []
+        )
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(
+            state: state,
+            storageURL: url,
+            persistenceDelay: 0.01
+        )
+
+        store.pan(by: CanvasVector(dx: 12, dy: -8))
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        let loadedState = try WorkspaceStore.load(from: url)
+        XCTAssertEqual(loadedState.viewport.origin, CanvasPoint(x: 12, y: -8))
+    }
+
     func testSeedStateIncludesEachV0CardKind() {
         let seedState = WorkspaceStore.makeSeedState()
         let kinds = Set(seedState.cards.map(\.kind))

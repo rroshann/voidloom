@@ -7,40 +7,57 @@ public final class WorkspaceStore: ObservableObject {
     @Published public private(set) var lastPersistenceError: String?
 
     private let storageURL: URL
+    private let persistenceDelay: TimeInterval
+    private var pendingPersistenceTask: Task<Void, Never>?
 
-    public init(storageURL: URL = WorkspaceStore.defaultStorageURL()) {
+    public init(
+        storageURL: URL = WorkspaceStore.defaultStorageURL(),
+        persistenceDelay: TimeInterval = 0.25
+    ) {
         self.storageURL = storageURL
+        self.persistenceDelay = persistenceDelay
         self.state = (try? Self.load(from: storageURL)) ?? Self.makeSeedState()
     }
 
-    public init(state: WorkspaceState, storageURL: URL = WorkspaceStore.defaultStorageURL()) {
+    public init(
+        state: WorkspaceState,
+        storageURL: URL = WorkspaceStore.defaultStorageURL(),
+        persistenceDelay: TimeInterval = 0.25
+    ) {
         self.storageURL = storageURL
+        self.persistenceDelay = persistenceDelay
         self.state = state
     }
 
     public func pan(by translation: CanvasVector) {
+        guard translation != .zero else { return }
         state.viewport.pan(by: translation)
-        persist()
+        schedulePersistence()
     }
 
     public func zoom(by magnification: Double, anchoredAt anchor: ScreenPoint) {
         state.viewport.zoom(by: magnification, anchoredAt: anchor)
-        persist()
+        schedulePersistence()
     }
 
     public func moveCard(id: UUID, screenTranslation: CanvasVector) {
+        guard screenTranslation != .zero else { return }
         state.moveCard(id: id, screenTranslation: screenTranslation)
-        persist()
+        schedulePersistence()
     }
 
     public func selectCard(id: UUID) {
+        guard state.selectedCardID != id else { return }
+        guard state.cards.contains(where: { $0.id == id }) else { return }
+
         state.selectCard(id: id)
-        persist()
+        schedulePersistence()
     }
 
     public func clearSelection() {
+        guard state.selectedCardID != nil else { return }
         state.clearSelection()
-        persist()
+        schedulePersistence()
     }
 
     public func addCard(kind: CardKind) {
@@ -54,6 +71,36 @@ public final class WorkspaceStore: ObservableObject {
     }
 
     public func persist() {
+        writeCurrentState()
+    }
+
+    public func flushPendingPersistence() {
+        pendingPersistenceTask?.cancel()
+        pendingPersistenceTask = nil
+        writeCurrentState()
+    }
+
+    private func schedulePersistence() {
+        pendingPersistenceTask?.cancel()
+
+        let delay = persistenceDelay
+        pendingPersistenceTask = Task { [weak self, delay] in
+            if delay > 0 {
+                let nanoseconds = UInt64(delay * 1_000_000_000)
+                try? await Task.sleep(nanoseconds: nanoseconds)
+            }
+
+            guard !Task.isCancelled else { return }
+            self?.commitScheduledPersistence()
+        }
+    }
+
+    private func commitScheduledPersistence() {
+        pendingPersistenceTask = nil
+        writeCurrentState()
+    }
+
+    private func writeCurrentState() {
         do {
             try Self.save(state, to: storageURL)
             lastPersistenceError = nil
