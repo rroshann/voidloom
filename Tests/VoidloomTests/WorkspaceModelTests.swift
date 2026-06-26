@@ -185,4 +185,314 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertTrue(kinds.contains(.todo))
         XCTAssertTrue(kinds.contains(.browser))
     }
+
+    func testWorkspaceSummaryEncodesAndDecodes() throws {
+        let summary = WorkspaceSummary(
+            id: try XCTUnwrap(UUID(uuidString: "A1B2C3D4-E5F6-7890-ABCD-EF1234567890")),
+            name: "Main Canvas",
+            createdAt: Date(timeIntervalSince1970: 1_700_000_000),
+            updatedAt: Date(timeIntervalSince1970: 1_700_000_100),
+            cardCount: 4
+        )
+
+        let data = try JSONEncoder().encode(summary)
+        let decoded = try JSONDecoder().decode(WorkspaceSummary.self, from: data)
+
+        XCTAssertEqual(decoded, summary)
+    }
+
+    func testWorkspaceLibraryEncodesAndDecodes() throws {
+        let selectedID = try XCTUnwrap(UUID(uuidString: "11111111-1111-1111-1111-111111111111"))
+        let otherID = try XCTUnwrap(UUID(uuidString: "22222222-2222-2222-2222-222222222222"))
+        let library = WorkspaceLibrary(
+            selectedWorkspaceID: selectedID,
+            workspaces: [
+                WorkspaceSummary(id: selectedID, name: "Main Canvas", cardCount: 3),
+                WorkspaceSummary(id: otherID, name: "Research", cardCount: 0)
+            ]
+        )
+
+        let data = try JSONEncoder().encode(library)
+        let decoded = try JSONDecoder().decode(WorkspaceLibrary.self, from: data)
+
+        XCTAssertEqual(decoded.selectedWorkspaceID, selectedID)
+        XCTAssertEqual(decoded.workspaces, library.workspaces)
+    }
+
+    func testLibraryRoundTripsSelectedWorkspaceID() throws {
+        let selectedID = try XCTUnwrap(UUID(uuidString: "33333333-3333-3333-3333-333333333333"))
+        let library = WorkspaceLibrary(
+            selectedWorkspaceID: selectedID,
+            workspaces: [
+                WorkspaceSummary(id: selectedID, name: "Active", cardCount: 1)
+            ]
+        )
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        try WorkspaceStore.saveLibrary(library, to: url)
+        let loaded = try WorkspaceStore.loadLibrary(from: url)
+
+        XCTAssertEqual(loaded.selectedWorkspaceID, selectedID)
+    }
+
+    func testSaveAndLoadWorkspaceStateByWorkspaceID() throws {
+        let workspaceID = try XCTUnwrap(UUID(uuidString: "44444444-4444-4444-4444-444444444444"))
+        let directory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+
+        let state = WorkspaceState(
+            viewport: CanvasViewport(origin: CanvasPoint(x: 5, y: 10), scale: 1.2),
+            cards: [
+                WorkspaceCard(
+                    id: try XCTUnwrap(UUID(uuidString: "55555555-5555-5555-5555-555555555555")),
+                    kind: .note,
+                    position: CanvasPoint(x: 100, y: 200),
+                    size: CardSize(width: 300, height: 180),
+                    title: "Note",
+                    content: "Persisted per workspace."
+                )
+            ]
+        )
+        let url = WorkspaceStore.workspaceURL(for: workspaceID, in: directory)
+
+        try WorkspaceStore.save(state, to: url)
+        let loaded = try WorkspaceStore.load(from: url)
+
+        XCTAssertEqual(loaded, state)
+    }
+
+    @MainActor
+    func testNewStoreCreatesLibraryWithOneSelectedWorkspace() throws {
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let libraryURL = baseDirectory.appendingPathComponent("library.json")
+        let workspacesDirectory = baseDirectory.appendingPathComponent("workspaces", isDirectory: true)
+
+        let store = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: baseDirectory.appendingPathComponent("workspace.json")
+        )
+
+        XCTAssertEqual(store.library.workspaces.count, 1)
+        XCTAssertEqual(store.library.selectedWorkspaceID, store.library.workspaces[0].id)
+        XCTAssertEqual(store.library.workspaces[0].name, "Main Canvas")
+        XCTAssertFalse(store.state.cards.isEmpty)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: libraryURL.path))
+    }
+
+    @MainActor
+    func testLegacyWorkspaceJSONMigratesToLibrary() throws {
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let legacyURL = baseDirectory.appendingPathComponent("workspace.json")
+        let libraryURL = baseDirectory.appendingPathComponent("library.json")
+        let workspacesDirectory = baseDirectory.appendingPathComponent("workspaces", isDirectory: true)
+
+        let legacyState = WorkspaceState(
+            viewport: CanvasViewport(origin: CanvasPoint(x: 42, y: -12), scale: 1.1),
+            cards: [
+                WorkspaceCard(
+                    id: try XCTUnwrap(UUID(uuidString: "66666666-6666-6666-6666-666666666666")),
+                    kind: .agent,
+                    position: CanvasPoint(x: 90, y: 120),
+                    size: CardSize(width: 360, height: 240),
+                    title: "Legacy Agent",
+                    content: "Migrated workspace."
+                )
+            ]
+        )
+        try WorkspaceStore.save(legacyState, to: legacyURL)
+
+        let store = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: legacyURL
+        )
+
+        XCTAssertEqual(store.library.workspaces.count, 1)
+        XCTAssertEqual(store.library.workspaces[0].name, "Main Canvas")
+        XCTAssertEqual(store.state, legacyState)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: libraryURL.path))
+        XCTAssertTrue(FileManager.default.fileExists(atPath: legacyURL.path))
+
+        let workspaceURL = WorkspaceStore.workspaceURL(
+            for: store.library.selectedWorkspaceID,
+            in: workspacesDirectory
+        )
+        XCTAssertTrue(FileManager.default.fileExists(atPath: workspaceURL.path))
+    }
+
+    @MainActor
+    func testCreateWorkspaceAddsSelectedWorkspaceAndUpdatesState() throws {
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let libraryURL = baseDirectory.appendingPathComponent("library.json")
+        let workspacesDirectory = baseDirectory.appendingPathComponent("workspaces", isDirectory: true)
+
+        let store = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: baseDirectory.appendingPathComponent("workspace.json")
+        )
+        let originalID = store.library.selectedWorkspaceID
+        let originalCardCount = store.state.cards.count
+
+        store.createWorkspace(named: "Research")
+
+        XCTAssertEqual(store.library.workspaces.count, 2)
+        XCTAssertNotEqual(store.library.selectedWorkspaceID, originalID)
+        XCTAssertEqual(store.library.workspaces.last?.name, "Research")
+        XCTAssertTrue(store.state.cards.isEmpty)
+
+        let originalWorkspaceURL = WorkspaceStore.workspaceURL(for: originalID, in: workspacesDirectory)
+        let originalLoaded = try WorkspaceStore.load(from: originalWorkspaceURL)
+        XCTAssertEqual(originalLoaded.cards.count, originalCardCount)
+    }
+
+    @MainActor
+    func testSwitchWorkspaceFlushesCurrentStateAndLoadsTarget() throws {
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let libraryURL = baseDirectory.appendingPathComponent("library.json")
+        let workspacesDirectory = baseDirectory.appendingPathComponent("workspaces", isDirectory: true)
+
+        let store = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: baseDirectory.appendingPathComponent("workspace.json"),
+            persistenceDelay: 60
+        )
+        let firstWorkspaceID = store.library.selectedWorkspaceID
+
+        store.pan(by: CanvasVector(dx: 25, dy: -10))
+        store.createWorkspace(named: "Second")
+        let secondWorkspaceID = store.library.selectedWorkspaceID
+
+        store.switchWorkspace(id: firstWorkspaceID)
+
+        XCTAssertEqual(store.library.selectedWorkspaceID, firstWorkspaceID)
+        XCTAssertEqual(store.state.viewport.origin, CanvasPoint(x: 25, y: -10))
+
+        store.switchWorkspace(id: secondWorkspaceID)
+        XCTAssertEqual(store.library.selectedWorkspaceID, secondWorkspaceID)
+        XCTAssertEqual(store.state.viewport.origin, .zero)
+        XCTAssertTrue(store.state.cards.isEmpty)
+
+        store.switchWorkspace(id: secondWorkspaceID)
+        XCTAssertEqual(store.library.selectedWorkspaceID, secondWorkspaceID)
+    }
+
+    @MainActor
+    func testAddCardUpdatesActiveSummaryCardCount() throws {
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let libraryURL = baseDirectory.appendingPathComponent("library.json")
+        let workspacesDirectory = baseDirectory.appendingPathComponent("workspaces", isDirectory: true)
+
+        let store = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: baseDirectory.appendingPathComponent("workspace.json")
+        )
+        let startingCount = store.state.cards.count
+
+        store.addCard(kind: .note)
+
+        let activeSummary = try XCTUnwrap(
+            store.library.workspaces.first(where: { $0.id == store.library.selectedWorkspaceID })
+        )
+        XCTAssertEqual(activeSummary.cardCount, startingCount + 1)
+        XCTAssertEqual(store.state.cards.count, startingCount + 1)
+    }
+
+    @MainActor
+    func testRenameWorkspaceUpdatesLibrarySummary() throws {
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let libraryURL = baseDirectory.appendingPathComponent("library.json")
+        let workspacesDirectory = baseDirectory.appendingPathComponent("workspaces", isDirectory: true)
+
+        let store = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: baseDirectory.appendingPathComponent("workspace.json")
+        )
+        let workspaceID = store.library.selectedWorkspaceID
+
+        store.renameWorkspace(id: workspaceID, to: "Launch Plan")
+
+        XCTAssertEqual(store.library.workspaces.first?.name, "Launch Plan")
+
+        let loadedLibrary = try WorkspaceStore.loadLibrary(from: libraryURL)
+        XCTAssertEqual(loadedLibrary.workspaces.first?.name, "Launch Plan")
+    }
+
+    @MainActor
+    func testDeleteWorkspaceRemovesSummaryAndSwitchesWhenActive() throws {
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let libraryURL = baseDirectory.appendingPathComponent("library.json")
+        let workspacesDirectory = baseDirectory.appendingPathComponent("workspaces", isDirectory: true)
+
+        let store = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: baseDirectory.appendingPathComponent("workspace.json")
+        )
+        let firstWorkspaceID = store.library.selectedWorkspaceID
+
+        store.createWorkspace(named: "Disposable")
+        let disposableID = store.library.selectedWorkspaceID
+
+        store.deleteWorkspace(id: disposableID)
+
+        XCTAssertEqual(store.library.workspaces.count, 1)
+        XCTAssertEqual(store.library.selectedWorkspaceID, firstWorkspaceID)
+        XCTAssertFalse(
+            FileManager.default.fileExists(
+                atPath: WorkspaceStore.workspaceURL(for: disposableID, in: workspacesDirectory).path
+            )
+        )
+    }
+
+    @MainActor
+    func testDeleteWorkspaceDoesNotRemoveLastWorkspace() throws {
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let libraryURL = baseDirectory.appendingPathComponent("library.json")
+        let workspacesDirectory = baseDirectory.appendingPathComponent("workspaces", isDirectory: true)
+
+        let store = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: baseDirectory.appendingPathComponent("workspace.json")
+        )
+        let workspaceID = store.library.selectedWorkspaceID
+
+        store.deleteWorkspace(id: workspaceID)
+
+        XCTAssertEqual(store.library.workspaces.count, 1)
+        XCTAssertEqual(store.library.selectedWorkspaceID, workspaceID)
+    }
 }
