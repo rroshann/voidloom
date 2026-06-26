@@ -30,6 +30,9 @@ struct RootView: View {
                     },
                     onDeleteWorkspace: { id in
                         store.deleteWorkspace(id: id)
+                    },
+                    onMoveWorkspace: { draggedID, targetID in
+                        store.moveWorkspace(id: draggedID, toPositionOf: targetID)
                     }
                 )
                 .transition(.move(edge: .leading).combined(with: .opacity))

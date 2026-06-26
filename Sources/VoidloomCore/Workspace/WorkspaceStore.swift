@@ -175,6 +175,31 @@ public final class WorkspaceStore: ObservableObject {
         }
     }
 
+    public func moveWorkspace(id: UUID, toIndex: Int) {
+        guard isLibraryMode, let libraryURL else { return }
+        guard let fromIndex = library.workspaces.firstIndex(where: { $0.id == id }) else { return }
+
+        let clampedIndex = min(max(toIndex, 0), library.workspaces.count - 1)
+        guard fromIndex != clampedIndex else { return }
+
+        var workspaces = library.workspaces
+        let item = workspaces.remove(at: fromIndex)
+        workspaces.insert(item, at: clampedIndex)
+        library.workspaces = workspaces
+
+        do {
+            try Self.saveLibrary(library, to: libraryURL)
+            lastPersistenceError = nil
+        } catch {
+            lastPersistenceError = error.localizedDescription
+        }
+    }
+
+    public func moveWorkspace(id: UUID, toPositionOf targetID: UUID) {
+        guard let targetIndex = library.workspaces.firstIndex(where: { $0.id == targetID }) else { return }
+        moveWorkspace(id: id, toIndex: targetIndex)
+    }
+
     public func deleteWorkspace(id: UUID) {
         guard isLibraryMode,
               let libraryURL,

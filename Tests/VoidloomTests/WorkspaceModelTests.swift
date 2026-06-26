@@ -495,4 +495,62 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(store.library.workspaces.count, 1)
         XCTAssertEqual(store.library.selectedWorkspaceID, workspaceID)
     }
+
+    @MainActor
+    func testMoveWorkspaceByIDReordersLibraryAndPersists() throws {
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let libraryURL = baseDirectory.appendingPathComponent("library.json")
+        let workspacesDirectory = baseDirectory.appendingPathComponent("workspaces", isDirectory: true)
+
+        let store = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: baseDirectory.appendingPathComponent("workspace.json")
+        )
+
+        store.createWorkspace(named: "Second")
+        store.createWorkspace(named: "Third")
+
+        let thirdID = try XCTUnwrap(store.library.workspaces.last?.id)
+        store.moveWorkspace(id: thirdID, toIndex: 0)
+
+        XCTAssertEqual(store.library.workspaces.map(\.name), ["Third", "Main Canvas", "Second"])
+
+        let loadedLibrary = try WorkspaceStore.loadLibrary(from: libraryURL)
+        XCTAssertEqual(loadedLibrary.workspaces.map(\.name), store.library.workspaces.map(\.name))
+    }
+
+    @MainActor
+    func testMoveWorkspaceToPositionOfTargetReordersWithoutChangingSelection() throws {
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let libraryURL = baseDirectory.appendingPathComponent("library.json")
+        let workspacesDirectory = baseDirectory.appendingPathComponent("workspaces", isDirectory: true)
+
+        let store = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: baseDirectory.appendingPathComponent("workspace.json")
+        )
+
+        store.createWorkspace(named: "Second")
+        store.createWorkspace(named: "Third")
+
+        let selectedWorkspaceID = store.library.selectedWorkspaceID
+        let mainCanvasID = try XCTUnwrap(store.library.workspaces.first { $0.name == "Main Canvas" }?.id)
+        let secondID = try XCTUnwrap(store.library.workspaces.first { $0.name == "Second" }?.id)
+
+        store.moveWorkspace(id: mainCanvasID, toPositionOf: secondID)
+
+        XCTAssertEqual(store.library.workspaces.map(\.name), ["Second", "Main Canvas", "Third"])
+        XCTAssertEqual(store.library.selectedWorkspaceID, selectedWorkspaceID)
+
+        let loadedLibrary = try WorkspaceStore.loadLibrary(from: libraryURL)
+        XCTAssertEqual(loadedLibrary.workspaces.map(\.name), store.library.workspaces.map(\.name))
+    }
 }
