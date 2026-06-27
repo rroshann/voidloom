@@ -24,8 +24,13 @@ struct CanvasWorkspaceView: View {
                 ZStack(alignment: .topLeading) {
                     CanvasGrid()
 
-                    ForEach(store.state.cards) { card in
+                    ForEach(store.state.cards.filter { $0.id != store.state.selectedCardID }) { card in
                         DraggableWorkspaceCard(card: card, store: store)
+                    }
+
+                    if let selectedID = store.state.selectedCardID,
+                       let selected = store.state.cards.first(where: { $0.id == selectedID }) {
+                        DraggableWorkspaceCard(card: selected, store: store)
                     }
                 }
                 .frame(width: canvasSize.width, height: canvasSize.height, alignment: .topLeading)

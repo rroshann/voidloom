@@ -3,6 +3,13 @@ import VoidloomCore
 
 struct WorkspaceCardView: View {
     let card: WorkspaceCard
+    var isSelected: Bool = false
+
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private var selectionAnimation: Animation? {
+        reduceMotion ? nil : .easeOut(duration: 0.15)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -15,7 +22,8 @@ struct WorkspaceCardView: View {
         }
         .background(cardBackground)
         .overlay(cardBorder)
-        .shadow(color: palette.shadow, radius: 24, x: 0, y: 18)
+        .shadow(color: cardShadowColor, radius: cardShadowRadius, x: 0, y: 18)
+        .animation(selectionAnimation, value: isSelected)
     }
 
     private var header: some View {
@@ -150,7 +158,7 @@ struct WorkspaceCardView: View {
             .overlay(
                 LinearGradient(
                     colors: [
-                        palette.accent.opacity(0.16),
+                        palette.accent.opacity(isSelected ? 0.22 : 0.16),
                         .white.opacity(0.045),
                         .black.opacity(0.16)
                     ],
@@ -165,16 +173,30 @@ struct WorkspaceCardView: View {
         RoundedRectangle(cornerRadius: 24, style: .continuous)
             .stroke(
                 LinearGradient(
-                    colors: [
-                        .white.opacity(0.22),
-                        palette.accent.opacity(0.18),
-                        .white.opacity(0.06)
-                    ],
+                    colors: isSelected
+                        ? [
+                            palette.accent.opacity(0.72),
+                            palette.accent.opacity(0.42),
+                            .white.opacity(0.18)
+                        ]
+                        : [
+                            .white.opacity(0.22),
+                            palette.accent.opacity(0.18),
+                            .white.opacity(0.06)
+                        ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 ),
-                lineWidth: 1
+                lineWidth: isSelected ? 2 : 1
             )
+    }
+
+    private var cardShadowColor: Color {
+        isSelected ? palette.accent.opacity(0.35) : palette.shadow
+    }
+
+    private var cardShadowRadius: CGFloat {
+        isSelected ? 30 : 24
     }
 
     private var palette: CardPalette {
@@ -183,10 +205,15 @@ struct WorkspaceCardView: View {
 }
 
 #Preview("Workspace Cards") {
-    LazyVGrid(columns: [GridItem(.fixed(380)), GridItem(.fixed(380))], spacing: 20) {
-        ForEach(PreviewSupport.cards) { card in
-            WorkspaceCardView(card: card)
-                .frame(width: CGFloat(card.size.width), height: CGFloat(card.size.height))
+    let cards = PreviewSupport.cards
+    HStack(spacing: 20) {
+        if let unselected = cards.first {
+            WorkspaceCardView(card: unselected, isSelected: false)
+                .frame(width: CGFloat(unselected.size.width), height: CGFloat(unselected.size.height))
+        }
+        if let selected = cards.dropFirst().first {
+            WorkspaceCardView(card: selected, isSelected: true)
+                .frame(width: CGFloat(selected.size.width), height: CGFloat(selected.size.height))
         }
     }
     .padding(28)

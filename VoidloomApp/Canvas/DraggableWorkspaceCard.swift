@@ -8,7 +8,10 @@ struct DraggableWorkspaceCard: View {
     @State private var lastDragTranslation: CGSize = .zero
 
     var body: some View {
-        WorkspaceCardView(card: card)
+        WorkspaceCardView(
+            card: card,
+            isSelected: store.state.selectedCardID == card.id
+        )
             .frame(width: CGFloat(card.size.width), height: CGFloat(card.size.height))
             .offset(x: CGFloat(card.position.x), y: CGFloat(card.position.y))
             .onTapGesture {
