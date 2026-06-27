@@ -100,7 +100,7 @@ struct WorkspaceSidebar: View {
                 .buttonStyle(.plain)
                 .help("Create a new workspace")
             }
-            .padding(.top, 76)
+            .padding(.top, 94)
             .padding(.horizontal, 18)
             .padding(.bottom, 24)
             .frame(width: 300, alignment: .leading)
