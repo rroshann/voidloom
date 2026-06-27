@@ -42,6 +42,32 @@ public struct CanvasViewport: Codable, Equatable, Sendable {
         )
     }
 
+    public mutating func focus(
+        onCanvasRect rectOrigin: CanvasPoint,
+        size: CardSize,
+        padding: Double,
+        viewportSize: ScreenPoint
+    ) {
+        guard size.width > 0, size.height > 0 else { return }
+        guard viewportSize.x > 0, viewportSize.y > 0 else { return }
+
+        let cardCenter = CanvasPoint(
+            x: rectOrigin.x + (size.width / 2),
+            y: rectOrigin.y + (size.height / 2)
+        )
+
+        let availableWidth = viewportSize.x - (padding * 2)
+        let availableHeight = viewportSize.y - (padding * 2)
+        guard availableWidth > 0, availableHeight > 0 else { return }
+
+        let fitScale = min(availableWidth / size.width, availableHeight / size.height)
+        scale = Self.clampedScale(fitScale)
+        origin = CanvasPoint(
+            x: (viewportSize.x / 2) - (cardCenter.x * scale),
+            y: (viewportSize.y / 2) - (cardCenter.y * scale)
+        )
+    }
+
     private static func clampedScale(_ scale: Double) -> Double {
         min(max(scale, minimumScale), maximumScale)
     }

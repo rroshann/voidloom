@@ -6,6 +6,7 @@ struct RootView: View {
 
     @AppStorage("isWorkspaceSidebarVisible") private var isWorkspaceSidebarVisible = false
     @State private var isCommandBarVisible = false
+    @State private var viewportBeforeCardFocus: CanvasViewport?
 
     private var activeWorkspaceName: String {
         store.library.workspaces
@@ -69,64 +70,86 @@ struct RootView: View {
                 .zIndex(3)
 
                 VStack(spacing: 0) {
-                    Spacer()
+                    Spacer(minLength: 0)
 
-                    HStack {
-                        Spacer()
-
-                        CanvasZoomControls(
-                            scale: store.state.viewport.scale,
-                            onZoomIn: {
-                                let anchor = ScreenPoint(
-                                    x: geometry.size.width / 2,
-                                    y: geometry.size.height / 2
-                                )
-                                store.zoom(by: 1.15, anchoredAt: anchor)
-                            },
-                            onZoomOut: {
-                                let anchor = ScreenPoint(
-                                    x: geometry.size.width / 2,
-                                    y: geometry.size.height / 2
-                                )
-                                store.zoom(by: 1 / 1.15, anchoredAt: anchor)
-                            },
-                            onReset: {
-                                store.resetViewport()
+                    ZStack(alignment: .bottom) {
+                        VStack(spacing: 12) {
+                            if let persistenceError = store.lastPersistenceError {
+                                PersistenceErrorBanner(message: persistenceError)
                             }
-                        )
-                    }
-                    .padding(.trailing, 24)
-                    .padding(.bottom, 12)
 
-                    VStack(spacing: 12) {
-                        if let persistenceError = store.lastPersistenceError {
-                            PersistenceErrorBanner(message: persistenceError)
-                        }
+                            if isCommandBarVisible {
+                                CommandBar(errorMessage: store.lastPersistenceError)
+                                    .transition(.move(edge: .bottom).combined(with: .opacity))
+                            }
 
-                        if isCommandBarVisible {
-                            CommandBar(errorMessage: store.lastPersistenceError)
-                                .transition(.move(edge: .bottom).combined(with: .opacity))
-                        }
-
-                        ToolDock(
-                            store: store,
-                            errorMessage: store.lastPersistenceError,
-                            isAIHintActive: isCommandBarVisible
-                        ) {
-                            withAnimation(.easeInOut(duration: 0.22)) {
-                                isCommandBarVisible.toggle()
+                            ToolDock(
+                                store: store,
+                                errorMessage: store.lastPersistenceError,
+                                isAIHintActive: isCommandBarVisible
+                            ) {
+                                withAnimation(.easeInOut(duration: 0.22)) {
+                                    isCommandBarVisible.toggle()
+                                }
                             }
                         }
+                        .frame(maxWidth: .infinity)
+                        .padding(.horizontal, 24)
+                        .padding(.bottom, 24)
+                        .animation(.easeInOut(duration: 0.22), value: store.lastPersistenceError)
+                        .animation(.easeInOut(duration: 0.22), value: isCommandBarVisible)
+
+                        HStack {
+                            Spacer()
+
+                            CanvasZoomControls(
+                                scale: store.state.viewport.scale,
+                                onZoomIn: {
+                                    let anchor = ScreenPoint(
+                                        x: geometry.size.width / 2,
+                                        y: geometry.size.height / 2
+                                    )
+                                    store.zoom(by: 1.15, anchoredAt: anchor)
+                                },
+                                onZoomOut: {
+                                    let anchor = ScreenPoint(
+                                        x: geometry.size.width / 2,
+                                        y: geometry.size.height / 2
+                                    )
+                                    store.zoom(by: 1 / 1.15, anchoredAt: anchor)
+                                },
+                                isCardFocused: viewportBeforeCardFocus != nil,
+                                onToggleCardFocus: store.state.selectedCardID == nil ? nil : {
+                                    toggleCardFocus(in: geometry.size)
+                                }
+                            )
+                        }
+                        .padding(.trailing, 24)
                         .padding(.bottom, 24)
                     }
-                    .padding(.horizontal, 24)
-                    .animation(.easeInOut(duration: 0.22), value: store.lastPersistenceError)
-                    .animation(.easeInOut(duration: 0.22), value: isCommandBarVisible)
                 }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 .zIndex(2)
             }
             .animation(.easeInOut(duration: 0.24), value: isWorkspaceSidebarVisible)
             .preferredColorScheme(.dark)
+            .onChange(of: store.state.selectedCardID) { _, _ in
+                viewportBeforeCardFocus = nil
+            }
+        }
+    }
+
+    private func toggleCardFocus(in size: CGSize) {
+        withAnimation(.easeInOut(duration: 0.25)) {
+            if let savedViewport = viewportBeforeCardFocus {
+                store.restoreViewport(savedViewport)
+                viewportBeforeCardFocus = nil
+            } else {
+                viewportBeforeCardFocus = store.state.viewport
+                store.focusOnSelectedCard(
+                    viewportSize: ScreenPoint(x: size.width, y: size.height)
+                )
+            }
         }
     }
 }

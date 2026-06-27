@@ -103,6 +103,24 @@ public final class WorkspaceStore: ObservableObject {
         persist()
     }
 
+    public func focusOnSelectedCard(viewportSize: ScreenPoint, padding: Double = 48) {
+        guard let selectedID = state.selectedCardID,
+              let card = state.cards.first(where: { $0.id == selectedID }) else { return }
+
+        state.viewport.focus(
+            onCanvasRect: card.position,
+            size: card.size,
+            padding: padding,
+            viewportSize: viewportSize
+        )
+        schedulePersistence()
+    }
+
+    public func restoreViewport(_ viewport: CanvasViewport) {
+        state.viewport = viewport
+        schedulePersistence()
+    }
+
     public func createWorkspace(named name: String) {
         guard isLibraryMode,
               let libraryURL,

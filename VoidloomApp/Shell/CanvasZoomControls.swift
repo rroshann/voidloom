@@ -4,7 +4,8 @@ struct CanvasZoomControls: View {
     let scale: Double
     let onZoomIn: () -> Void
     let onZoomOut: () -> Void
-    let onReset: () -> Void
+    let isCardFocused: Bool
+    let onToggleCardFocus: (() -> Void)?
 
     private var zoomPercentage: Int {
         Int((scale * 100).rounded())
@@ -21,11 +22,19 @@ struct CanvasZoomControls: View {
 
             CanvasZoomButton(systemName: "plus", label: "Zoom in", action: onZoomIn)
 
-            Divider()
-                .frame(height: 20)
-                .overlay(.white.opacity(0.16))
+            if let onToggleCardFocus {
+                Divider()
+                    .frame(height: 20)
+                    .overlay(.white.opacity(0.16))
 
-            CanvasZoomButton(systemName: "arrow.up.left.and.arrow.down.right", label: "Fit canvas", action: onReset)
+                CanvasZoomButton(
+                    systemName: isCardFocused
+                        ? "arrow.down.right.and.arrow.up.left"
+                        : "arrow.up.left.and.arrow.down.right",
+                    label: isCardFocused ? "Exit card focus" : "Focus selected card",
+                    action: onToggleCardFocus
+                )
+            }
         }
         .padding(.horizontal, 10)
         .padding(.vertical, 8)
@@ -35,6 +44,8 @@ struct CanvasZoomControls: View {
                 .stroke(.white.opacity(0.12), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.22), radius: 18, x: 0, y: 12)
+        .animation(.easeOut(duration: 0.15), value: onToggleCardFocus != nil)
+        .animation(.easeOut(duration: 0.15), value: isCardFocused)
     }
 }
 

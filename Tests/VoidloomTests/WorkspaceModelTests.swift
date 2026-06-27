@@ -13,6 +13,36 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(roundTrippedPoint.y, screenPoint.y, accuracy: 0.0001)
     }
 
+    func testViewportFocusCentersCardWithPadding() {
+        var viewport = CanvasViewport()
+        let cardOrigin = CanvasPoint(x: 100, y: 100)
+        let cardSize = CardSize(width: 320, height: 220)
+        let viewportSize = ScreenPoint(x: 900, y: 600)
+        let padding = 48.0
+
+        viewport.focus(
+            onCanvasRect: cardOrigin,
+            size: cardSize,
+            padding: padding,
+            viewportSize: viewportSize
+        )
+
+        let cardCenter = CanvasPoint(
+            x: cardOrigin.x + (cardSize.width / 2),
+            y: cardOrigin.y + (cardSize.height / 2)
+        )
+        let screenCenter = viewport.screenPoint(forCanvasPoint: cardCenter)
+
+        XCTAssertEqual(screenCenter.x, viewportSize.x / 2, accuracy: 0.0001)
+        XCTAssertEqual(screenCenter.y, viewportSize.y / 2, accuracy: 0.0001)
+
+        let expectedScale = min(
+            (viewportSize.x - (padding * 2)) / cardSize.width,
+            (viewportSize.y - (padding * 2)) / cardSize.height
+        )
+        XCTAssertEqual(viewport.scale, expectedScale, accuracy: 0.0001)
+    }
+
     func testMovingCardUsesCanvasCoordinatesWhenZoomed() throws {
         let cardID = try XCTUnwrap(UUID(uuidString: "9C664805-A57C-45B4-A4FE-2F46B6B3FD15"))
         var state = WorkspaceState(
