@@ -35,11 +35,21 @@ public struct CanvasVector: Codable, Equatable, Sendable {
 }
 
 public struct CardSize: Codable, Equatable, Sendable {
+    public static let minimumWidth: Double = 240
+    public static let minimumHeight: Double = 160
+
     public var width: Double
     public var height: Double
 
     public init(width: Double, height: Double) {
         self.width = width
         self.height = height
+    }
+
+    public func clampedToMinimums() -> CardSize {
+        CardSize(
+            width: max(width, Self.minimumWidth),
+            height: max(height, Self.minimumHeight)
+        )
     }
 }

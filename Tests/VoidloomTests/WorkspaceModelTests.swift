@@ -583,4 +583,188 @@ final class WorkspaceModelTests: XCTestCase {
         let loadedLibrary = try WorkspaceStore.loadLibrary(from: libraryURL)
         XCTAssertEqual(loadedLibrary.workspaces.map(\.name), store.library.workspaces.map(\.name))
     }
+
+    func testDeleteCardRemovesCardAndClearsSelection() throws {
+        let cardID = try XCTUnwrap(UUID(uuidString: "7A8B9C0D-1E2F-3A4B-5C6D-7E8F9A0B1C2D"))
+        let otherCardID = try XCTUnwrap(UUID(uuidString: "8B9C0D1E-2F3A-4B5C-6D7E-8F9A0B1C2D3E"))
+        var state = WorkspaceState(
+            selectedCardID: cardID,
+            cards: [
+                WorkspaceCard(
+                    id: cardID,
+                    kind: .note,
+                    position: CanvasPoint(x: 100, y: 100),
+                    size: CardSize(width: 300, height: 200),
+                    title: "Note",
+                    content: "Content"
+                ),
+                WorkspaceCard(
+                    id: otherCardID,
+                    kind: .todo,
+                    position: CanvasPoint(x: 400, y: 100),
+                    size: CardSize(width: 280, height: 180),
+                    title: "Todo",
+                    content: "[ ] Item"
+                )
+            ]
+        )
+
+        state.deleteCard(id: cardID)
+
+        XCTAssertEqual(state.cards.count, 1)
+        XCTAssertNil(state.selectedCardID)
+        XCTAssertEqual(state.cards.first?.id, otherCardID)
+    }
+
+    func testResizeCardEnforcesMinimumSize() throws {
+        let cardID = try XCTUnwrap(UUID(uuidString: "9C0D1E2F-3A4B-5C6D-7E8F-9A0B1C2D3E4F"))
+        var state = WorkspaceState(
+            cards: [
+                WorkspaceCard(
+                    id: cardID,
+                    kind: .browser,
+                    position: CanvasPoint(x: 50, y: 50),
+                    size: CardSize(width: 380, height: 230),
+                    title: "Preview",
+                    content: "https://example.com"
+                )
+            ]
+        )
+
+        state.resizeCard(id: cardID, to: CardSize(width: 100, height: 80))
+
+        let card = try XCTUnwrap(state.cards.first)
+        XCTAssertEqual(card.size.width, CardSize.minimumWidth)
+        XCTAssertEqual(card.size.height, CardSize.minimumHeight)
+    }
+
+    func testResizeCardUpdatesPositionWhenProvided() throws {
+        let cardID = try XCTUnwrap(UUID(uuidString: "0D1E2F3A-4B5C-6D7E-8F9A-0B1C2D3E4F5A"))
+        var state = WorkspaceState(
+            cards: [
+                WorkspaceCard(
+                    id: cardID,
+                    kind: .agent,
+                    position: CanvasPoint(x: 120, y: 80),
+                    size: CardSize(width: 360, height: 240),
+                    title: "Agent",
+                    content: "Session"
+                )
+            ]
+        )
+
+        let newPosition = CanvasPoint(x: 90, y: 60)
+        let newSize = CardSize(width: 400, height: 260)
+        state.resizeCard(id: cardID, to: newSize, position: newPosition)
+
+        let card = try XCTUnwrap(state.cards.first)
+        XCTAssertEqual(card.size, newSize)
+        XCTAssertEqual(card.position, newPosition)
+    }
+
+    func testUpdateCardTitleTrimsAndRejectsEmpty() throws {
+        let cardID = try XCTUnwrap(UUID(uuidString: "1E2F3A4B-5C6D-7E8F-9A0B-1C2D3E4F5A6B"))
+        var state = WorkspaceState(
+            cards: [
+                WorkspaceCard(
+                    id: cardID,
+                    kind: .note,
+                    position: CanvasPoint(x: 0, y: 0),
+                    size: CardSize(width: 320, height: 190),
+                    title: "Original",
+                    content: "Body"
+                )
+            ]
+        )
+
+        state.updateCardTitle(id: cardID, to: "  Renamed  ")
+        XCTAssertEqual(state.cards.first?.title, "Renamed")
+
+        state.updateCardTitle(id: cardID, to: "   ")
+        XCTAssertEqual(state.cards.first?.title, "Renamed")
+    }
+
+    func testUpdateCardContentReplacesBody() throws {
+        let cardID = try XCTUnwrap(UUID(uuidString: "2F3A4B5C-6D7E-8F9A-0B1C-2D3E4F5A6B7C"))
+        var state = WorkspaceState(
+            cards: [
+                WorkspaceCard(
+                    id: cardID,
+                    kind: .todo,
+                    position: CanvasPoint(x: 0, y: 0),
+                    size: CardSize(width: 300, height: 210),
+                    title: "Tasks",
+                    content: "[ ] First"
+                )
+            ]
+        )
+
+        state.updateCardContent(id: cardID, to: "[x] First\n[ ] Second")
+
+        XCTAssertEqual(state.cards.first?.content, "[x] First\n[ ] Second")
+    }
+
+    @MainActor
+    func testDeleteCardUpdatesActiveSummaryCardCount() throws {
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let libraryURL = baseDirectory.appendingPathComponent("library.json")
+        let workspacesDirectory = baseDirectory.appendingPathComponent("workspaces", isDirectory: true)
+
+        let store = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: baseDirectory.appendingPathComponent("workspace.json")
+        )
+        let cardID = try XCTUnwrap(store.state.cards.first?.id)
+        let startingCount = store.state.cards.count
+
+        store.selectCard(id: cardID)
+        store.deleteCard(id: cardID)
+
+        XCTAssertEqual(store.state.cards.count, startingCount - 1)
+        XCTAssertNil(store.state.selectedCardID)
+
+        let activeSummary = try XCTUnwrap(
+            store.library.workspaces.first(where: { $0.id == store.library.selectedWorkspaceID })
+        )
+        XCTAssertEqual(activeSummary.cardCount, startingCount - 1)
+    }
+
+    @MainActor
+    func testResizeCardPersistsAfterDebounce() async throws {
+        let cardID = try XCTUnwrap(UUID(uuidString: "3A4B5C6D-7E8F-9A0B-1C2D-3E4F5A6B7C8D"))
+        let state = WorkspaceState(
+            cards: [
+                WorkspaceCard(
+                    id: cardID,
+                    kind: .note,
+                    position: CanvasPoint(x: 10, y: 20),
+                    size: CardSize(width: 320, height: 190),
+                    title: "Note",
+                    content: "Body"
+                )
+            ]
+        )
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(
+            state: state,
+            storageURL: url,
+            persistenceDelay: 0.01
+        )
+
+        store.resizeCard(id: cardID, to: CardSize(width: 400, height: 220))
+        try await Task.sleep(nanoseconds: 50_000_000)
+
+        let loadedState = try WorkspaceStore.load(from: url)
+        let card = try XCTUnwrap(loadedState.cards.first)
+        XCTAssertEqual(card.size.width, 400, accuracy: 0.0001)
+        XCTAssertEqual(card.size.height, 220, accuracy: 0.0001)
+    }
 }

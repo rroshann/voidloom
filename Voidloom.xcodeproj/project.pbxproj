@@ -23,6 +23,13 @@
 		A20000000000000000000007 /* CardPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000017 /* CardPalette.swift */; };
 		A20000000000000000000008 /* WorkspaceSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000018 /* WorkspaceSidebar.swift */; };
 		A20000000000000000000009 /* CanvasZoomControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000019 /* CanvasZoomControls.swift */; };
+		A30000000000000000000001 /* AgentSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000011 /* AgentSessionManager.swift */; };
+		A30000000000000000000002 /* CardResizeHandles.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000012 /* CardResizeHandles.swift */; };
+		A30000000000000000000003 /* NoteCardContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000013 /* NoteCardContentView.swift */; };
+		A30000000000000000000004 /* TodoCardContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000014 /* TodoCardContentView.swift */; };
+		A30000000000000000000005 /* BrowserWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000015 /* BrowserWebView.swift */; };
+		A30000000000000000000006 /* BrowserCardContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000016 /* BrowserCardContentView.swift */; };
+		A30000000000000000000007 /* AgentTerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000017 /* AgentTerminalView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -44,6 +51,13 @@
 		A20000000000000000000017 /* CardPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/CardPalette.swift; sourceTree = "<group>"; };
 		A20000000000000000000018 /* WorkspaceSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/WorkspaceSidebar.swift; sourceTree = "<group>"; };
 		A20000000000000000000019 /* CanvasZoomControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/CanvasZoomControls.swift; sourceTree = "<group>"; };
+		A30000000000000000000011 /* AgentSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Agent/AgentSessionManager.swift; sourceTree = "<group>"; };
+		A30000000000000000000012 /* CardResizeHandles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/CardResizeHandles.swift; sourceTree = "<group>"; };
+		A30000000000000000000013 /* NoteCardContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/NoteCardContentView.swift; sourceTree = "<group>"; };
+		A30000000000000000000014 /* TodoCardContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/TodoCardContentView.swift; sourceTree = "<group>"; };
+		A30000000000000000000015 /* BrowserWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/BrowserWebView.swift; sourceTree = "<group>"; };
+		A30000000000000000000016 /* BrowserCardContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/BrowserCardContentView.swift; sourceTree = "<group>"; };
+		A30000000000000000000017 /* AgentTerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/AgentTerminalView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -82,7 +96,14 @@
 				A20000000000000000000015 /* DraggableWorkspaceCard.swift */,
 				A20000000000000000000016 /* CanvasGrid.swift */,
 				A10000000000000000000014 /* WorkspaceCardView.swift */,
+				A30000000000000000000012 /* CardResizeHandles.swift */,
+				A30000000000000000000013 /* NoteCardContentView.swift */,
+				A30000000000000000000014 /* TodoCardContentView.swift */,
+				A30000000000000000000015 /* BrowserWebView.swift */,
+				A30000000000000000000016 /* BrowserCardContentView.swift */,
+				A30000000000000000000017 /* AgentTerminalView.swift */,
 				A20000000000000000000017 /* CardPalette.swift */,
+				A30000000000000000000011 /* AgentSessionManager.swift */,
 				A10000000000000000000015 /* PreviewSupport.swift */,
 				A10000000000000000000016 /* Assets.xcassets */,
 				A10000000000000000000017 /* Voidloom.entitlements */,
@@ -187,6 +208,13 @@
 				A20000000000000000000007 /* CardPalette.swift in Sources */,
 				A20000000000000000000008 /* WorkspaceSidebar.swift in Sources */,
 				A20000000000000000000009 /* CanvasZoomControls.swift in Sources */,
+				A30000000000000000000001 /* AgentSessionManager.swift in Sources */,
+				A30000000000000000000002 /* CardResizeHandles.swift in Sources */,
+				A30000000000000000000003 /* NoteCardContentView.swift in Sources */,
+				A30000000000000000000004 /* TodoCardContentView.swift in Sources */,
+				A30000000000000000000005 /* BrowserWebView.swift in Sources */,
+				A30000000000000000000006 /* BrowserCardContentView.swift in Sources */,
+				A30000000000000000000007 /* AgentTerminalView.swift in Sources */,
 				A10000000000000000000005 /* PreviewSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

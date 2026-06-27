@@ -3,6 +3,7 @@ import VoidloomCore
 
 struct RootView: View {
     @ObservedObject var store: WorkspaceStore
+    @ObservedObject var sessionManager: AgentSessionManager
 
     @AppStorage("isWorkspaceSidebarVisible") private var isWorkspaceSidebarVisible = false
     @State private var isCommandBarVisible = false
@@ -19,7 +20,14 @@ struct RootView: View {
             ZStack {
                 AtmosphereBackground()
 
-                CanvasWorkspaceView(store: store)
+                CanvasWorkspaceView(
+                    store: store,
+                    sessionManager: sessionManager,
+                    isCardFocused: viewportBeforeCardFocus != nil,
+                    onToggleCardFocus: {
+                        toggleCardFocus(in: geometry.size)
+                    }
+                )
                     .ignoresSafeArea()
 
                 if isWorkspaceSidebarVisible {
@@ -27,6 +35,7 @@ struct RootView: View {
                         library: store.library,
                         activeWorkspaceID: store.library.selectedWorkspaceID,
                         onSelectWorkspace: { id in
+                            sessionManager.terminateAllSessions()
                             store.switchWorkspace(id: id)
                         },
                         onCreateWorkspace: {
@@ -155,6 +164,9 @@ struct RootView: View {
 }
 
 #Preview("Voidloom Shell") {
-    RootView(store: PreviewSupport.makeStore())
-        .frame(width: 1180, height: 760)
+    RootView(
+        store: PreviewSupport.makeStore(),
+        sessionManager: AgentSessionManager()
+    )
+    .frame(width: 1180, height: 760)
 }

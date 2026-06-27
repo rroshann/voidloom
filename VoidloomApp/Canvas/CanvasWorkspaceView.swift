@@ -4,6 +4,9 @@ import VoidloomCore
 
 struct CanvasWorkspaceView: View {
     @ObservedObject var store: WorkspaceStore
+    @ObservedObject var sessionManager: AgentSessionManager
+    var isCardFocused: Bool
+    var onToggleCardFocus: () -> Void
 
     @State private var lastPanTranslation: CGSize = .zero
     @State private var lastMagnification: CGFloat = 1
@@ -16,6 +19,7 @@ struct CanvasWorkspaceView: View {
                 Color.clear
                     .contentShape(Rectangle())
                     .onTapGesture {
+                        resignKeyboardFocus()
                         store.clearSelection()
                     }
                     .gesture(panGesture)
@@ -25,8 +29,15 @@ struct CanvasWorkspaceView: View {
                     CanvasGrid()
 
                     ForEach(store.state.cards) { card in
-                        DraggableWorkspaceCard(card: card, store: store)
-                            .zIndex(card.id == store.state.selectedCardID ? 1 : 0)
+                        DraggableWorkspaceCard(
+                            card: card,
+                            store: store,
+                            sessionManager: sessionManager,
+                            viewportScale: store.state.viewport.scale,
+                            isCardFocused: isCardFocused,
+                            onToggleCardFocus: onToggleCardFocus
+                        )
+                        .zIndex(card.id == store.state.selectedCardID ? 1 : 0)
                     }
                 }
                 .frame(width: canvasSize.width, height: canvasSize.height, alignment: .topLeading)
@@ -45,6 +56,10 @@ struct CanvasWorkspaceView: View {
             }
             .clipped()
         }
+    }
+
+    private func resignKeyboardFocus() {
+        NSApp.keyWindow?.makeFirstResponder(nil)
     }
 
     private var panGesture: some Gesture {
@@ -184,7 +199,12 @@ private struct CanvasTrackpadPanView: NSViewRepresentable {
 }
 
 #Preview("Canvas Workspace") {
-    CanvasWorkspaceView(store: PreviewSupport.makeStore())
-        .frame(width: 900, height: 580)
-        .background(.black)
+    CanvasWorkspaceView(
+        store: PreviewSupport.makeStore(),
+        sessionManager: AgentSessionManager(),
+        isCardFocused: false,
+        onToggleCardFocus: {}
+    )
+    .frame(width: 900, height: 580)
+    .background(.black)
 }

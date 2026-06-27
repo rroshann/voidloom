@@ -6,12 +6,15 @@ import VoidloomCore
 @MainActor
 struct VoidloomApp: App {
     @StateObject private var store = WorkspaceStore()
+    @StateObject private var agentSessionManager = AgentSessionManager()
 
     var body: some Scene {
         WindowGroup {
-            RootView(store: store)
+            RootView(store: store, sessionManager: agentSessionManager)
+                .environmentObject(agentSessionManager)
                 .frame(minWidth: 1180, minHeight: 760)
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+                    agentSessionManager.terminateAllSessions()
                     store.flushPendingPersistence()
                 }
         }

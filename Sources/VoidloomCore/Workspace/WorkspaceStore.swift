@@ -79,6 +79,33 @@ public final class WorkspaceStore: ObservableObject {
         schedulePersistence()
     }
 
+    public func deleteCard(id: UUID) {
+        guard state.cards.contains(where: { $0.id == id }) else { return }
+        state.deleteCard(id: id)
+        persist()
+    }
+
+    public func resizeCard(id: UUID, to size: CardSize, position: CanvasPoint? = nil) {
+        guard state.cards.contains(where: { $0.id == id }) else { return }
+        state.resizeCard(id: id, to: size, position: position)
+        schedulePersistence()
+    }
+
+    public func updateCardTitle(id: UUID, to title: String) {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        guard state.cards.contains(where: { $0.id == id }) else { return }
+
+        state.updateCardTitle(id: id, to: trimmed)
+        schedulePersistence()
+    }
+
+    public func updateCardContent(id: UUID, to content: String) {
+        guard state.cards.contains(where: { $0.id == id }) else { return }
+        state.updateCardContent(id: id, to: content)
+        schedulePersistence()
+    }
+
     public func selectCard(id: UUID) {
         guard state.selectedCardID != id else { return }
         guard state.cards.contains(where: { $0.id == id }) else { return }

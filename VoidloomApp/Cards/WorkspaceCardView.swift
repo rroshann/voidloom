@@ -3,9 +3,18 @@ import VoidloomCore
 
 struct WorkspaceCardView: View {
     let card: WorkspaceCard
+    @ObservedObject var store: WorkspaceStore
     var isSelected: Bool = false
+    var isCardFocused: Bool = false
+    var onToggleCardFocus: () -> Void = {}
+    var onClose: () -> Void = {}
+    @Binding var isEditingTitle: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    @State private var isHeaderHovered = false
+    @State private var editingTitle = ""
+    @FocusState private var isTitleFieldFocused: Bool
 
     private var selectionAnimation: Animation? {
         reduceMotion ? nil : .easeOut(duration: 0.15)
@@ -19,11 +28,19 @@ struct WorkspaceCardView: View {
                 .overlay(.white.opacity(0.12))
 
             content
+                .allowsHitTesting(isSelected)
         }
         .background(cardBackground)
         .overlay(cardBorder)
         .shadow(color: cardShadowColor, radius: cardShadowRadius, x: 0, y: 18)
         .animation(selectionAnimation, value: isSelected)
+        .animation(.easeOut(duration: 0.15), value: isHeaderHovered)
+        .animation(.easeOut(duration: 0.15), value: isEditingTitle)
+        .onChange(of: isSelected) { _, selected in
+            if !selected {
+                cancelTitleEdit()
+            }
+        }
     }
 
     private var header: some View {
@@ -39,10 +56,7 @@ struct WorkspaceCardView: View {
             .frame(width: 30, height: 30)
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(card.title)
-                    .font(.system(size: 14, weight: .black, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.92))
-                    .lineLimit(1)
+                titleView
 
                 Text(palette.eyebrow)
                     .font(.system(size: 10, weight: .bold, design: .monospaced))
@@ -53,103 +67,135 @@ struct WorkspaceCardView: View {
 
             Spacer(minLength: 0)
 
-            Circle()
-                .fill(palette.accent)
-                .frame(width: 7, height: 7)
-                .shadow(color: palette.accent.opacity(0.8), radius: 8)
+            if isSelected, isHeaderHovered, !isEditingTitle {
+                headerActions
+                    .transition(.opacity)
+            }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 13)
+        .contentShape(Rectangle())
+        .onHover { isHeaderHovered = $0 }
+    }
+
+    @ViewBuilder
+    private var titleView: some View {
+        if isEditingTitle {
+            TextField("Title", text: $editingTitle)
+                .textFieldStyle(.plain)
+                .font(.system(size: 14, weight: .black, design: .rounded))
+                .foregroundStyle(.white.opacity(0.92))
+                .focused($isTitleFieldFocused)
+                .onSubmit {
+                    commitTitle()
+                }
+                .onChange(of: isTitleFieldFocused) { _, focused in
+                    if !focused {
+                        commitTitle()
+                    }
+                }
+                .onExitCommand {
+                    cancelTitleEdit()
+                }
+                .onAppear {
+                    editingTitle = card.title
+                    isTitleFieldFocused = true
+                }
+        } else {
+            Text(card.title)
+                .font(.system(size: 14, weight: .black, design: .rounded))
+                .foregroundStyle(.white.opacity(0.92))
+                .lineLimit(1)
+                .contentShape(Rectangle())
+                .onTapGesture(count: 2) {
+                    beginTitleEdit()
+                }
+        }
+    }
+
+    private var headerActions: some View {
+        HStack(spacing: 4) {
+            headerIconButton(
+                systemName: "pencil",
+                label: "Edit title",
+                action: beginTitleEdit
+            )
+
+            headerIconButton(
+                systemName: isCardFocused
+                    ? "arrow.down.right.and.arrow.up.left"
+                    : "arrow.up.left.and.arrow.down.right",
+                label: isCardFocused ? "Exit card focus" : "Focus card",
+                action: {
+                    store.selectCard(id: card.id)
+                    onToggleCardFocus()
+                }
+            )
+
+            headerIconButton(
+                systemName: "xmark",
+                label: "Close card",
+                action: onClose
+            )
+        }
+    }
+
+    private func headerIconButton(systemName: String, label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: systemName)
+                .font(.system(size: 11, weight: .bold))
+                .frame(width: 24, height: 24)
+                .foregroundStyle(.white.opacity(0.84))
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(.white.opacity(0.08))
+                )
+        }
+        .buttonStyle(.plain)
+        .help(label)
+        .highPriorityGesture(
+            TapGesture().onEnded {
+                action()
+            }
+        )
     }
 
     @ViewBuilder
     private var content: some View {
         switch card.kind {
         case .agent:
-            terminalContent
+            AgentTerminalView(cardID: card.id, accent: palette.accent, isSelected: isSelected)
         case .browser:
-            browserContent
-        case .note, .todo:
-            textContent
+            BrowserCardContentView(cardID: card.id, content: card.content, store: store, isSelected: isSelected)
+        case .note:
+            NoteCardContentView(cardID: card.id, content: card.content, store: store, isSelected: isSelected)
+        case .todo:
+            TodoCardContentView(cardID: card.id, content: card.content, store: store, isSelected: isSelected)
         }
     }
 
-    private var terminalContent: some View {
-        VStack(alignment: .leading, spacing: 9) {
-            ForEach(Array(contentLines.enumerated()), id: \.offset) { index, line in
-                HStack(alignment: .firstTextBaseline, spacing: 8) {
-                    Text(index == 0 ? "$" : "›")
-                        .foregroundStyle(palette.accent)
-                        .fontWeight(.bold)
-
-                    Text(line)
-                        .foregroundStyle(.white.opacity(index == 0 ? 0.86 : 0.66))
-                }
-            }
-
-            Spacer(minLength: 0)
-        }
-        .font(.system(size: 12, weight: .medium, design: .monospaced))
-        .padding(16)
+    private func beginTitleEdit() {
+        editingTitle = card.title
+        isEditingTitle = true
+        isTitleFieldFocused = true
     }
 
-    private var textContent: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            ForEach(Array(contentLines.enumerated()), id: \.offset) { _, line in
-                Text(line)
-                    .font(.system(size: 13, weight: .semibold, design: card.kind == .todo ? .monospaced : .rounded))
-                    .foregroundStyle(.white.opacity(0.72))
-                    .lineLimit(2)
-            }
-
-            Spacer(minLength: 0)
+    private func commitTitle() {
+        let trimmed = editingTitle.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else {
+            cancelTitleEdit()
+            return
         }
-        .padding(16)
+
+        store.updateCardTitle(id: card.id, to: trimmed)
+        isEditingTitle = false
+        isTitleFieldFocused = false
     }
 
-    private var browserContent: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            HStack(spacing: 6) {
-                Circle().fill(.red.opacity(0.75)).frame(width: 8, height: 8)
-                Circle().fill(.yellow.opacity(0.75)).frame(width: 8, height: 8)
-                Circle().fill(.green.opacity(0.75)).frame(width: 8, height: 8)
-
-                RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(.white.opacity(0.08))
-                    .frame(height: 20)
-                    .overlay(
-                        Text("voidloom.local/preview")
-                            .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(.white.opacity(0.45))
-                    )
-            }
-
-            RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            palette.accent.opacity(0.18),
-                            .white.opacity(0.05)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-                .overlay(
-                    Text(card.content)
-                        .font(.system(size: 12, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.66))
-                        .multilineTextAlignment(.center)
-                        .padding(18)
-                )
-        }
-        .padding(14)
-    }
-
-    private var contentLines: [String] {
-        card.content
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .map(String.init)
+    private func cancelTitleEdit() {
+        editingTitle = card.title
+        isEditingTitle = false
+        isTitleFieldFocused = false
     }
 
     private var cardBackground: some View {
@@ -205,17 +251,36 @@ struct WorkspaceCardView: View {
 }
 
 #Preview("Workspace Cards") {
-    let cards = PreviewSupport.cards
-    HStack(spacing: 20) {
-        if let unselected = cards.first {
-            WorkspaceCardView(card: unselected, isSelected: false)
-                .frame(width: CGFloat(unselected.size.width), height: CGFloat(unselected.size.height))
-        }
-        if let selected = cards.dropFirst().first {
-            WorkspaceCardView(card: selected, isSelected: true)
-                .frame(width: CGFloat(selected.size.width), height: CGFloat(selected.size.height))
+    struct PreviewContainer: View {
+        @State private var isEditingTitle = false
+
+        var body: some View {
+            let cards = PreviewSupport.cards
+            HStack(spacing: 20) {
+                if let unselected = cards.first {
+                    WorkspaceCardView(
+                        card: unselected,
+                        store: PreviewSupport.makeStore(),
+                        isSelected: false,
+                        isEditingTitle: $isEditingTitle
+                    )
+                    .frame(width: CGFloat(unselected.size.width), height: CGFloat(unselected.size.height))
+                }
+                if let selected = cards.dropFirst().first {
+                    WorkspaceCardView(
+                        card: selected,
+                        store: PreviewSupport.makeStore(),
+                        isSelected: true,
+                        isEditingTitle: $isEditingTitle
+                    )
+                    .frame(width: CGFloat(selected.size.width), height: CGFloat(selected.size.height))
+                }
+            }
+            .padding(28)
+            .background(Color(red: 0.04, green: 0.05, blue: 0.07))
+            .environmentObject(AgentSessionManager())
         }
     }
-    .padding(28)
-    .background(Color(red: 0.04, green: 0.05, blue: 0.07))
+
+    return PreviewContainer()
 }

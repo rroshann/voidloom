@@ -73,4 +73,35 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public mutating func clearSelection() {
         selectedCardID = nil
     }
+
+    public mutating func deleteCard(id: UUID) {
+        guard let index = cards.firstIndex(where: { $0.id == id }) else { return }
+        cards.remove(at: index)
+
+        if selectedCardID == id {
+            selectedCardID = nil
+        }
+    }
+
+    public mutating func resizeCard(id: UUID, to size: CardSize, position: CanvasPoint? = nil) {
+        guard let index = cards.firstIndex(where: { $0.id == id }) else { return }
+
+        cards[index].size = size.clampedToMinimums()
+        if let position {
+            cards[index].position = position
+        }
+    }
+
+    public mutating func updateCardTitle(id: UUID, to title: String) {
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { return }
+        guard let index = cards.firstIndex(where: { $0.id == id }) else { return }
+
+        cards[index].title = trimmed
+    }
+
+    public mutating func updateCardContent(id: UUID, to content: String) {
+        guard let index = cards.firstIndex(where: { $0.id == id }) else { return }
+        cards[index].content = content
+    }
 }
