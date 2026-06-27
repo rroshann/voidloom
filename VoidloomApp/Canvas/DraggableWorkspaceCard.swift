@@ -21,7 +21,7 @@ struct DraggableWorkspaceCard: View {
     }
 
     private var cardDragGesture: some Gesture {
-        DragGesture(minimumDistance: 1)
+        DragGesture(minimumDistance: 1, coordinateSpace: .global)
             .onChanged { value in
                 store.selectCard(id: card.id)
 

@@ -29,6 +29,10 @@ struct WorkspaceSidebar: View {
         library.workspaces.count > 1
     }
 
+    private var hasSingleWorkspace: Bool {
+        library.workspaces.count == 1
+    }
+
     var body: some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 18) {
@@ -40,15 +44,29 @@ struct WorkspaceSidebar: View {
 
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(library.workspaces) { workspace in
+                        let accent = workspaceAccent(for: workspace.id)
+
                         WorkspaceSidebarRow(
                             title: workspace.name,
                             subtitle: "\(workspace.cardCount) cards",
+                            accentColor: accent.color,
+                            iconName: accent.icon,
                             isSelected: workspace.id == activeWorkspaceID,
                             isDropTarget: dragTargetWorkspaceID == workspace.id,
-                            isDragging: draggedWorkspaceID == workspace.id
+                            isDragging: draggedWorkspaceID == workspace.id,
+                            isRenaming: workspaceToRename?.id == workspace.id,
+                            renameText: $renameText,
+                            onCommitRename: {
+                                onRenameWorkspace(workspace.id, renameText)
+                                workspaceToRename = nil
+                            },
+                            onCancelRename: {
+                                workspaceToRename = nil
+                            }
                         )
                         .contentShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
                         .onTapGesture {
+                            guard workspaceToRename == nil else { return }
                             onSelectWorkspace(workspace.id)
                         }
                         .contextMenu {
@@ -58,7 +76,7 @@ struct WorkspaceSidebar: View {
                                 }
                             }
 
-                            Button("Rename…") {
+                            Button("Rename") {
                                 workspaceToRename = workspace
                                 renameText = workspace.name
                             }
@@ -84,6 +102,14 @@ struct WorkspaceSidebar: View {
                 .coordinateSpace(name: workspaceListCoordinateSpace)
                 .onPreferenceChange(WorkspaceSidebarRowFramePreferenceKey.self) { frames in
                     workspaceRowFrames = frames
+                }
+
+                if hasSingleWorkspace {
+                    Text("Add another workspace to organize separate canvases and ideas.")
+                        .font(.system(size: 11, weight: .medium, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.38))
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 4)
                 }
 
                 Spacer()
@@ -115,17 +141,6 @@ struct WorkspaceSidebar: View {
             Spacer(minLength: 0)
         }
         .ignoresSafeArea()
-        .alert("Rename Workspace", isPresented: renameAlertIsPresented) {
-            TextField("Workspace name", text: $renameText)
-            Button("Cancel", role: .cancel) {
-                workspaceToRename = nil
-            }
-            Button("Save") {
-                guard let workspace = workspaceToRename else { return }
-                onRenameWorkspace(workspace.id, renameText)
-                workspaceToRename = nil
-            }
-        }
         .confirmationDialog(
             "Delete \"\(workspaceToDelete?.name ?? "")\"?",
             isPresented: deleteDialogIsPresented,
@@ -144,15 +159,19 @@ struct WorkspaceSidebar: View {
         }
     }
 
-    private var renameAlertIsPresented: Binding<Bool> {
-        Binding(
-            get: { workspaceToRename != nil },
-            set: { isPresented in
-                if !isPresented {
-                    workspaceToRename = nil
-                }
-            }
-        )
+    private func workspaceAccent(for id: UUID) -> (color: Color, icon: String) {
+        let palette: [(Color, String)] = [
+            (.teal, "square.grid.2x2"),
+            (.purple, "square.grid.3x3"),
+            (.orange, "rectangle.grid.2x2"),
+            (.blue, "square.stack.3d.up"),
+            (.pink, "circle.grid.2x2"),
+            (.mint, "square.grid.3x3.fill"),
+        ]
+
+        let bytes = id.uuid
+        let index = Int(bytes.0) % palette.count
+        return palette[index]
     }
 
     private var deleteDialogIsPresented: Binding<Bool> {
@@ -252,9 +271,17 @@ struct WorkspaceSidebar: View {
 struct WorkspaceSidebarRow: View {
     let title: String
     let subtitle: String
+    let accentColor: Color
+    let iconName: String
     let isSelected: Bool
     var isDropTarget: Bool = false
     var isDragging: Bool = false
+    var isRenaming: Bool = false
+    @Binding var renameText: String
+    var onCommitRename: () -> Void = {}
+    var onCancelRename: () -> Void = {}
+
+    @FocusState private var isRenameFieldFocused: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -272,22 +299,35 @@ struct WorkspaceSidebarRow: View {
                 .help("Drag to reorder")
 
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(.teal.opacity(isSelected ? 0.18 : 0.08))
+                .fill(accentColor.opacity(isSelected ? 0.22 : 0.1))
                 .frame(width: 34, height: 34)
                 .overlay(
-                    Image(systemName: "square.grid.2x2")
+                    Image(systemName: iconName)
                         .font(.system(size: 13, weight: .bold))
-                        .foregroundStyle(isSelected ? .teal : .white.opacity(0.42))
+                        .foregroundStyle(isSelected ? accentColor : accentColor.opacity(0.72))
                 )
 
             VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(size: 13, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(isSelected ? 0.9 : 0.62))
+                if isRenaming {
+                    TextField("Workspace name", text: $renameText)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white.opacity(0.9))
+                        .focused($isRenameFieldFocused)
+                        .onSubmit(onCommitRename)
+                        .onExitCommand(perform: onCancelRename)
+                        .onAppear {
+                            isRenameFieldFocused = true
+                        }
+                } else {
+                    Text(title)
+                        .font(.system(size: 13, weight: .bold, design: .rounded))
+                        .foregroundStyle(.white.opacity(isSelected ? 0.9 : 0.62))
 
-                Text(subtitle)
-                    .font(.system(size: 11, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(isSelected ? 0.52 : 0.38))
+                    Text(subtitle)
+                        .font(.system(size: 11, weight: .semibold, design: .rounded))
+                        .foregroundStyle(.white.opacity(isSelected ? 0.52 : 0.38))
+                }
             }
 
             Spacer(minLength: 0)

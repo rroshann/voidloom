@@ -1,6 +1,7 @@
 import SwiftUI
 
 struct TopToolbar: View {
+    let workspaceName: String
     let cardCount: Int
     let isSidebarVisible: Bool
     let onToggleSidebar: () -> Void
@@ -24,18 +25,10 @@ struct TopToolbar: View {
                 .frame(height: 14)
                 .overlay(.white.opacity(0.18))
 
-            Text("VOIDLOOM")
-                .font(.system(size: 12, weight: .black, design: .rounded))
-                .tracking(2.2)
+            Text("\(workspaceName) · \(cardCount) cards")
+                .font(.system(size: 12, weight: .bold, design: .rounded))
                 .foregroundStyle(.white.opacity(0.86))
-
-            Divider()
-                .frame(height: 14)
-                .overlay(.white.opacity(0.18))
-
-            Text("\(cardCount) cards")
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.58))
+                .lineLimit(1)
         }
         .padding(.horizontal, 15)
         .padding(.vertical, 8)

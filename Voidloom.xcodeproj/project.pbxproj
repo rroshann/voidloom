@@ -22,6 +22,7 @@
 		A20000000000000000000006 /* CanvasGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000016 /* CanvasGrid.swift */; };
 		A20000000000000000000007 /* CardPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000017 /* CardPalette.swift */; };
 		A20000000000000000000008 /* WorkspaceSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000018 /* WorkspaceSidebar.swift */; };
+		A20000000000000000000009 /* CanvasZoomControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000019 /* CanvasZoomControls.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -42,6 +43,7 @@
 		A20000000000000000000016 /* CanvasGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/CanvasGrid.swift; sourceTree = "<group>"; };
 		A20000000000000000000017 /* CardPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/CardPalette.swift; sourceTree = "<group>"; };
 		A20000000000000000000018 /* WorkspaceSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/WorkspaceSidebar.swift; sourceTree = "<group>"; };
+		A20000000000000000000019 /* CanvasZoomControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/CanvasZoomControls.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -75,6 +77,7 @@
 				A20000000000000000000018 /* WorkspaceSidebar.swift */,
 				A20000000000000000000013 /* ToolRail.swift */,
 				A20000000000000000000014 /* CommandBar.swift */,
+				A20000000000000000000019 /* CanvasZoomControls.swift */,
 				A10000000000000000000013 /* CanvasWorkspaceView.swift */,
 				A20000000000000000000015 /* DraggableWorkspaceCard.swift */,
 				A20000000000000000000016 /* CanvasGrid.swift */,
@@ -183,6 +186,7 @@
 				A10000000000000000000004 /* WorkspaceCardView.swift in Sources */,
 				A20000000000000000000007 /* CardPalette.swift in Sources */,
 				A20000000000000000000008 /* WorkspaceSidebar.swift in Sources */,
+				A20000000000000000000009 /* CanvasZoomControls.swift in Sources */,
 				A10000000000000000000005 /* PreviewSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
