@@ -10,8 +10,10 @@ struct CanvasWorkspaceView: View {
 
     @State private var lastPanTranslation: CGSize = .zero
     @State private var lastMagnification: CGFloat = 1
+    @State private var contextMenuLocation: CGPoint?
 
     private let canvasSize = CGSize(width: 5_000, height: 3_400)
+    private let contextMenuSize = CGSize(width: 196, height: 200)
 
     var body: some View {
         GeometryReader { geometry in
@@ -53,9 +55,45 @@ struct CanvasWorkspaceView: View {
                     return true
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
+
+                CanvasRightClickCatcher { point in
+                    contextMenuLocation = point
+                }
+                .frame(width: geometry.size.width, height: geometry.size.height)
+
+                if let location = contextMenuLocation {
+                    Color.clear
+                        .frame(width: geometry.size.width, height: geometry.size.height)
+                        .contentShape(Rectangle())
+                        .onTapGesture { contextMenuLocation = nil }
+
+                    CanvasContextMenu { kind in
+                        addCard(kind: kind, atViewPoint: location)
+                        contextMenuLocation = nil
+                    }
+                    .offset(
+                        x: clampedMenuX(for: location.x, in: geometry.size.width),
+                        y: clampedMenuY(for: location.y, in: geometry.size.height)
+                    )
+                }
             }
             .clipped()
         }
+    }
+
+    private func addCard(kind: CardKind, atViewPoint point: CGPoint) {
+        let canvasPoint = store.state.viewport.canvasPoint(
+            forScreenPoint: ScreenPoint(x: point.x, y: point.y)
+        )
+        store.addCard(kind: kind, centeredAt: canvasPoint)
+    }
+
+    private func clampedMenuX(for x: CGFloat, in width: CGFloat) -> CGFloat {
+        max(8, min(x, width - contextMenuSize.width - 8))
+    }
+
+    private func clampedMenuY(for y: CGFloat, in height: CGFloat) -> CGFloat {
+        max(8, min(y, height - contextMenuSize.height - 8))
     }
 
     private func resignKeyboardFocus() {
