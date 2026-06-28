@@ -50,7 +50,7 @@ struct CanvasContextMenu: View {
     }
 
     private let items: [Item] = [
-        Item(kind: .agent, title: "New Agent", systemImage: "sparkles"),
+        Item(kind: .agent, title: "New Terminal", systemImage: "terminal"),
         Item(kind: .note, title: "New Note", systemImage: "note.text"),
         Item(kind: .todo, title: "New Todo", systemImage: "checklist"),
         Item(kind: .browser, title: "New Browser", systemImage: "safari")

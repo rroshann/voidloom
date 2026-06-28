@@ -82,6 +82,10 @@ struct CardResizeHandles: View {
     let cardPosition: CanvasPoint
     let viewportScale: Double
     let accentColor: Color
+    /// Minimum size the drag is allowed to shrink to. Defaults to the card
+    /// minimums; text elements pass their smaller 60x28 minimums.
+    var minWidth: Double = CardSize.minimumWidth
+    var minHeight: Double = CardSize.minimumHeight
     let onResizeStart: () -> Void
     let onResize: (CardSize, CanvasPoint) -> Void
     let onResizeEnd: () -> Void
@@ -188,7 +192,8 @@ struct CardResizeHandles: View {
     ) -> (size: CardSize, position: CanvasPoint) {
         let width = startSize.width + totalCanvasDelta.dx
         let height = startSize.height + totalCanvasDelta.dy
-        let clampedSize = CardSize(width: width, height: height).clampedToMinimums()
+        let clampedSize = CardSize(width: width, height: height)
+            .clamped(minWidth: minWidth, minHeight: minHeight)
         return (clampedSize, startPosition)
     }
 }

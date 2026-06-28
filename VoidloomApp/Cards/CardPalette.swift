@@ -11,8 +11,8 @@ struct CardPalette {
         switch kind {
         case .agent:
             accent = Color(red: 0.34, green: 0.93, blue: 0.82)
-            symbol = "sparkles"
-            eyebrow = "agent"
+            symbol = "terminal"
+            eyebrow = "terminal"
             shadow = Color(red: 0.0, green: 0.45, blue: 0.42).opacity(0.22)
         case .note:
             accent = Color(red: 0.93, green: 0.71, blue: 0.36)

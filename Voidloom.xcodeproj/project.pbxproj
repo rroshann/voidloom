@@ -36,6 +36,14 @@
 		A50000000000000000000002 /* CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000012 /* CommandPaletteView.swift */; };
 		A50000000000000000000003 /* CanvasContextMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000013 /* CanvasContextMenu.swift */; };
 		A50000000000000000000004 /* PointerCursor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000014 /* PointerCursor.swift */; };
+		A60000000000000000000001 /* CanvasInteractionModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000011 /* CanvasInteractionModel.swift */; };
+		A60000000000000000000002 /* CanvasInteractionOverlay.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000012 /* CanvasInteractionOverlay.swift */; };
+		A60000000000000000000003 /* CanvasInteractionLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000013 /* CanvasInteractionLayer.swift */; };
+		A60000000000000000000004 /* BrushOptionsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000014 /* BrushOptionsPanel.swift */; };
+		A60000000000000000000005 /* EraserOptionsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000015 /* EraserOptionsPanel.swift */; };
+		A60000000000000000000006 /* ConnectionsLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000016 /* ConnectionsLayer.swift */; };
+		A60000000000000000000007 /* TextElementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000017 /* TextElementView.swift */; };
+		A60000000000000000000008 /* CanvasDrawingLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000018 /* CanvasDrawingLayer.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -70,6 +78,14 @@
 		A50000000000000000000012 /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPalette/CommandPaletteView.swift; sourceTree = "<group>"; };
 		A50000000000000000000013 /* CanvasContextMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/CanvasContextMenu.swift; sourceTree = "<group>"; };
 		A50000000000000000000014 /* PointerCursor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/PointerCursor.swift; sourceTree = "<group>"; };
+		A60000000000000000000011 /* CanvasInteractionModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/CanvasInteractionModel.swift; sourceTree = "<group>"; };
+		A60000000000000000000012 /* CanvasInteractionOverlay.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/CanvasInteractionOverlay.swift; sourceTree = "<group>"; };
+		A60000000000000000000013 /* CanvasInteractionLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/CanvasInteractionLayer.swift; sourceTree = "<group>"; };
+		A60000000000000000000014 /* BrushOptionsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/BrushOptionsPanel.swift; sourceTree = "<group>"; };
+		A60000000000000000000015 /* EraserOptionsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/EraserOptionsPanel.swift; sourceTree = "<group>"; };
+		A60000000000000000000016 /* ConnectionsLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/ConnectionsLayer.swift; sourceTree = "<group>"; };
+		A60000000000000000000017 /* TextElementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/TextElementView.swift; sourceTree = "<group>"; };
+		A60000000000000000000018 /* CanvasDrawingLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/CanvasDrawingLayer.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -104,6 +120,14 @@
 				A50000000000000000000011 /* CommandPaletteModel.swift */,
 				A50000000000000000000012 /* CommandPaletteView.swift */,
 				A50000000000000000000014 /* PointerCursor.swift */,
+				A60000000000000000000011 /* CanvasInteractionModel.swift */,
+				A60000000000000000000012 /* CanvasInteractionOverlay.swift */,
+				A60000000000000000000013 /* CanvasInteractionLayer.swift */,
+				A60000000000000000000014 /* BrushOptionsPanel.swift */,
+				A60000000000000000000015 /* EraserOptionsPanel.swift */,
+				A60000000000000000000016 /* ConnectionsLayer.swift */,
+				A60000000000000000000017 /* TextElementView.swift */,
+				A60000000000000000000018 /* CanvasDrawingLayer.swift */,
 				A20000000000000000000013 /* ToolRail.swift */,
 				A20000000000000000000014 /* CommandBar.swift */,
 				A30000000000000000000018 /* SettingsView.swift */,
@@ -239,6 +263,14 @@
 				A50000000000000000000002 /* CommandPaletteView.swift in Sources */,
 				A50000000000000000000003 /* CanvasContextMenu.swift in Sources */,
 				A50000000000000000000004 /* PointerCursor.swift in Sources */,
+				A60000000000000000000001 /* CanvasInteractionModel.swift in Sources */,
+				A60000000000000000000002 /* CanvasInteractionOverlay.swift in Sources */,
+				A60000000000000000000003 /* CanvasInteractionLayer.swift in Sources */,
+				A60000000000000000000004 /* BrushOptionsPanel.swift in Sources */,
+				A60000000000000000000005 /* EraserOptionsPanel.swift in Sources */,
+				A60000000000000000000006 /* ConnectionsLayer.swift in Sources */,
+				A60000000000000000000007 /* TextElementView.swift in Sources */,
+				A60000000000000000000008 /* CanvasDrawingLayer.swift in Sources */,
 				A10000000000000000000005 /* PreviewSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

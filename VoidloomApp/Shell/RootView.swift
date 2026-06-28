@@ -6,6 +6,7 @@ struct RootView: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var sessionManager: AgentSessionManager
     @ObservedObject var conversationStore: ConversationStore
+    @ObservedObject var interaction: CanvasInteractionModel
 
     @AppStorage("isWorkspaceSidebarVisible") private var isWorkspaceSidebarVisible = false
     @State private var isCommandBarVisible = false
@@ -33,6 +34,7 @@ struct RootView: View {
                 CanvasWorkspaceView(
                     store: store,
                     sessionManager: sessionManager,
+                    interaction: interaction,
                     isCardFocused: viewportBeforeCardFocus != nil,
                     onToggleCardFocus: {
                         toggleCardFocus(in: geometry.size)
@@ -101,8 +103,19 @@ struct RootView: View {
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
 
+                        if interaction.isArmed(.drawing) {
+                            BrushOptionsPanel(interaction: interaction)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+
+                        if interaction.isArmed(.erasing) {
+                            EraserOptionsPanel(interaction: interaction)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+
                         ToolDock(
                             store: store,
+                            interaction: interaction,
                             errorMessage: store.lastPersistenceError,
                             isAIHintActive: isCommandBarVisible || isAIConversationVisible,
                             onToggleAIHint: toggleAISurface,
@@ -122,7 +135,8 @@ struct RootView: View {
                                 store.zoom(by: 1 / 1.15, anchoredAt: anchor)
                             },
                             isCardFocused: viewportBeforeCardFocus != nil,
-                            onToggleCardFocus: store.state.selectedCardID == nil ? nil : {
+                            isCardSelected: store.state.selectedCardID != nil,
+                            onToggleCardFocus: {
                                 toggleCardFocus(in: geometry.size)
                             },
                             workspaceName: activeWorkspaceName,
@@ -134,6 +148,9 @@ struct RootView: View {
                             },
                             onAddCard: { kind in
                                 store.addCard(kind: kind, centeredAt: viewportCenterCanvasPoint(in: geometry.size))
+                            },
+                            onAddText: {
+                                addTextAtViewportCenter(in: geometry.size)
                             }
                         )
                     }
@@ -142,6 +159,7 @@ struct RootView: View {
                     .padding(.bottom, 24)
                     .animation(.easeInOut(duration: 0.22), value: store.lastPersistenceError)
                     .animation(.easeInOut(duration: 0.22), value: isCommandBarVisible)
+                    .animation(.easeInOut(duration: 0.22), value: interaction.mode)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 .zIndex(2)
@@ -167,9 +185,13 @@ struct RootView: View {
                 }
             }
             .background(
-                Button("Open Command Palette") { openCommandPalette() }
-                    .keyboardShortcut("k", modifiers: .command)
-                    .hidden()
+                ZStack {
+                    Button("Open Command Palette") { openCommandPalette() }
+                        .keyboardShortcut("k", modifiers: .command)
+                    Button("Disarm Canvas Tool") { interaction.disarm() }
+                        .keyboardShortcut(.escape, modifiers: [])
+                }
+                .hidden()
             )
             .animation(.easeInOut(duration: 0.15), value: isCommandPaletteVisible)
             .animation(.easeInOut(duration: 0.24), value: isWorkspaceSidebarVisible)
@@ -177,6 +199,10 @@ struct RootView: View {
             .preferredColorScheme(.dark)
             .onChange(of: store.state.selectedCardID) { _, _ in
                 viewportBeforeCardFocus = nil
+            }
+            .onChange(of: store.library.selectedWorkspaceID) { _, _ in
+                interaction.disarm()
+                interaction.editingTextID = nil
             }
         }
     }
@@ -216,6 +242,14 @@ struct RootView: View {
         )
     }
 
+    /// Instant text element at the visible center (double-click on the Text
+    /// dock tool), auto-focused for inline editing.
+    private func addTextAtViewportCenter(in size: CGSize) {
+        let id = store.addTextElement(centeredAt: viewportCenterCanvasPoint(in: size))
+        interaction.editingTextID = id
+        interaction.disarm()
+    }
+
     private func openCommandPalette() {
         paletteQuery = ""
         withAnimation(.easeInOut(duration: 0.15)) {
@@ -235,7 +269,7 @@ struct RootView: View {
         var commands: [PaletteCommand] = []
 
         // Create
-        commands.append(PaletteCommand(id: "new-agent", title: "New Agent Card", section: .create, systemImage: "sparkles", keywords: ["add", "create"]) {
+        commands.append(PaletteCommand(id: "new-agent", title: "New Terminal Card", section: .create, systemImage: "terminal", keywords: ["add", "create", "agent", "terminal"]) {
             store.addCard(kind: .agent, centeredAt: cardCenter)
         })
         commands.append(PaletteCommand(id: "new-note", title: "New Note Card", section: .create, systemImage: "note.text", keywords: ["add", "create"]) {
@@ -246,6 +280,9 @@ struct RootView: View {
         })
         commands.append(PaletteCommand(id: "new-browser", title: "New Browser Card", section: .create, systemImage: "safari", keywords: ["add", "create", "preview", "web"]) {
             store.addCard(kind: .browser, centeredAt: cardCenter)
+        })
+        commands.append(PaletteCommand(id: "new-text", title: "New Text", section: .create, systemImage: "textformat", keywords: ["add", "create", "label", "annotation"]) {
+            interaction.editingTextID = store.addTextElement(centeredAt: cardCenter)
         })
 
         // Workspaces
@@ -325,7 +362,8 @@ struct RootView: View {
     RootView(
         store: PreviewSupport.makeStore(),
         sessionManager: AgentSessionManager(),
-        conversationStore: ConversationStore()
+        conversationStore: ConversationStore(),
+        interaction: CanvasInteractionModel()
     )
     .frame(width: 1180, height: 760)
 }

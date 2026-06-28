@@ -139,6 +139,121 @@ public final class WorkspaceStore: ObservableObject {
         persist()
     }
 
+    /// Adds a card sized by a press-drag-release rectangle (two opposite canvas
+    /// corners). The rect is normalized and clamped to the card minimums; the
+    /// new card is selected. Returns its id, or nil if nothing was added.
+    @discardableResult
+    public func addCard(kind: CardKind, fromCorner a: CanvasPoint, toCorner b: CanvasPoint) -> UUID? {
+        let rect = WorkspaceState.normalizedRect(a, b)
+        var card = Self.defaultCard(kind: kind)
+        card.position = rect.origin
+        card.size = rect.size.clamped()
+        state.addCard(card)
+        state.selectCard(id: card.id)
+        persist()
+        return card.id
+    }
+
+    // MARK: - Connections
+
+    public func addConnection(from: UUID, to: UUID) {
+        state.addConnection(from: from, to: to)
+        persist()
+    }
+
+    public func deleteConnection(id: UUID) {
+        state.removeConnection(id: id)
+        persist()
+    }
+
+    // MARK: - Text elements
+
+    /// Adds a default-sized text element centered on the given canvas point,
+    /// selects it, and returns its id so the caller can begin inline editing.
+    @discardableResult
+    public func addTextElement(centeredAt center: CanvasPoint) -> UUID {
+        let size = CardSize(width: 200, height: 44)
+        let element = TextElement(
+            position: CanvasPoint(
+                x: center.x - (size.width / 2),
+                y: center.y - (size.height / 2)
+            ),
+            size: size
+        )
+        state.addTextElement(element)
+        state.selectTextElement(id: element.id)
+        persist()
+        return element.id
+    }
+
+    /// Adds a text element sized by a press-drag-release rectangle, normalized
+    /// and clamped to the text minimums. Selects it and returns its id.
+    @discardableResult
+    public func addTextElement(fromCorner a: CanvasPoint, toCorner b: CanvasPoint) -> UUID {
+        let rect = WorkspaceState.normalizedRect(a, b)
+        let element = TextElement(
+            position: rect.origin,
+            size: rect.size.clamped(
+                minWidth: TextElement.minimumWidth,
+                minHeight: TextElement.minimumHeight
+            )
+        )
+        state.addTextElement(element)
+        state.selectTextElement(id: element.id)
+        persist()
+        return element.id
+    }
+
+    public func moveTextElement(id: UUID, screenTranslation: CanvasVector) {
+        guard screenTranslation != .zero else { return }
+        state.moveTextElement(id: id, screenTranslation: screenTranslation)
+        schedulePersistence()
+    }
+
+    public func resizeTextElement(id: UUID, to size: CardSize, position: CanvasPoint? = nil) {
+        state.resizeTextElement(id: id, to: size, position: position)
+        schedulePersistence()
+    }
+
+    public func updateTextElementText(id: UUID, to text: String) {
+        state.updateTextElementText(id: id, to: text)
+        schedulePersistence()
+    }
+
+    public func selectTextElement(id: UUID) {
+        guard state.selectedTextID != id else { return }
+        state.selectTextElement(id: id)
+        schedulePersistence()
+    }
+
+    public func deleteTextElement(id: UUID) {
+        state.deleteTextElement(id: id)
+        persist()
+    }
+
+    // MARK: - Drawing strokes
+
+    /// Persists a finished brush stroke. Strokes with fewer than two points
+    /// carry no visible geometry and are rejected.
+    public func addStroke(_ stroke: DrawingStroke) {
+        guard stroke.points.count >= 2 else { return }
+        state.addStroke(stroke)
+        persist()
+    }
+
+    /// Erases strokes under the eraser disc. Persistence is debounced during a
+    /// drag; call `flushErase()` on drag end to write the final result once.
+    public func erase(at point: CanvasPoint, radius: Double, mode: EraseMode) {
+        let changed = state.eraseStrokes(at: point, radius: radius, mode: mode)
+        if changed {
+            schedulePersistence()
+        }
+    }
+
+    public func flushErase() {
+        flushPendingPersistence()
+    }
+
     public func resetViewport() {
         state.viewport = CanvasViewport()
         persist()

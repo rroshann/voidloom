@@ -46,10 +46,17 @@ public struct CardSize: Codable, Equatable, Sendable {
         self.height = height
     }
 
-    public func clampedToMinimums() -> CardSize {
+    public func clamped(
+        minWidth: Double = Self.minimumWidth,
+        minHeight: Double = Self.minimumHeight
+    ) -> CardSize {
         CardSize(
-            width: max(width, Self.minimumWidth),
-            height: max(height, Self.minimumHeight)
+            width: max(width, minWidth),
+            height: max(height, minHeight)
         )
+    }
+
+    public func clampedToMinimums() -> CardSize {
+        clamped()
     }
 }

@@ -3,6 +3,7 @@ import VoidloomCore
 
 struct ToolDock: View {
     @ObservedObject var store: WorkspaceStore
+    @ObservedObject var interaction: CanvasInteractionModel
     let errorMessage: String?
     let isAIHintActive: Bool
     let onToggleAIHint: () -> Void
@@ -10,11 +11,15 @@ struct ToolDock: View {
     let onZoomIn: () -> Void
     let onZoomOut: () -> Void
     let isCardFocused: Bool
+    let isCardSelected: Bool
     let onToggleCardFocus: (() -> Void)?
     let workspaceName: String
     let isWorkspaceSidebarVisible: Bool
     let onToggleWorkspaceSidebar: () -> Void
+    /// Double-click: instant create at the visible center.
     let onAddCard: (CardKind) -> Void
+    /// Double-click on the Text tool: instant text element at the visible center.
+    let onAddText: () -> Void
 
     var body: some View {
         HStack(spacing: 7) {
@@ -27,21 +32,68 @@ struct ToolDock: View {
 
             DockDivider()
 
-            DockButton(systemName: "sparkles", label: "Agent") {
-                onAddCard(.agent)
-            }
+            DockToolButton(
+                systemName: "terminal",
+                label: "Terminal — click to place, double-click to add",
+                isArmed: interaction.isArmed(.placingCard(.agent)),
+                onSingle: { interaction.armPlacingCard(.agent) },
+                onDouble: { onAddCard(.agent) }
+            )
 
-            DockButton(systemName: "note.text", label: "Note") {
-                onAddCard(.note)
-            }
+            DockToolButton(
+                systemName: "note.text",
+                label: "Note — click to place, double-click to add",
+                isArmed: interaction.isArmed(.placingCard(.note)),
+                onSingle: { interaction.armPlacingCard(.note) },
+                onDouble: { onAddCard(.note) }
+            )
 
-            DockButton(systemName: "checklist", label: "Todo") {
-                onAddCard(.todo)
-            }
+            DockToolButton(
+                systemName: "checklist",
+                label: "Todo — click to place, double-click to add",
+                isArmed: interaction.isArmed(.placingCard(.todo)),
+                onSingle: { interaction.armPlacingCard(.todo) },
+                onDouble: { onAddCard(.todo) }
+            )
 
-            DockButton(systemName: "safari", label: "Preview") {
-                onAddCard(.browser)
-            }
+            DockToolButton(
+                systemName: "safari",
+                label: "Preview — click to place, double-click to add",
+                isArmed: interaction.isArmed(.placingCard(.browser)),
+                onSingle: { interaction.armPlacingCard(.browser) },
+                onDouble: { onAddCard(.browser) }
+            )
+
+            DockDivider()
+
+            DockToolButton(
+                systemName: "arrow.up.right",
+                label: "Connect — link two cards",
+                isArmed: interaction.isArmed(.connecting(source: nil)),
+                onSingle: { interaction.armConnect() }
+            )
+
+            DockToolButton(
+                systemName: "paintbrush.pointed.fill",
+                label: "Brush — draw on the canvas",
+                isArmed: interaction.isArmed(.drawing),
+                onSingle: { interaction.armBrush() }
+            )
+
+            DockToolButton(
+                systemName: "textformat",
+                label: "Text — click to place, double-click to add",
+                isArmed: interaction.isArmed(.placingText),
+                onSingle: { interaction.armText() },
+                onDouble: { onAddText() }
+            )
+
+            DockToolButton(
+                systemName: "eraser.fill",
+                label: "Eraser — erase brush strokes",
+                isArmed: interaction.isArmed(.erasing),
+                onSingle: { interaction.armEraser() }
+            )
 
             DockDivider()
 
@@ -65,6 +117,7 @@ struct ToolDock: View {
                 onZoomOut: onZoomOut,
                 isCardFocused: isCardFocused,
                 onToggleCardFocus: onToggleCardFocus,
+                isFocusEnabled: isCardSelected,
                 embedded: true
             )
         }
@@ -171,6 +224,43 @@ private struct DockButton: View {
         .buttonStyle(.plain)
         .pointerCursor()
         .help(label)
+    }
+}
+
+/// A dock tool that distinguishes single-click (arm a canvas mode) from
+/// double-click (instant create). Reuses DockAIHint's active treatment, driven
+/// by `isArmed`. Tools without a double action pass `onDouble == nil`.
+private struct DockToolButton: View {
+    let systemName: String
+    let label: String
+    var isArmed: Bool = false
+    var onSingle: () -> Void
+    var onDouble: (() -> Void)? = nil
+
+    private let accent = Color.teal
+
+    var body: some View {
+        Image(systemName: systemName)
+            .font(.system(size: 16, weight: .semibold))
+            .foregroundStyle(isArmed ? accent : .white.opacity(0.86))
+            .frame(width: 40, height: 40)
+            .background(
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .fill(.white.opacity(isArmed ? 0.14 : 0.08))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 11, style: .continuous)
+                    .stroke(
+                        isArmed ? accent.opacity(0.55) : .white.opacity(0.06),
+                        lineWidth: isArmed ? 1.5 : 1
+                    )
+            )
+            .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+            .onTapGesture(count: 2) { (onDouble ?? onSingle)() }
+            .onTapGesture(count: 1) { onSingle() }
+            .pointerCursor()
+            .help(label)
+            .animation(.easeInOut(duration: 0.15), value: isArmed)
     }
 }
 
