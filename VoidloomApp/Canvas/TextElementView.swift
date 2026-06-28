@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import VoidloomCore
 
@@ -15,13 +16,21 @@ struct TextElementView: View {
     @State private var lastDragTranslation: CGSize = .zero
     @State private var draftText = ""
     @State private var isResizing = false
-    @FocusState private var isFieldFocused: Bool
 
     private let accent = Color(red: 0.34, green: 0.93, blue: 0.82)
 
     private var isSelected: Bool { store.state.selectedTextID == element.id }
     private var isEditing: Bool { editingTextID == element.id }
     private var textColor: Color { Color(hexString: element.colorHex) ?? .white }
+
+    /// The display font for the element: a named face when one is set, otherwise
+    /// the default system-rounded face. Mirrors `TextElementEditor.resolveFont`.
+    private var elementFont: Font {
+        if let name = element.fontName {
+            return .custom(name, size: CGFloat(element.fontSize))
+        }
+        return .system(size: CGFloat(element.fontSize), weight: .semibold, design: .rounded)
+    }
 
     var body: some View {
         ZStack(alignment: .topLeading) {
@@ -61,36 +70,28 @@ struct TextElementView: View {
         .animation(.easeOut(duration: 0.15), value: isSelected)
         .animation(.easeOut(duration: 0.15), value: isEditing)
         .onChange(of: isEditing) { _, editing in
-            if editing {
-                draftText = element.text
-                isFieldFocused = true
-            }
+            if editing { draftText = element.text }
         }
         .onAppear {
-            if isEditing {
-                draftText = element.text
-                isFieldFocused = true
-            }
+            if isEditing { draftText = element.text }
         }
     }
 
     @ViewBuilder
     private var content: some View {
         if isEditing {
-            TextField("Text", text: $draftText, axis: .vertical)
-                .textFieldStyle(.plain)
-                .font(.system(size: CGFloat(element.fontSize), weight: .semibold, design: .rounded))
-                .foregroundStyle(textColor)
-                .focused($isFieldFocused)
-                .onSubmit { commit() }
-                .onExitCommand { cancel() }
-                .onChange(of: isFieldFocused) { _, focused in
-                    if !focused { commit() }
-                }
-                .padding(6)
+            TextElementEditor(
+                text: $draftText,
+                fontSize: element.fontSize,
+                fontName: element.fontName,
+                textColor: textColor,
+                onCommit: commit,
+                onCancel: cancel
+            )
+            .padding(6)
         } else {
             Text(displayText)
-                .font(.system(size: CGFloat(element.fontSize), weight: .semibold, design: .rounded))
+                .font(elementFont)
                 .foregroundStyle(element.text.isEmpty ? textColor.opacity(0.4) : textColor)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                 .padding(6)
@@ -144,22 +145,23 @@ struct TextElementView: View {
         editingTextID = element.id
     }
 
+    /// Persists the draft and exits editing. Intentionally does NOT guard on
+    /// `isEditing`: the editor also calls this from its teardown, which can run
+    /// AFTER an external `editingTextID = nil` (clicking empty canvas) has
+    /// already flipped `isEditing` false — the draft must still be saved.
     private func commit() {
-        guard isEditing else { return }
         let trimmed = draftText.trimmingCharacters(in: .whitespacesAndNewlines)
-        isFieldFocused = false
-        editingTextID = nil
+        if isEditing { editingTextID = nil }
         if trimmed.isEmpty {
             // A text element with no content is a ghost — remove it on commit.
             store.deleteTextElement(id: element.id)
-        } else {
+        } else if draftText != element.text {
             store.updateTextElementText(id: element.id, to: draftText)
         }
     }
 
     private func cancel() {
-        isFieldFocused = false
-        editingTextID = nil
+        if isEditing { editingTextID = nil }
         // Esc on a never-typed element discards it instead of leaving a ghost.
         if element.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             store.deleteTextElement(id: element.id)
@@ -167,7 +169,7 @@ struct TextElementView: View {
     }
 }
 
-private extension Color {
+extension Color {
     /// Parses "#RRGGBB" or "#RRGGBBAA" (with or without the leading #).
     init?(hexString: String) {
         var hex = hexString.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -190,5 +192,16 @@ private extension Color {
             return nil
         }
         self = Color(.sRGB, red: red, green: green, blue: blue, opacity: alpha)
+    }
+
+    /// Serializes to "#RRGGBBAA" (sRGB) — the inverse of `init?(hexString:)`,
+    /// matching the format `TextElement.colorHex` persists.
+    var hexStringRGBA: String {
+        let ns = NSColor(self).usingColorSpace(.sRGB) ?? .white
+        let r = Int(round(ns.redComponent * 255))
+        let g = Int(round(ns.greenComponent * 255))
+        let b = Int(round(ns.blueComponent * 255))
+        let a = Int(round(ns.alphaComponent * 255))
+        return String(format: "#%02X%02X%02X%02X", r, g, b, a)
     }
 }

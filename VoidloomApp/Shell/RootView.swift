@@ -26,6 +26,17 @@ struct RootView: View {
             .name ?? "Workspace"
     }
 
+    /// Whether the Delete shortcut should act. It must stay inert while any text
+    /// element or card title is being edited (so Backspace flows to the editor),
+    /// and only fires when there's a selected connection edge or a marquee card
+    /// group to remove.
+    private var canDeleteSelection: Bool {
+        interaction.editingTextID == nil
+            && interaction.editingCardTitleID == nil
+            && (interaction.selectedConnectionID != nil
+                || !store.state.marqueeSelectedCardIDs.isEmpty)
+    }
+
     var body: some View {
         GeometryReader { geometry in
             ZStack {
@@ -113,6 +124,11 @@ struct RootView: View {
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
 
+                        if interaction.isArmed(.placingText) || store.state.selectedTextID != nil {
+                            TextOptionsPanel(store: store, interaction: interaction)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+
                         ToolDock(
                             store: store,
                             interaction: interaction,
@@ -147,7 +163,14 @@ struct RootView: View {
                                 }
                             },
                             onAddCard: { kind in
-                                store.addCard(kind: kind, centeredAt: viewportCenterCanvasPoint(in: geometry.size))
+                                store.addCardInGrid(
+                                    kind: kind,
+                                    viewportSize: ScreenPoint(x: geometry.size.width, y: geometry.size.height)
+                                )
+                                // Match onAddText: a double-click instant-create
+                                // always resolves back to idle so the transient
+                                // mouse-down arm never lingers.
+                                interaction.disarm()
                             },
                             onAddText: {
                                 addTextAtViewportCenter(in: geometry.size)
@@ -160,6 +183,7 @@ struct RootView: View {
                     .animation(.easeInOut(duration: 0.22), value: store.lastPersistenceError)
                     .animation(.easeInOut(duration: 0.22), value: isCommandBarVisible)
                     .animation(.easeInOut(duration: 0.22), value: interaction.mode)
+                    .animation(.easeInOut(duration: 0.22), value: store.state.selectedTextID)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 .zIndex(2)
@@ -190,6 +214,22 @@ struct RootView: View {
                         .keyboardShortcut("k", modifiers: .command)
                     Button("Disarm Canvas Tool") { interaction.disarm() }
                         .keyboardShortcut(.escape, modifiers: [])
+                    // Delete removes the selected connection edge, or — when an
+                    // edge isn't selected — the whole marquee-selected card group
+                    // (and their connections). Disabled while a text field or
+                    // card title is being edited so it never swallows backspace,
+                    // and when there's nothing key-deletable selected (a single
+                    // tap-selected card is closed via its button, not Delete).
+                    Button("Delete Selection") {
+                        if let id = interaction.selectedConnectionID {
+                            store.deleteConnection(id: id)
+                            interaction.selectedConnectionID = nil
+                        } else if !store.state.marqueeSelectedCardIDs.isEmpty {
+                            store.deleteCards(ids: store.state.marqueeSelectedCardIDs)
+                        }
+                    }
+                    .keyboardShortcut(.delete, modifiers: [])
+                    .disabled(!canDeleteSelection)
                 }
                 .hidden()
             )
@@ -245,7 +285,12 @@ struct RootView: View {
     /// Instant text element at the visible center (double-click on the Text
     /// dock tool), auto-focused for inline editing.
     private func addTextAtViewportCenter(in size: CGSize) {
-        let id = store.addTextElement(centeredAt: viewportCenterCanvasPoint(in: size))
+        let id = store.addTextElement(
+            centeredAt: viewportCenterCanvasPoint(in: size),
+            fontSize: interaction.textFontSize,
+            colorHex: interaction.textColor.hexStringRGBA,
+            fontName: interaction.textFontName
+        )
         interaction.editingTextID = id
         interaction.disarm()
     }
@@ -282,7 +327,12 @@ struct RootView: View {
             store.addCard(kind: .browser, centeredAt: cardCenter)
         })
         commands.append(PaletteCommand(id: "new-text", title: "New Text", section: .create, systemImage: "textformat", keywords: ["add", "create", "label", "annotation"]) {
-            interaction.editingTextID = store.addTextElement(centeredAt: cardCenter)
+            interaction.editingTextID = store.addTextElement(
+                centeredAt: cardCenter,
+                fontSize: interaction.textFontSize,
+                colorHex: interaction.textColor.hexStringRGBA,
+                fontName: interaction.textFontName
+            )
         })
 
         // Workspaces

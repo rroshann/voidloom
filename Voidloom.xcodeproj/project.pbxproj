@@ -44,6 +44,9 @@
 		A60000000000000000000006 /* ConnectionsLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000016 /* ConnectionsLayer.swift */; };
 		A60000000000000000000007 /* TextElementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000017 /* TextElementView.swift */; };
 		A60000000000000000000008 /* CanvasDrawingLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000018 /* CanvasDrawingLayer.swift */; };
+		A70000000000000000000001 /* ConnectionHitLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000011 /* ConnectionHitLayer.swift */; };
+		A70000000000000000000002 /* TextElementEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000012 /* TextElementEditor.swift */; };
+		A70000000000000000000003 /* TextOptionsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000013 /* TextOptionsPanel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -86,6 +89,9 @@
 		A60000000000000000000016 /* ConnectionsLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/ConnectionsLayer.swift; sourceTree = "<group>"; };
 		A60000000000000000000017 /* TextElementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/TextElementView.swift; sourceTree = "<group>"; };
 		A60000000000000000000018 /* CanvasDrawingLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/CanvasDrawingLayer.swift; sourceTree = "<group>"; };
+		A70000000000000000000011 /* ConnectionHitLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/ConnectionHitLayer.swift; sourceTree = "<group>"; };
+		A70000000000000000000012 /* TextElementEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/TextElementEditor.swift; sourceTree = "<group>"; };
+		A70000000000000000000013 /* TextOptionsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/TextOptionsPanel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -128,6 +134,9 @@
 				A60000000000000000000016 /* ConnectionsLayer.swift */,
 				A60000000000000000000017 /* TextElementView.swift */,
 				A60000000000000000000018 /* CanvasDrawingLayer.swift */,
+				A70000000000000000000011 /* ConnectionHitLayer.swift */,
+				A70000000000000000000012 /* TextElementEditor.swift */,
+				A70000000000000000000013 /* TextOptionsPanel.swift */,
 				A20000000000000000000013 /* ToolRail.swift */,
 				A20000000000000000000014 /* CommandBar.swift */,
 				A30000000000000000000018 /* SettingsView.swift */,
@@ -271,6 +280,9 @@
 				A60000000000000000000006 /* ConnectionsLayer.swift in Sources */,
 				A60000000000000000000007 /* TextElementView.swift in Sources */,
 				A60000000000000000000008 /* CanvasDrawingLayer.swift in Sources */,
+				A70000000000000000000001 /* ConnectionHitLayer.swift in Sources */,
+				A70000000000000000000002 /* TextElementEditor.swift in Sources */,
+				A70000000000000000000003 /* TextOptionsPanel.swift in Sources */,
 				A10000000000000000000005 /* PreviewSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -4,11 +4,14 @@ import VoidloomCore
 /// Render-only layer drawing persisted card connections. It lives INSIDE the
 /// scaled/offset canvas ZStack (beneath the cards) so edges are expressed in
 /// canvas coordinates and pan/zoom with everything else. Each edge anchors on
-/// the two cards' borders and is tinted with the source card's accent.
-struct ConnectionsLayer: View {
+/// the two cards' borders and renders as a NON-DIRECTIONAL chain: a plain line
+/// capped by a symmetric dot at BOTH endpoints, with no arrowhead. The selected
+/// edge is drawn brighter and thicker.
+struct ConnectionsLayer: View, Equatable {
     let connections: [CardConnection]
     let cards: [WorkspaceCard]
     let canvasSize: CGSize
+    var selectedConnectionID: UUID? = nil
 
     var body: some View {
         Canvas { context, _ in
@@ -23,49 +26,37 @@ struct ConnectionsLayer: View {
                 let start = CGPoint(x: endpoints.start.x, y: endpoints.start.y)
                 let end = CGPoint(x: endpoints.end.x, y: endpoints.end.y)
                 let accent = CardPalette(kind: fromCard.kind).accent
+                let isSelected = connection.id == selectedConnectionID
+                let lineWidth: CGFloat = isSelected ? 4 : 2.5
+                let lineColor = accent.opacity(isSelected ? 1 : 0.85)
+                let dotColor = accent.opacity(isSelected ? 1 : 0.95)
+                let dotRadius: CGFloat = isSelected ? 4 : 3
 
                 var line = Path()
                 line.move(to: start)
                 line.addLine(to: end)
                 context.stroke(
                     line,
-                    with: .color(accent.opacity(0.85)),
-                    style: StrokeStyle(lineWidth: 2.5, lineCap: .round)
+                    with: .color(lineColor),
+                    style: StrokeStyle(lineWidth: lineWidth, lineCap: .round)
                 )
 
-                context.fill(
-                    Self.arrowHead(at: end, from: start, length: 14, width: 9),
-                    with: .color(accent.opacity(0.95))
-                )
-
-                // Small dot at the source anchor to read as a directed edge.
-                context.fill(
-                    Path(ellipseIn: CGRect(x: start.x - 3, y: start.y - 3, width: 6, height: 6)),
-                    with: .color(accent.opacity(0.95))
-                )
+                // Symmetric dots at BOTH endpoints — the edge is undirected, so
+                // neither end is privileged with an arrowhead.
+                for anchor in [start, end] {
+                    context.fill(
+                        Path(ellipseIn: CGRect(
+                            x: anchor.x - dotRadius,
+                            y: anchor.y - dotRadius,
+                            width: dotRadius * 2,
+                            height: dotRadius * 2
+                        )),
+                        with: .color(dotColor)
+                    )
+                }
             }
         }
         .frame(width: canvasSize.width, height: canvasSize.height)
         .allowsHitTesting(false)
-    }
-
-    static func arrowHead(at tip: CGPoint, from origin: CGPoint, length: CGFloat, width: CGFloat) -> Path {
-        let angle = atan2(tip.y - origin.y, tip.x - origin.x)
-        let base = CGPoint(x: tip.x - length * cos(angle), y: tip.y - length * sin(angle))
-        let left = CGPoint(
-            x: base.x + width * cos(angle + .pi / 2),
-            y: base.y + width * sin(angle + .pi / 2)
-        )
-        let right = CGPoint(
-            x: base.x - width * cos(angle + .pi / 2),
-            y: base.y - width * sin(angle + .pi / 2)
-        )
-
-        var path = Path()
-        path.move(to: tip)
-        path.addLine(to: left)
-        path.addLine(to: right)
-        path.closeSubpath()
-        return path
     }
 }

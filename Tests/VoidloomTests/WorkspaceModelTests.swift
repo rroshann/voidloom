@@ -886,6 +886,90 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(card.size.height, 320, accuracy: 0.0001)
     }
 
+    // MARK: - Stage 1: non-overlapping placement + enlarged defaults
+
+    func testNonOverlappingOriginReturnsCenterWhenAreaFree() {
+        let state = WorkspaceState()
+        let size = CardSize(width: 400, height: 300)
+        let center = CanvasPoint(x: 500, y: 400)
+
+        let origin = state.nonOverlappingOrigin(for: size, centeredAt: center)
+
+        XCTAssertEqual(origin.x, center.x - (size.width / 2), accuracy: 0.0001)
+        XCTAssertEqual(origin.y, center.y - (size.height / 2), accuracy: 0.0001)
+    }
+
+    func testTwoCardsCenteredAtSamePointDoNotOverlap() {
+        var state = WorkspaceState()
+        let size = CardSize(width: 400, height: 300)
+        let center = CanvasPoint(x: 500, y: 400)
+
+        let first = state.nonOverlappingOrigin(for: size, centeredAt: center)
+        state.addCard(
+            WorkspaceCard(kind: .note, position: first, size: size, title: "A", content: "")
+        )
+        let second = state.nonOverlappingOrigin(for: size, centeredAt: center)
+
+        XCTAssertNotEqual(second, first, "second card must cascade off the first")
+
+        let overlaps = first.x < second.x + size.width
+            && first.x + size.width > second.x
+            && first.y < second.y + size.height
+            && first.y + size.height > second.y
+        XCTAssertFalse(overlaps, "cascaded card must not overlap the existing one")
+    }
+
+    func testNonOverlappingOriginRespectsSpacingAroundExistingCard() {
+        var state = WorkspaceState()
+        let size = CardSize(width: 400, height: 300)
+        state.addCard(
+            WorkspaceCard(kind: .note, position: .zero, size: size, title: "A", content: "")
+        )
+
+        // Centering the new card exactly on the existing one forces a cascade.
+        let center = CanvasPoint(x: size.width / 2, y: size.height / 2)
+        let spacing = 28.0
+        let origin = state.nonOverlappingOrigin(for: size, centeredAt: center, spacing: spacing)
+
+        // The new card, inflated by the spacing margin, must not intersect the
+        // existing card — a diagonal cascade separates on one axis, not both.
+        let aMinX = origin.x - spacing
+        let aMinY = origin.y - spacing
+        let aMaxX = origin.x + size.width + spacing
+        let aMaxY = origin.y + size.height + spacing
+        let intersects = aMinX < size.width && aMaxX > 0 && aMinY < size.height && aMaxY > 0
+        XCTAssertFalse(intersects, "placement must keep the spacing margin clear of the existing card")
+    }
+
+    @MainActor
+    func testDefaultCardSizesAreEnlarged() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(state: WorkspaceState(), storageURL: url, persistenceDelay: 60)
+
+        let expected: [CardKind: CardSize] = [
+            .agent: CardSize(width: 480, height: 320),
+            .note: CardSize(width: 440, height: 300),
+            .todo: CardSize(width: 420, height: 300),
+            .browser: CardSize(width: 520, height: 340)
+        ]
+
+        // Spread placements far apart so the non-overlap cascade never resizes
+        // or shifts what we are asserting.
+        var y = 0.0
+        for kind in CardKind.allCases {
+            store.addCard(kind: kind, centeredAt: CanvasPoint(x: 5000, y: y))
+            y += 4000
+            let card = try XCTUnwrap(store.state.cards.last)
+            XCTAssertEqual(card.size, expected[kind])
+            XCTAssertGreaterThanOrEqual(card.size.width, CardSize.minimumWidth)
+            XCTAssertGreaterThanOrEqual(card.size.height, CardSize.minimumHeight)
+        }
+    }
+
     // MARK: - Stage 2: connections + text elements
 
     func testAddConnectionRejectsSelfMissingAndDuplicate() throws {
@@ -908,6 +992,28 @@ final class WorkspaceModelTests: XCTestCase {
 
         state.addConnection(from: a, to: b)
         XCTAssertEqual(state.connections.count, 1, "duplicate (from,to) should be rejected")
+
+        state.addConnection(from: b, to: a)
+        XCTAssertEqual(state.connections.count, 1, "reverse (to,from) is the same undirected edge and should be rejected")
+    }
+
+    func testRemoveConnectionDeletesByID() throws {
+        let a = try XCTUnwrap(UUID(uuidString: "DDDDDDDD-0000-0000-0000-0000000000A1"))
+        let b = try XCTUnwrap(UUID(uuidString: "DDDDDDDD-0000-0000-0000-0000000000B2"))
+        var state = WorkspaceState(cards: [
+            WorkspaceCard(id: a, kind: .note, position: .zero, size: CardSize(width: 300, height: 200), title: "A", content: ""),
+            WorkspaceCard(id: b, kind: .todo, position: CanvasPoint(x: 400, y: 0), size: CardSize(width: 300, height: 200), title: "B", content: "")
+        ])
+
+        state.addConnection(from: a, to: b)
+        let edgeID = try XCTUnwrap(state.connections.first?.id)
+        XCTAssertEqual(state.connections.count, 1)
+
+        state.removeConnection(id: UUID())
+        XCTAssertEqual(state.connections.count, 1, "removing an unknown id is a no-op")
+
+        state.removeConnection(id: edgeID)
+        XCTAssertTrue(state.connections.isEmpty, "removing by id deletes the edge")
     }
 
     func testDeleteCardPrunesReferencingConnections() throws {
@@ -1104,6 +1210,72 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(state.strokes.count, 1)
     }
 
+    func testErasePixelClipsSparseStraightStrokeAtCircleBoundary() {
+        var state = WorkspaceState()
+        let color = RGBAColor(red: 0.2, green: 0.4, blue: 0.6, opacity: 0.9)
+        // Only two endpoints — no vertex falls inside the disc, so a vertex-drop
+        // eraser would not cut it. The footprint eraser must split it anyway.
+        state.addStroke(makeStroke([CanvasPoint(x: 0, y: 0), CanvasPoint(x: 100, y: 0)], color: color, thickness: 6))
+
+        let radius = 10.0
+        let changed = state.eraseStrokes(at: CanvasPoint(x: 50, y: 0), radius: radius, mode: .segment)
+
+        XCTAssertTrue(changed)
+        XCTAssertEqual(state.strokes.count, 2)
+
+        // The inner endpoints land on the circle boundary (≈ radius from center).
+        let innerRight = state.strokes[0].points.map(\.x).max() ?? 0
+        let innerLeft = state.strokes[1].points.map(\.x).min() ?? 0
+        XCTAssertEqual(innerRight, 40, accuracy: 0.001)
+        XCTAssertEqual(innerLeft, 60, accuracy: 0.001)
+
+        for fragment in state.strokes {
+            XCTAssertGreaterThanOrEqual(fragment.points.count, 2)
+            XCTAssertEqual(fragment.color, color)
+            XCTAssertEqual(fragment.thickness, 6)
+        }
+    }
+
+    func testErasePixelBoundaryPointsLieOnTheCircle() {
+        var state = WorkspaceState()
+        // A diagonal stroke so the boundary points are non-trivial in x and y.
+        state.addStroke(makeStroke([CanvasPoint(x: 0, y: 0), CanvasPoint(x: 100, y: 100)]))
+
+        let center = CanvasPoint(x: 50, y: 50)
+        let radius = 14.0
+        let changed = state.eraseStrokes(at: center, radius: radius, mode: .segment)
+
+        XCTAssertTrue(changed)
+        XCTAssertEqual(state.strokes.count, 2)
+
+        // The new gap-edge points (inner endpoints) sit on the circle boundary.
+        let innerRight = state.strokes[0].points.last
+        let innerLeft = state.strokes[1].points.first
+        let dRight = hypot((innerRight?.x ?? 0) - center.x, (innerRight?.y ?? 0) - center.y)
+        let dLeft = hypot((innerLeft?.x ?? 0) - center.x, (innerLeft?.y ?? 0) - center.y)
+        XCTAssertEqual(dRight, radius, accuracy: 0.001)
+        XCTAssertEqual(dLeft, radius, accuracy: 0.001)
+    }
+
+    func testViewportZoomClampsAndKeepsAnchorFixed() {
+        var viewport = CanvasViewport(origin: CanvasPoint(x: 30, y: 20), scale: 1)
+        let anchor = ScreenPoint(x: 400, y: 250)
+        let anchorCanvasBefore = viewport.canvasPoint(forScreenPoint: anchor)
+
+        // A huge magnification clamps to the maximum scale.
+        viewport.zoom(by: 100, anchoredAt: anchor)
+        XCTAssertEqual(viewport.scale, CanvasViewport.maximumScale, accuracy: 0.0001)
+
+        // The anchor canvas point still maps back to the same screen location.
+        let anchorScreenAfter = viewport.screenPoint(forCanvasPoint: anchorCanvasBefore)
+        XCTAssertEqual(anchorScreenAfter.x, anchor.x, accuracy: 0.001)
+        XCTAssertEqual(anchorScreenAfter.y, anchor.y, accuracy: 0.001)
+
+        // A tiny magnification clamps to the minimum scale.
+        viewport.zoom(by: 0.0001, anchoredAt: anchor)
+        XCTAssertEqual(viewport.scale, CanvasViewport.minimumScale, accuracy: 0.0001)
+    }
+
     func testStrokesRoundTripThroughCodable() throws {
         var state = WorkspaceState()
         state.addStroke(
@@ -1118,5 +1290,452 @@ final class WorkspaceModelTests: XCTestCase {
         let decoded = try JSONDecoder().decode(WorkspaceState.self, from: data)
 
         XCTAssertEqual(decoded.strokes, state.strokes)
+    }
+
+    // MARK: - Marquee selection
+
+    private func makeMarqueeState() -> (WorkspaceState, left: UUID, right: UUID) {
+        let left = UUID()
+        let right = UUID()
+        let state = WorkspaceState(
+            cards: [
+                WorkspaceCard(
+                    id: left,
+                    kind: .note,
+                    position: CanvasPoint(x: 0, y: 0),
+                    size: CardSize(width: 100, height: 100),
+                    title: "Left",
+                    content: ""
+                ),
+                WorkspaceCard(
+                    id: right,
+                    kind: .note,
+                    position: CanvasPoint(x: 400, y: 0),
+                    size: CardSize(width: 100, height: 100),
+                    title: "Right",
+                    content: ""
+                )
+            ]
+        )
+        return (state, left, right)
+    }
+
+    func testSelectCardsMarksEveryIntersectingCard() {
+        var (state, left, right) = makeMarqueeState()
+
+        state.selectCards(
+            fromCorner: CanvasPoint(x: -10, y: -10),
+            toCorner: CanvasPoint(x: 510, y: 110)
+        )
+
+        XCTAssertEqual(state.marqueeSelectedCardIDs, Set([left, right]))
+        // Two hits: no single selectedCardID.
+        XCTAssertNil(state.selectedCardID)
+        XCTAssertNil(state.selectedTextID)
+    }
+
+    func testSelectCardsWithSingleHitSetsSelectedCardID() {
+        var (state, left, _) = makeMarqueeState()
+
+        state.selectCards(
+            fromCorner: CanvasPoint(x: -10, y: -10),
+            toCorner: CanvasPoint(x: 50, y: 50)
+        )
+
+        XCTAssertEqual(state.marqueeSelectedCardIDs, Set([left]))
+        XCTAssertEqual(state.selectedCardID, left)
+    }
+
+    func testSelectCardsWithMissClearsSelection() {
+        var (state, _, _) = makeMarqueeState()
+        state.selectCards(
+            fromCorner: CanvasPoint(x: -10, y: -10),
+            toCorner: CanvasPoint(x: 50, y: 50)
+        )
+        XCTAssertFalse(state.marqueeSelectedCardIDs.isEmpty)
+
+        state.selectCards(
+            fromCorner: CanvasPoint(x: 1_000, y: 1_000),
+            toCorner: CanvasPoint(x: 1_100, y: 1_100)
+        )
+
+        XCTAssertTrue(state.marqueeSelectedCardIDs.isEmpty)
+        XCTAssertNil(state.selectedCardID)
+    }
+
+    func testSelectCardClearsMarqueeSelection() {
+        var (state, left, right) = makeMarqueeState()
+        state.selectCards(
+            fromCorner: CanvasPoint(x: -10, y: -10),
+            toCorner: CanvasPoint(x: 510, y: 110)
+        )
+        XCTAssertEqual(state.marqueeSelectedCardIDs.count, 2)
+
+        state.selectCard(id: right)
+
+        XCTAssertEqual(state.selectedCardID, right)
+        XCTAssertTrue(state.marqueeSelectedCardIDs.isEmpty)
+        _ = left
+    }
+
+    func testClearSelectionClearsMarqueeSelection() {
+        var (state, _, _) = makeMarqueeState()
+        state.selectCards(
+            fromCorner: CanvasPoint(x: -10, y: -10),
+            toCorner: CanvasPoint(x: 510, y: 110)
+        )
+        XCTAssertFalse(state.marqueeSelectedCardIDs.isEmpty)
+
+        state.clearSelection()
+
+        XCTAssertTrue(state.marqueeSelectedCardIDs.isEmpty)
+    }
+
+    func testMarqueeSelectionDoesNotRoundTripThroughCodable() throws {
+        var (state, _, _) = makeMarqueeState()
+        state.selectCards(
+            fromCorner: CanvasPoint(x: -10, y: -10),
+            toCorner: CanvasPoint(x: 510, y: 110)
+        )
+        XCTAssertFalse(state.marqueeSelectedCardIDs.isEmpty)
+
+        let data = try JSONEncoder().encode(state)
+        let decoded = try JSONDecoder().decode(WorkspaceState.self, from: data)
+
+        XCTAssertTrue(decoded.marqueeSelectedCardIDs.isEmpty)
+    }
+
+    // MARK: - Stage 4: text styling + deselect
+
+    @MainActor
+    func testStoreClearSelectionClearsSelectedTextID() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(state: WorkspaceState(), storageURL: url, persistenceDelay: 60)
+        let id = store.addTextElement(centeredAt: CanvasPoint(x: 100, y: 100))
+        XCTAssertEqual(store.state.selectedTextID, id)
+
+        store.clearSelection()
+
+        XCTAssertNil(store.state.selectedTextID)
+        XCTAssertNil(store.state.selectedCardID)
+    }
+
+    @MainActor
+    func testUpdateTextElementStylePersists() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(state: WorkspaceState(), storageURL: url, persistenceDelay: 60)
+        let id = store.addTextElement(centeredAt: CanvasPoint(x: 100, y: 100))
+
+        store.updateTextElementFontSize(id: id, to: 42)
+        store.updateTextElementColor(id: id, toHex: "#11223344")
+        store.updateTextElementFont(id: id, to: "Georgia")
+
+        let element = try XCTUnwrap(store.state.textElements.first(where: { $0.id == id }))
+        XCTAssertEqual(element.fontSize, 42, accuracy: 0.0001)
+        XCTAssertEqual(element.colorHex, "#11223344")
+        XCTAssertEqual(element.fontName, "Georgia")
+    }
+
+    func testTextElementFontNameRoundTripsThroughCodable() throws {
+        let state = WorkspaceState(
+            textElements: [
+                TextElement(
+                    position: CanvasPoint(x: 10, y: 20),
+                    size: CardSize(width: 120, height: 40),
+                    text: "styled",
+                    fontSize: 24,
+                    colorHex: "#AABBCCDD",
+                    fontName: "Menlo"
+                )
+            ]
+        )
+
+        let data = try JSONEncoder().encode(state)
+        let decoded = try JSONDecoder().decode(WorkspaceState.self, from: data)
+
+        XCTAssertEqual(decoded.textElements.first?.fontName, "Menlo")
+        XCTAssertEqual(decoded, state)
+    }
+
+    func testTextElementWithoutFontNameDecodesToNil() throws {
+        let legacyJSON = """
+        {
+          "viewport": { "origin": { "x": 0, "y": 0 }, "scale": 1 },
+          "cards": [],
+          "textElements": [
+            {
+              "id": "77777777-7777-7777-7777-777777777777",
+              "position": { "x": 5, "y": 6 },
+              "size": { "width": 120, "height": 40 },
+              "text": "legacy",
+              "fontSize": 17,
+              "colorHex": "#FFFFFFFF"
+            }
+          ]
+        }
+        """
+        let data = try XCTUnwrap(legacyJSON.data(using: .utf8))
+        let state = try JSONDecoder().decode(WorkspaceState.self, from: data)
+
+        XCTAssertEqual(state.textElements.count, 1)
+        XCTAssertNil(state.textElements.first?.fontName)
+    }
+
+    // MARK: - Grid placement (double-click instant-create)
+
+    private func makeGridCard() -> WorkspaceCard {
+        WorkspaceCard(
+            kind: .note,
+            position: .zero,
+            size: CardSize(width: 520, height: 340),
+            title: "Grid",
+            content: "Content"
+        )
+    }
+
+    private func assertPoint(
+        _ point: CanvasPoint,
+        _ x: Double,
+        _ y: Double,
+        accuracy: Double = 0.001,
+        file: StaticString = #filePath,
+        line: UInt = #line
+    ) {
+        XCTAssertEqual(point.x, x, accuracy: accuracy, file: file, line: line)
+        XCTAssertEqual(point.y, y, accuracy: accuracy, file: file, line: line)
+    }
+
+    func testGridPlacementFillsReadingOrder2x2Page() {
+        var state = WorkspaceState()
+        let viewportSize = ScreenPoint(x: 1600, y: 1000)
+
+        for _ in 0..<4 {
+            state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
+        }
+
+        XCTAssertEqual(state.cards.count, 4)
+        assertPoint(state.cards[0].position, 48, 48)
+        assertPoint(state.cards[1].position, 608, 48)
+        assertPoint(state.cards[2].position, 48, 428)
+        assertPoint(state.cards[3].position, 608, 428)
+        // A full page fits, so the viewport stays put where the user was looking.
+        XCTAssertEqual(state.viewport.origin.x, 0, accuracy: 0.001)
+        XCTAssertEqual(state.viewport.origin.y, 0, accuracy: 0.001)
+    }
+
+    func testGridPlacementStartsNewPageAndPansNewestCardToTopLeft() {
+        var state = WorkspaceState()
+        let viewportSize = ScreenPoint(x: 1600, y: 1000)
+
+        for _ in 0..<5 {
+            state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
+        }
+
+        assertPoint(state.cards[4].position, 48, 808)
+
+        let screen = state.viewport.screenPoint(forCanvasPoint: state.cards[4].position)
+        XCTAssertEqual(screen.x, 48, accuracy: 0.001)
+        XCTAssertEqual(screen.y, 48, accuracy: 0.001)
+        XCTAssertEqual(state.viewport.origin.x, 0, accuracy: 0.001)
+        XCTAssertEqual(state.viewport.origin.y, -760, accuracy: 0.001)
+    }
+
+    func testGridPlacementKeepsNewestCardFullyVisibleOnSmallViewport() {
+        var state = WorkspaceState()
+        let viewportSize = ScreenPoint(x: 700, y: 520)
+
+        for _ in 0..<6 {
+            state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
+            let card = try! XCTUnwrap(state.cards.last)
+            let topLeft = state.viewport.screenPoint(forCanvasPoint: card.position)
+            let width = card.size.width * state.viewport.scale
+            let height = card.size.height * state.viewport.scale
+
+            XCTAssertGreaterThanOrEqual(topLeft.x, 0)
+            XCTAssertGreaterThanOrEqual(topLeft.y, 0)
+            XCTAssertLessThanOrEqual(topLeft.x + width, viewportSize.x + 0.001)
+            XCTAssertLessThanOrEqual(topLeft.y + height, viewportSize.y + 0.001)
+        }
+    }
+
+    func testGridPlacementBookkeepingIsTransientAcrossEncodeDecode() throws {
+        var state = WorkspaceState()
+        let viewportSize = ScreenPoint(x: 1600, y: 1000)
+
+        for _ in 0..<3 {
+            state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
+        }
+        XCTAssertEqual(state.gridPlacementCount, 3)
+        XCTAssertNotNil(state.gridPlacementAnchor)
+
+        let data = try JSONEncoder().encode(state)
+        let decoded = try JSONDecoder().decode(WorkspaceState.self, from: data)
+
+        XCTAssertEqual(decoded.gridPlacementCount, 0)
+        XCTAssertNil(decoded.gridPlacementAnchor)
+        XCTAssertEqual(decoded.cards.count, 3)
+    }
+
+    func testGridPlacementRespectsViewportScale() {
+        var state = WorkspaceState(viewport: CanvasViewport(origin: .zero, scale: 0.5))
+        let viewportSize = ScreenPoint(x: 1600, y: 1000)
+
+        state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
+
+        let card = state.cards[0]
+        // The anchor is derived from the screen margin in canvas space, so the
+        // first card's screen top-left lands at the margin regardless of scale.
+        assertPoint(card.position, 96, 96)
+        let screen = state.viewport.screenPoint(forCanvasPoint: card.position)
+        XCTAssertEqual(screen.x, 48, accuracy: 0.001)
+        XCTAssertEqual(screen.y, 48, accuracy: 0.001)
+    }
+
+    @MainActor
+    func testAddCardInGridReturnsNewCardIDAtFirstSlot() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(state: WorkspaceState(), storageURL: url)
+
+        let id = store.addCardInGrid(kind: .note, viewportSize: ScreenPoint(x: 1600, y: 1000))
+
+        XCTAssertEqual(store.state.cards.last?.id, id)
+        XCTAssertEqual(store.state.cards.count, 1)
+        assertPoint(try! XCTUnwrap(store.state.cards.last).position, 48, 48)
+    }
+
+    // MARK: - Stage 4: marquee group move + delete
+
+    private func makePositionedCard(_ id: UUID, x: Double, y: Double) -> WorkspaceCard {
+        WorkspaceCard(
+            id: id,
+            kind: .note,
+            position: CanvasPoint(x: x, y: y),
+            size: CardSize(width: 100, height: 100),
+            title: "Card",
+            content: ""
+        )
+    }
+
+    func testMoveCardsOffsetsGroupMembersAndLeavesOthers() {
+        let a = UUID(); let b = UUID(); let c = UUID()
+        var state = WorkspaceState(cards: [
+            makePositionedCard(a, x: 0, y: 0),
+            makePositionedCard(b, x: 200, y: 0),
+            makePositionedCard(c, x: 400, y: 0)
+        ])
+
+        state.moveCards(ids: [a, b], screenTranslation: CanvasVector(dx: 50, dy: -30))
+
+        assertPoint(state.cards[0].position, 50, -30)
+        assertPoint(state.cards[1].position, 250, -30)
+        // Non-member stays put.
+        assertPoint(state.cards[2].position, 400, 0)
+    }
+
+    func testMoveCardsConvertsScreenTranslationByScale() {
+        let a = UUID()
+        var state = WorkspaceState(
+            viewport: CanvasViewport(origin: .zero, scale: 2),
+            cards: [makePositionedCard(a, x: 0, y: 0)]
+        )
+
+        state.moveCards(ids: [a], screenTranslation: CanvasVector(dx: 40, dy: 20))
+
+        // Screen translation divided by scale once.
+        assertPoint(state.cards[0].position, 20, 10)
+    }
+
+    func testDeleteCardsRemovesGroupConnectionsAndUpdatesSelection() {
+        let a = UUID(); let b = UUID(); let c = UUID(); let d = UUID()
+        var state = WorkspaceState(cards: [
+            makePositionedCard(a, x: 0, y: 0),
+            makePositionedCard(b, x: 200, y: 0),
+            makePositionedCard(c, x: 400, y: 0),
+            makePositionedCard(d, x: 600, y: 0)
+        ])
+        state.addConnection(from: a, to: b) // both members
+        state.addConnection(from: b, to: c) // one member
+        state.addConnection(from: c, to: d) // unrelated
+        state.selectCard(id: a)             // selectedCardID = a, clears marquee
+        state.marqueeSelectedCardIDs = [a, b, c]
+
+        state.deleteCards(ids: [a, b])
+
+        XCTAssertEqual(state.cards.map(\.id), [c, d])
+        XCTAssertEqual(state.connections.count, 1)
+        let edge = state.connections[0]
+        XCTAssertTrue((edge.from == c && edge.to == d) || (edge.from == d && edge.to == c))
+        XCTAssertNil(state.selectedCardID)
+        XCTAssertEqual(state.marqueeSelectedCardIDs, [c])
+    }
+
+    func testDeleteCardsIgnoresUnknownIDs() {
+        let a = UUID(); let b = UUID()
+        var state = WorkspaceState(cards: [
+            makePositionedCard(a, x: 0, y: 0),
+            makePositionedCard(b, x: 200, y: 0)
+        ])
+
+        state.deleteCards(ids: [UUID()])
+
+        XCTAssertEqual(state.cards.count, 2)
+    }
+
+    @MainActor
+    func testStoreMoveCardsIsDebounced() {
+        let a = UUID(); let b = UUID()
+        let state = WorkspaceState(cards: [
+            makePositionedCard(a, x: 0, y: 0),
+            makePositionedCard(b, x: 200, y: 0)
+        ])
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(state: state, storageURL: url, persistenceDelay: 60)
+
+        store.moveCards(ids: [a, b], screenTranslation: CanvasVector(dx: 30, dy: 10))
+
+        assertPoint(store.state.cards[0].position, 30, 10)
+        assertPoint(store.state.cards[1].position, 230, 10)
+        // Debounced: nothing written synchronously.
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
+
+    @MainActor
+    func testStoreDeleteCardsPersistsImmediately() throws {
+        let a = UUID(); let b = UUID(); let c = UUID()
+        var state = WorkspaceState(cards: [
+            makePositionedCard(a, x: 0, y: 0),
+            makePositionedCard(b, x: 200, y: 0),
+            makePositionedCard(c, x: 400, y: 0)
+        ])
+        state.marqueeSelectedCardIDs = [a, b]
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(state: state, storageURL: url, persistenceDelay: 60)
+
+        store.deleteCards(ids: [a, b])
+
+        XCTAssertEqual(store.state.cards.map(\.id), [c])
+        // Structural change persists immediately.
+        let loaded = try WorkspaceStore.load(from: url)
+        XCTAssertEqual(loaded.cards.map(\.id), [c])
     }
 }

@@ -70,7 +70,7 @@ struct ToolDock: View {
                 systemName: "arrow.up.right",
                 label: "Connect — link two cards",
                 isArmed: interaction.isArmed(.connecting(source: nil)),
-                onSingle: { interaction.armConnect() }
+                onSingle: { interaction.armConnect(preselectedSource: store.state.selectedCardID) }
             )
 
             DockToolButton(
@@ -256,11 +256,37 @@ private struct DockToolButton: View {
                     )
             )
             .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
-            .onTapGesture(count: 2) { (onDouble ?? onSingle)() }
-            .onTapGesture(count: 1) { onSingle() }
+            .modifier(DockToolGesture(onSingle: onSingle, onDouble: onDouble))
             .pointerCursor()
             .help(label)
             .animation(.easeInOut(duration: 0.15), value: isArmed)
+    }
+}
+
+/// Splits a dock tool's tap handling by whether it has a double-click action.
+///
+/// Tools WITHOUT a double action (connect/brush/eraser) arm instantly on a
+/// single click — no double-click disambiguation delay, so they feel snappy.
+///
+/// Tools WITH a double action (card/text) arm on mouse-DOWN via a zero-duration
+/// long press so the place-mode highlight appears immediately, while a real
+/// double-click still fires instant-create. Trade-off: a genuine double-click
+/// transiently arms place-mode on the first press, but the create path disarms
+/// right after, so the resolved state is always correct.
+private struct DockToolGesture: ViewModifier {
+    let onSingle: () -> Void
+    let onDouble: (() -> Void)?
+
+    func body(content: Content) -> some View {
+        if let onDouble {
+            content
+                .onTapGesture(count: 2) { onDouble() }
+                .simultaneousGesture(
+                    LongPressGesture(minimumDuration: 0).onEnded { _ in onSingle() }
+                )
+        } else {
+            content.onTapGesture(count: 1) { onSingle() }
+        }
     }
 }
 

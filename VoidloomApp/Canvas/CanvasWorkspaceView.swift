@@ -10,7 +10,10 @@ struct CanvasWorkspaceView: View {
     var onToggleCardFocus: () -> Void
 
     @State private var lastPanTranslation: CGSize = .zero
-    @State private var lastMagnification: CGFloat = 1
+    /// In-progress pinch magnification (cumulative from 1) applied as a pure GPU
+    /// transform during the gesture; committed to `store.viewport` on end. Keeps
+    /// pinch-zoom from publishing `state` (and re-rendering every layer) per tick.
+    @State private var liveZoom: CGFloat = 1
     @State private var contextMenuLocation: CGPoint?
     @State private var rubberStart: CGPoint?
     @State private var rubberCurrent: CGPoint?
@@ -20,6 +23,26 @@ struct CanvasWorkspaceView: View {
     /// Points (canvas space) accumulated for the brush stroke currently being
     /// drawn. Empty when no drag is in progress.
     @State private var liveStrokePoints: [CanvasPoint] = []
+
+    /// Live pointer (screen/view coords) while the eraser is armed, driving the
+    /// round footprint indicator. Tracks at SwiftUI refresh rate, decoupled from
+    /// the erase compute. Nil when the eraser is disarmed or the pointer left.
+    @State private var eraserCursor: CGPoint?
+    /// The previous erase sample (screen coords) within a single drag, so fast
+    /// drags erase along the swept path instead of leaving gaps. Reset on mouse up.
+    @State private var lastErasePoint: CGPoint?
+
+    /// What an in-progress idle left-drag resolved to (decided once on the first
+    /// move, then held for the rest of the drag).
+    @State private var idleDragMode: IdleDragMode = .none
+    /// Selection-box corners in screen (view) coordinates while marquee dragging.
+    @State private var marqueeStart: CGPoint?
+    @State private var marqueeCurrent: CGPoint?
+
+    /// Which modifier (if any) a mouse/keyboard user must hold for a left-drag to
+    /// draw a selection box instead of panning. `.none` makes plain drag draw the
+    /// box. Two-finger trackpad pan is unaffected and always pans.
+    @AppStorage("canvas.selectionBoxModifier") private var selectionBoxModifier: SelectionBoxModifier = .none
 
     /// Minimum spacing (canvas units) between accumulated brush points, so a
     /// stroke stays compact regardless of how fast the cursor moves.
@@ -39,10 +62,15 @@ struct CanvasWorkspaceView: View {
                     .contentShape(Rectangle())
                     .onTapGesture {
                         guard interaction.mode == .idle else { return }
+                        // End any inline text edit first so its editor tears down
+                        // and commits the draft, then drop all selection so a
+                        // selected text element de-highlights immediately.
+                        interaction.editingTextID = nil
                         resignKeyboardFocus()
                         store.clearSelection()
+                        interaction.selectedConnectionID = nil
                     }
-                    .gesture(panGesture, isEnabled: interaction.mode == .idle)
+                    .gesture(idleDragGesture, isEnabled: interaction.mode == .idle)
                     .simultaneousGesture(zoomGesture(in: geometry))
 
                 // Pointer overlays sit BELOW the cards so they never occlude
@@ -50,9 +78,12 @@ struct CanvasWorkspaceView: View {
                 // global scroll monitor (so it needs no hit testing); right-click
                 // is claimed only over empty canvas — cards above intercept their
                 // own right-clicks.
-                CanvasTrackpadPanView { translation in
+                CanvasTrackpadPanView { translation, cursorInView in
                     guard interaction.mode == .idle else { return false }
-                    guard store.state.selectedCardID == nil else { return false }
+                    // When the pointer is over the selected card, yield the scroll
+                    // to that card's own scroll view (terminal/note/todo/browser)
+                    // instead of panning the canvas.
+                    if let cursorInView, cursorOverSelectedCard(cursorInView) { return false }
                     store.pan(by: translation)
                     return true
                 }
@@ -67,16 +98,44 @@ struct CanvasWorkspaceView: View {
                 ZStack(alignment: .topLeading) {
                     CanvasGrid()
 
+                    // Persisted strokes and the in-progress live stroke render in
+                    // two adjacent layers. The persisted layer is `.equatable()`,
+                    // so accumulating live points (which change every move) never
+                    // forces a redraw of every committed stroke — only the cheap
+                    // live layer re-renders during a brush drag.
                     CanvasDrawingLayer(
                         strokes: store.state.strokes,
+                        liveStroke: nil,
+                        canvasSize: canvasSize
+                    )
+                    .equatable()
+
+                    CanvasDrawingLayer(
+                        strokes: [],
                         liveStroke: liveStroke,
                         canvasSize: canvasSize
                     )
+                    .equatable()
 
                     ConnectionsLayer(
                         connections: store.state.connections,
                         cards: store.state.cards,
-                        canvasSize: canvasSize
+                        canvasSize: canvasSize,
+                        selectedConnectionID: interaction.selectedConnectionID
+                    )
+                    .equatable()
+
+                    // Transparent edge hit-testing sits ABOVE the rendered
+                    // edges but BELOW the cards, so cards keep hit priority.
+                    ConnectionHitLayer(
+                        interaction: interaction,
+                        connections: store.state.connections,
+                        cards: store.state.cards,
+                        canvasSize: canvasSize,
+                        onSelect: { id in
+                            store.clearSelection()
+                            interaction.selectedConnectionID = id
+                        }
                     )
 
                     ForEach(store.state.cards) { card in
@@ -86,7 +145,8 @@ struct CanvasWorkspaceView: View {
                             sessionManager: sessionManager,
                             viewportScale: store.state.viewport.scale,
                             isCardFocused: isCardFocused,
-                            onToggleCardFocus: onToggleCardFocus
+                            onToggleCardFocus: onToggleCardFocus,
+                            editingCardTitleID: $interaction.editingCardTitleID
                         )
                         .zIndex(card.id == store.state.selectedCardID ? 1 : 0)
                     }
@@ -107,13 +167,17 @@ struct CanvasWorkspaceView: View {
                     x: CGFloat(store.state.viewport.origin.x),
                     y: CGFloat(store.state.viewport.origin.y)
                 )
+                // Constrain to the viewport so `.center` matches the screen center
+                // used as the pinch commit anchor, then apply the in-progress
+                // magnification as a pure GPU transform (no state publish/redraw).
+                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
+                .scaleEffect(liveZoom, anchor: .center)
 
                 // Armed-tool input capture sits ABOVE the cards so place/connect
                 // drags are intercepted before a card drag can begin. It is
                 // inert (hitTest returns nil) whenever no tool is armed.
                 CanvasInteractionOverlay(
                     mode: interaction.mode,
-                    eraserScreenDiameter: CGFloat(interaction.eraserThickness * store.state.viewport.scale),
                     onMouseDown: handleOverlayDown,
                     onMouseDragged: handleOverlayDragged,
                     onMouseMoved: handleOverlayMoved,
@@ -121,16 +185,42 @@ struct CanvasWorkspaceView: View {
                 )
                 .frame(width: geometry.size.width, height: geometry.size.height)
 
+                // Round eraser footprint, sized to the live thickness (screen px)
+                // and tracking the pointer at refresh rate. Render-only, so it
+                // never intercepts the erase drag below it.
+                if interaction.mode == .erasing, let point = eraserCursor {
+                    let diameter = CGFloat(interaction.eraserThickness) * CGFloat(store.state.viewport.scale)
+                    ZStack {
+                        Circle().stroke(Color.black.opacity(0.45), lineWidth: 3)
+                        Circle().stroke(Color.white.opacity(0.95), lineWidth: 1.5)
+                    }
+                    .frame(width: diameter, height: diameter)
+                    .position(point)
+                    .allowsHitTesting(false)
+                }
+
                 CanvasInteractionLayer(
                     interaction: interaction,
                     rubberStart: rubberStart,
                     rubberCurrent: rubberCurrent,
                     connectSourceRect: connectSourceScreenRect,
+                    connectHoverRect: connectHoverScreenRect,
                     connectAnchor: connectAnchorScreen,
                     connectCursor: connectCursor,
-                    connectAccent: connectAccent
+                    connectAccent: connectAccent,
+                    marqueeStart: marqueeStart,
+                    marqueeCurrent: marqueeCurrent
                 )
                 .frame(width: geometry.size.width, height: geometry.size.height)
+
+                if let connectionID = interaction.selectedConnectionID,
+                   let midpoint = connectionMidpointScreen(connectionID) {
+                    ConnectionDeleteButton {
+                        store.deleteConnection(id: connectionID)
+                        interaction.selectedConnectionID = nil
+                    }
+                    .position(x: midpoint.x, y: midpoint.y)
+                }
 
                 if let location = contextMenuLocation {
                     Color.clear
@@ -151,6 +241,16 @@ struct CanvasWorkspaceView: View {
             .clipped()
             .onChange(of: interaction.mode) { _, newMode in
                 if case .connecting = newMode {} else { connectCursor = nil }
+                if newMode != .erasing {
+                    eraserCursor = nil
+                    lastErasePoint = nil
+                }
+            }
+            .onChange(of: store.state.selectedCardID) { _, newValue in
+                if newValue != nil { interaction.selectedConnectionID = nil }
+            }
+            .onChange(of: store.state.selectedTextID) { _, newValue in
+                if newValue != nil { interaction.selectedConnectionID = nil }
             }
         }
     }
@@ -176,6 +276,7 @@ struct CanvasWorkspaceView: View {
         case .drawing:
             liveStrokePoints = [canvasPoint(from: point)]
         case .erasing:
+            eraserCursor = point
             erase(at: point)
         default:
             break
@@ -189,6 +290,7 @@ struct CanvasWorkspaceView: View {
         case .drawing:
             appendLivePoint(canvasPoint(from: point))
         case .erasing:
+            eraserCursor = point
             erase(at: point)
         default:
             break
@@ -196,8 +298,22 @@ struct CanvasWorkspaceView: View {
     }
 
     private func handleOverlayMoved(_ point: CGPoint) {
-        if case .connecting = interaction.mode {
+        switch interaction.mode {
+        case let .connecting(source):
             connectCursor = point
+            // Highlight the card under the cursor as the prospective pick. Once a
+            // source is chosen, suppress re-marking it so it stays the source ring
+            // rather than flickering as a target.
+            let canvas = store.state.viewport.canvasPoint(
+                forScreenPoint: ScreenPoint(x: point.x, y: point.y)
+            )
+            let hit = cardID(atCanvas: CanvasPoint(x: canvas.x, y: canvas.y))
+            let target = (hit == source) ? nil : hit
+            if interaction.hoveredCardID != target { interaction.hoveredCardID = target }
+        case .erasing:
+            eraserCursor = point
+        default:
+            break
         }
     }
 
@@ -212,6 +328,7 @@ struct CanvasWorkspaceView: View {
         case .erasing:
             erase(at: point)
             store.flushErase()
+            lastErasePoint = nil
             return
         default:
             break
@@ -242,10 +359,22 @@ struct CanvasWorkspaceView: View {
             }
         case .placingText:
             let id: UUID
+            let seedColorHex = interaction.textColor.hexStringRGBA
             if dragDistance < minRubberBandDrag {
-                id = store.addTextElement(centeredAt: startCanvas)
+                id = store.addTextElement(
+                    centeredAt: startCanvas,
+                    fontSize: interaction.textFontSize,
+                    colorHex: seedColorHex,
+                    fontName: interaction.textFontName
+                )
             } else {
-                id = store.addTextElement(fromCorner: startCanvas, toCorner: endCanvas)
+                id = store.addTextElement(
+                    fromCorner: startCanvas,
+                    toCorner: endCanvas,
+                    fontSize: interaction.textFontSize,
+                    colorHex: seedColorHex,
+                    fontName: interaction.textFontName
+                )
             }
             // Auto-focus inline editing on the freshly placed element.
             interaction.editingTextID = id
@@ -257,8 +386,8 @@ struct CanvasWorkspaceView: View {
     }
 
     /// Connect tool click: pick a source card, then a distinct target card to
-    /// persist an edge. Source is cleared after a successful link so the tool
-    /// stays armed to start a new connection. Visuals only — no agent comms.
+    /// persist an edge. After a successful link the tool DISARMS (returns to
+    /// idle) so the user isn't left armed. Visuals only — no agent comms.
     private func handleConnectTap(at point: CGPoint) {
         let canvas = store.state.viewport.canvasPoint(
             forScreenPoint: ScreenPoint(x: point.x, y: point.y)
@@ -270,10 +399,14 @@ struct CanvasWorkspaceView: View {
             interaction.setConnectSource(hitID)
             connectCursor = point
         case let .connecting(.some(source)):
+            // Disarm only after a SUCCESSFUL link, so a misclick on the source
+            // card (or empty space) keeps the armed source instead of dropping
+            // the user back to picking a source again. disarm() returns to idle
+            // and (via the mode didSet) clears the hover/source highlights.
             if source != hitID {
                 store.addConnection(from: source, to: hitID)
+                interaction.disarm()
             }
-            interaction.clearConnectSource()
         default:
             break
         }
@@ -316,6 +449,22 @@ struct CanvasWorkspaceView: View {
         )
     }
 
+    /// The hovered (prospective pick) card's frame in screen coords, while the
+    /// connect tool is armed. Drives the target highlight ring.
+    private var connectHoverScreenRect: CGRect? {
+        guard case .connecting = interaction.mode,
+              let id = interaction.hoveredCardID,
+              let card = store.state.cards.first(where: { $0.id == id }) else { return nil }
+
+        let topLeft = store.state.viewport.screenPoint(forCanvasPoint: card.position)
+        return CGRect(
+            x: topLeft.x,
+            y: topLeft.y,
+            width: card.size.width * store.state.viewport.scale,
+            height: card.size.height * store.state.viewport.scale
+        )
+    }
+
     /// The follow-arrow's start point: where the source card's border meets the
     /// ray towards the cursor, in screen coords.
     private var connectAnchorScreen: CGPoint? {
@@ -329,6 +478,26 @@ struct CanvasWorkspaceView: View {
         let border = CanvasRect(origin: card.position, size: card.size)
             .borderIntersection(towards: CanvasPoint(x: cursorCanvas.x, y: cursorCanvas.y))
         let screen = store.state.viewport.screenPoint(forCanvasPoint: border)
+        return CGPoint(x: screen.x, y: screen.y)
+    }
+
+    /// The screen-space midpoint of the connection's border-anchored edge, or
+    /// nil if the edge (or one of its cards) no longer exists — which also hides
+    /// the floating delete button.
+    private func connectionMidpointScreen(_ id: UUID) -> CGPoint? {
+        guard let connection = store.state.connections.first(where: { $0.id == id }),
+              let fromCard = store.state.cards.first(where: { $0.id == connection.from }),
+              let toCard = store.state.cards.first(where: { $0.id == connection.to }) else { return nil }
+
+        let endpoints = connectionEndpoints(
+            from: CanvasRect(origin: fromCard.position, size: fromCard.size),
+            to: CanvasRect(origin: toCard.position, size: toCard.size)
+        )
+        let midCanvas = CanvasPoint(
+            x: (endpoints.start.x + endpoints.end.x) / 2,
+            y: (endpoints.start.y + endpoints.end.y) / 2
+        )
+        let screen = store.state.viewport.screenPoint(forCanvasPoint: midCanvas)
         return CGPoint(x: screen.x, y: screen.y)
     }
 
@@ -366,12 +535,34 @@ struct CanvasWorkspaceView: View {
         )
     }
 
+    /// Erases under the eraser disc, sampling along the segment from the previous
+    /// sample to `view` so a fast drag erases the whole swept path (no gaps).
     private func erase(at view: CGPoint) {
-        store.erase(
-            at: canvasPoint(from: view),
-            radius: interaction.eraserThickness / 2,
-            mode: interaction.eraserMode
-        )
+        let radius = interaction.eraserThickness / 2
+        let mode = interaction.eraserMode
+
+        defer { lastErasePoint = view }
+
+        guard let last = lastErasePoint else {
+            store.erase(at: canvasPoint(from: view), radius: radius, mode: mode)
+            return
+        }
+
+        let distance = hypot(view.x - last.x, view.y - last.y)
+        // Step in screen px ~ half the disc radius so consecutive footprints
+        // overlap; at least one sample so a stationary press still erases.
+        let radiusScreen = CGFloat(radius) * CGFloat(store.state.viewport.scale)
+        let step = max(radiusScreen / 2, 1)
+        let samples = max(Int((distance / step).rounded(.up)), 1)
+
+        for index in 1...samples {
+            let fraction = CGFloat(index) / CGFloat(samples)
+            let sample = CGPoint(
+                x: last.x + ((view.x - last.x) * fraction),
+                y: last.y + ((view.y - last.y) * fraction)
+            )
+            store.erase(at: canvasPoint(from: sample), radius: radius, mode: mode)
+        }
     }
 
     /// The live brush stroke rendered above persisted strokes while drawing.
@@ -408,44 +599,106 @@ struct CanvasWorkspaceView: View {
         NSApp.keyWindow?.makeFirstResponder(nil)
     }
 
-    private var panGesture: some Gesture {
+    /// Whether `viewPoint` (canvas view coords) falls inside the selected card's
+    /// on-screen rect, used to hand two-finger scroll to that card's scroll view.
+    private func cursorOverSelectedCard(_ viewPoint: CGPoint) -> Bool {
+        guard let id = store.state.selectedCardID,
+              let card = store.state.cards.first(where: { $0.id == id }) else { return false }
+
+        let topLeft = store.state.viewport.screenPoint(forCanvasPoint: card.position)
+        let rect = CGRect(
+            x: topLeft.x,
+            y: topLeft.y,
+            width: card.size.width * store.state.viewport.scale,
+            height: card.size.height * store.state.viewport.scale
+        )
+        return rect.contains(viewPoint)
+    }
+
+    /// The single gesture for an idle left-drag on empty canvas. It resolves once
+    /// per drag — into a marquee selection box when the configured modifier is
+    /// satisfied, otherwise into a canvas pan. Two-finger trackpad pan is handled
+    /// separately by `CanvasTrackpadPanView` and is unaffected by this choice.
+    private var idleDragGesture: some Gesture {
         DragGesture(minimumDistance: 1)
             .onChanged { value in
-                let delta = CGSize(
-                    width: value.translation.width - lastPanTranslation.width,
-                    height: value.translation.height - lastPanTranslation.height
-                )
+                if idleDragMode == .none {
+                    if selectionBoxModifier.matches(NSEvent.modifierFlags) {
+                        idleDragMode = .marquee
+                        marqueeStart = value.startLocation
+                    } else {
+                        idleDragMode = .pan
+                    }
+                }
 
-                store.pan(by: CanvasVector(dx: delta.width, dy: delta.height))
-                lastPanTranslation = value.translation
+                switch idleDragMode {
+                case .pan:
+                    let delta = CGSize(
+                        width: value.translation.width - lastPanTranslation.width,
+                        height: value.translation.height - lastPanTranslation.height
+                    )
+                    store.pan(by: CanvasVector(dx: delta.width, dy: delta.height))
+                    lastPanTranslation = value.translation
+                case .marquee:
+                    marqueeCurrent = value.location
+                    let startCanvas = store.state.viewport.canvasPoint(
+                        forScreenPoint: ScreenPoint(x: value.startLocation.x, y: value.startLocation.y)
+                    )
+                    let endCanvas = store.state.viewport.canvasPoint(
+                        forScreenPoint: ScreenPoint(x: value.location.x, y: value.location.y)
+                    )
+                    store.selectCards(fromCorner: startCanvas, toCorner: endCanvas)
+                case .none:
+                    break
+                }
             }
             .onEnded { _ in
                 lastPanTranslation = .zero
+                idleDragMode = .none
+                marqueeStart = nil
+                marqueeCurrent = nil
             }
     }
 
+    /// Pinch-zoom. During the gesture the cumulative magnification is held in
+    /// `liveZoom` (a pure GPU `scaleEffect`, no `state` publish), then committed
+    /// once to `store.viewport` on end so every stroke/connection/card redraws a
+    /// single time. `liveZoom` is clamped so the previewed scale matches the
+    /// committed (clamped) result, keeping the preview from drifting at the limits.
     private func zoomGesture(in geometry: GeometryProxy) -> some Gesture {
         MagnificationGesture()
             .onChanged { value in
                 guard value > 0 else { return }
+                liveZoom = clampedLiveZoom(value)
+            }
+            .onEnded { value in
+                defer { liveZoom = 1 }
+                guard value > 0 else { return }
 
-                let delta = value / lastMagnification
                 let anchor = ScreenPoint(
                     x: geometry.size.width / 2,
                     y: geometry.size.height / 2
                 )
+                store.zoom(by: Double(clampedLiveZoom(value)), anchoredAt: anchor)
+            }
+    }
 
-                store.zoom(by: delta, anchoredAt: anchor)
-                lastMagnification = value
-            }
-            .onEnded { _ in
-                lastMagnification = 1
-            }
+    /// Clamps an in-progress magnification so `viewport.scale * factor` stays
+    /// within the viewport's scale limits, matching `CanvasViewport.zoom`.
+    private func clampedLiveZoom(_ factor: CGFloat) -> CGFloat {
+        let scale = store.state.viewport.scale
+        guard scale > 0 else { return factor }
+        let minFactor = CanvasViewport.minimumScale / scale
+        let maxFactor = CanvasViewport.maximumScale / scale
+        return min(max(factor, CGFloat(minFactor)), CGFloat(maxFactor))
     }
 }
 
 private struct CanvasTrackpadPanView: NSViewRepresentable {
-    let onPan: (CanvasVector) -> Bool
+    /// `cursorInView` is the pointer in the canvas view's top-left coordinate
+    /// space (or nil if it can't be resolved); the closure returns whether it
+    /// consumed the scroll event (pan) or let it fall through (card scroll).
+    let onPan: (CanvasVector, CGPoint?) -> Bool
 
     func makeCoordinator() -> Coordinator {
         Coordinator(onPan: onPan)
@@ -475,13 +728,13 @@ private struct CanvasTrackpadPanView: NSViewRepresentable {
     }
 
     final class Coordinator {
-        var onPan: (CanvasVector) -> Bool
+        var onPan: (CanvasVector, CGPoint?) -> Bool
         var screenFrame: CGRect?
         weak var hostView: TrackpadPanHostingView?
 
         private var monitor: Any?
 
-        init(onPan: @escaping (CanvasVector) -> Bool) {
+        init(onPan: @escaping (CanvasVector, CGPoint?) -> Bool) {
             self.onPan = onPan
         }
 
@@ -505,7 +758,7 @@ private struct CanvasTrackpadPanView: NSViewRepresentable {
             // Only pan when the scroll targets the canvas window itself — not the
             // Settings window or any other window in the app.
             guard let hostWindow = hostView?.window, event.window === hostWindow else { return false }
-            guard screenFrame?.contains(NSEvent.mouseLocation) == true else { return false }
+            guard let screenFrame, screenFrame.contains(NSEvent.mouseLocation) else { return false }
 
             let translation = CanvasVector(
                 dx: event.scrollingDeltaX,
@@ -513,7 +766,15 @@ private struct CanvasTrackpadPanView: NSViewRepresentable {
             )
             guard translation != .zero else { return false }
 
-            return onPan(translation)
+            // Map the global cursor into the view's top-left coordinate space.
+            // `screenFrame` is Cocoa (bottom-left origin), so flip Y.
+            let mouse = NSEvent.mouseLocation
+            let cursorInView = CGPoint(
+                x: mouse.x - screenFrame.minX,
+                y: screenFrame.maxY - mouse.y
+            )
+
+            return onPan(translation, cursorInView)
         }
 
         deinit {
@@ -546,6 +807,47 @@ private struct CanvasTrackpadPanView: NSViewRepresentable {
 
             let windowFrame = convert(bounds, to: nil)
             onScreenFrameChange(window.convertToScreen(windowFrame))
+        }
+    }
+}
+
+/// What an idle left-drag resolved to, decided once on its first move.
+private enum IdleDragMode {
+    case none
+    case pan
+    case marquee
+}
+
+/// The modifier a mouse/keyboard user holds to make a left-drag draw a selection
+/// box instead of panning. Persisted (`@AppStorage`) and surfaced in the Canvas
+/// settings tab. `.none` means a plain drag draws the box. NSEvent-dependent, so
+/// it lives on the SwiftUI side rather than in VoidloomCore.
+enum SelectionBoxModifier: String, CaseIterable, Identifiable {
+    case none
+    case shift
+    case command
+    case option
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .none: return "None"
+        case .shift: return "Shift"
+        case .command: return "Command"
+        case .option: return "Option"
+        }
+    }
+
+    /// Whether the live modifier flags satisfy this trigger. `.none` requires no
+    /// modifiers held, so a plain drag draws the box and modified drags pan.
+    func matches(_ flags: NSEvent.ModifierFlags) -> Bool {
+        let active = flags.intersection(.deviceIndependentFlagsMask)
+        switch self {
+        case .none: return active.isEmpty
+        case .shift: return active.contains(.shift)
+        case .command: return active.contains(.command)
+        case .option: return active.contains(.option)
         }
     }
 }

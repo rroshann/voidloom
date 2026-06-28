@@ -43,6 +43,19 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public var textElements: [TextElement]
     public var selectedTextID: UUID?
 
+    /// Transient marquee multi-selection: the cards a drag-box currently covers.
+    /// Deliberately excluded from `CodingKeys`, so it is never encoded and a
+    /// fresh decode always starts empty (no JSON schema change, legacy-safe).
+    /// Cleared by single-selection and `clearSelection`.
+    public var marqueeSelectedCardIDs: Set<UUID> = []
+
+    /// Transient grid-placement bookkeeping for double-click instant-create.
+    /// Like `marqueeSelectedCardIDs`, these are excluded from `CodingKeys` and
+    /// the memberwise/decode inits, so they reset to 0/nil on every decode,
+    /// workspace switch, or fresh create (no JSON schema change, legacy-safe).
+    public var gridPlacementCount: Int = 0
+    public var gridPlacementAnchor: CanvasPoint? = nil
+
     public init(
         viewport: CanvasViewport = CanvasViewport(),
         selectedCardID: UUID? = nil,
@@ -103,8 +116,68 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         cards[index].position.y += screenTranslation.dy / viewport.scale
     }
 
+    /// Moves every card in `ids` by the same screen translation, converted to
+    /// canvas units once. Drives marquee group drag: dragging any selected card
+    /// moves the whole highlighted set together. Cards outside the set are
+    /// untouched; unknown ids are silently ignored.
+    public mutating func moveCards(ids: Set<UUID>, screenTranslation: CanvasVector) {
+        guard !ids.isEmpty else { return }
+        let dx = screenTranslation.dx / viewport.scale
+        let dy = screenTranslation.dy / viewport.scale
+        for index in cards.indices where ids.contains(cards[index].id) {
+            cards[index].position.x += dx
+            cards[index].position.y += dy
+        }
+    }
+
     public mutating func addCard(_ card: WorkspaceCard) {
         cards.append(card)
+    }
+
+    /// Places a card in the next reading-order slot of a 2x2 page, panning the
+    /// viewport so the newest card is always fully on-screen — and so a card that
+    /// starts a fresh page lands at the page's top-left of the visible viewport.
+    ///
+    /// Page 0 anchors on whatever the user is currently looking at (the margin
+    /// inset of the visible viewport), so the first cards appear where attention
+    /// already is without a jump. Each subsequent page sits one `pageStride`
+    /// below the previous, and the viewport pans to reveal it top-left.
+    public mutating func placeCardInGrid(_ card: WorkspaceCard, viewportSize: ScreenPoint) {
+        let margin = GridPlacement.margin
+        let slot = GridPlacement.slot(for: gridPlacementCount)
+
+        if gridPlacementAnchor == nil {
+            // First placement on this workspace session: anchor at the current
+            // viewport so cards appear where the user is looking.
+            gridPlacementAnchor = viewport.canvasPoint(
+                forScreenPoint: ScreenPoint(x: margin, y: margin)
+            )
+        } else if slot.isPageStart, let previousAnchor = gridPlacementAnchor {
+            // A new page begins one page-height below the previous; pan so it
+            // lands at the viewport's top-left margin.
+            let newAnchor = CanvasPoint(
+                x: previousAnchor.x,
+                y: previousAnchor.y + GridPlacement.pageStride
+            )
+            gridPlacementAnchor = newAnchor
+            viewport.pan(soCanvasPoint: newAnchor, appearsAt: ScreenPoint(x: margin, y: margin))
+        }
+
+        let anchor = gridPlacementAnchor ?? .zero
+        var placed = card
+        placed.position = GridPlacement.origin(anchor: anchor, column: slot.column, row: slot.row)
+
+        // Guarantee the card is fully visible even if its real footprint exceeds
+        // the nominal stride envelope or the viewport is small.
+        viewport.panToReveal(
+            canvasRectOrigin: placed.position,
+            size: placed.size,
+            viewportSize: viewportSize,
+            margin: margin
+        )
+
+        cards.append(placed)
+        gridPlacementCount += 1
     }
 
     public mutating func replaceCard(_ card: WorkspaceCard) {
@@ -112,16 +185,117 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         cards[index] = card
     }
 
+    /// A top-left origin for a card of `size` whose center sits on `center`,
+    /// nudged along a diagonal cascade ONLY if the centered placement would
+    /// overlap an existing card (each existing rect inflated by `spacing`).
+    ///
+    /// When the centered spot is free the base origin is returned unchanged, so
+    /// the exact-center contract holds for the first card placed at a point.
+    /// Otherwise candidates `base + (i*step, i*step)` are scanned until one is
+    /// free or `maxAttempts` is exhausted (falling back to the base origin).
+    public func nonOverlappingOrigin(
+        for size: CardSize,
+        centeredAt center: CanvasPoint,
+        spacing: Double = 28,
+        step: Double = 36,
+        maxAttempts: Int = 200
+    ) -> CanvasPoint {
+        let base = CanvasPoint(
+            x: center.x - (size.width / 2),
+            y: center.y - (size.height / 2)
+        )
+
+        func isFree(_ origin: CanvasPoint) -> Bool {
+            for card in cards where Self.rectsIntersect(
+                origin: origin,
+                size: size,
+                otherOrigin: card.position,
+                otherSize: card.size,
+                spacing: spacing
+            ) {
+                return false
+            }
+            return true
+        }
+
+        if isFree(base) { return base }
+
+        for attempt in 1...maxAttempts {
+            let candidate = CanvasPoint(
+                x: base.x + (Double(attempt) * step),
+                y: base.y + (Double(attempt) * step)
+            )
+            if isFree(candidate) { return candidate }
+        }
+
+        return base
+    }
+
+    /// AABB intersection test where the first rect is inflated by `spacing` on
+    /// every side, so placements keep a visible gap from existing cards.
+    private static func rectsIntersect(
+        origin: CanvasPoint,
+        size: CardSize,
+        otherOrigin: CanvasPoint,
+        otherSize: CardSize,
+        spacing: Double
+    ) -> Bool {
+        let aMinX = origin.x - spacing
+        let aMinY = origin.y - spacing
+        let aMaxX = origin.x + size.width + spacing
+        let aMaxY = origin.y + size.height + spacing
+        let bMinX = otherOrigin.x
+        let bMinY = otherOrigin.y
+        let bMaxX = otherOrigin.x + otherSize.width
+        let bMaxY = otherOrigin.y + otherSize.height
+        return aMinX < bMaxX && aMaxX > bMinX && aMinY < bMaxY && aMaxY > bMinY
+    }
+
     public mutating func selectCard(id: UUID) {
         guard cards.contains(where: { $0.id == id }) else { return }
         selectedCardID = id
         // Card and text selection are mutually exclusive.
         selectedTextID = nil
+        // A deliberate single selection supersedes any marquee selection.
+        marqueeSelectedCardIDs = []
     }
 
     public mutating func clearSelection() {
         selectedCardID = nil
         selectedTextID = nil
+        marqueeSelectedCardIDs = []
+    }
+
+    /// Selects every card whose rect intersects the marquee rectangle defined by
+    /// two opposite canvas corners. A single hit also sets `selectedCardID` (so
+    /// resize/keyboard affordances keep working); multiple hits leave it nil and
+    /// rely on `marqueeSelectedCardIDs`. A miss clears the selection. Text
+    /// selection is always cleared.
+    public mutating func selectCards(fromCorner a: CanvasPoint, toCorner b: CanvasPoint) {
+        let rect = Self.normalizedRect(a, b)
+        let hitIDs = cards
+            .filter { Self.cardIntersects(card: $0, marqueeOrigin: rect.origin, marqueeSize: rect.size) }
+            .map { $0.id }
+
+        marqueeSelectedCardIDs = Set(hitIDs)
+        selectedCardID = hitIDs.count == 1 ? hitIDs.first : nil
+        selectedTextID = nil
+    }
+
+    /// AABB intersection between a card's rect and the marquee rect (canvas space).
+    private static func cardIntersects(
+        card: WorkspaceCard,
+        marqueeOrigin: CanvasPoint,
+        marqueeSize: CardSize
+    ) -> Bool {
+        let mMaxX = marqueeOrigin.x + marqueeSize.width
+        let mMaxY = marqueeOrigin.y + marqueeSize.height
+        let cMaxX = card.position.x + card.size.width
+        let cMaxY = card.position.y + card.size.height
+        return marqueeOrigin.x < cMaxX
+            && mMaxX > card.position.x
+            && marqueeOrigin.y < cMaxY
+            && mMaxY > card.position.y
     }
 
     public mutating func deleteCard(id: UUID) {
@@ -137,15 +311,32 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         }
     }
 
+    /// Removes every card in `ids` and any connection touching one of them, so
+    /// no dangling edges survive. Drives marquee group delete. Also clears
+    /// `selectedCardID` if it was in the set and drops the ids from the transient
+    /// marquee selection. A no-op for an empty set or unknown ids.
+    public mutating func deleteCards(ids: Set<UUID>) {
+        guard !ids.isEmpty else { return }
+        cards.removeAll { ids.contains($0.id) }
+        connections.removeAll { ids.contains($0.from) || ids.contains($0.to) }
+        if let selected = selectedCardID, ids.contains(selected) {
+            selectedCardID = nil
+        }
+        marqueeSelectedCardIDs.subtract(ids)
+    }
+
     // MARK: - Connections
 
     /// Adds a visual edge between two distinct, existing cards, rejecting
-    /// self-loops, missing endpoints, and duplicate (from, to) pairs.
+    /// self-loops, missing endpoints, and duplicate pairs. Connections are
+    /// non-directional, so an existing (a, b) edge also rejects a (b, a) insert.
     public mutating func addConnection(from: UUID, to: UUID) {
         guard from != to else { return }
         guard cards.contains(where: { $0.id == from }) else { return }
         guard cards.contains(where: { $0.id == to }) else { return }
-        guard !connections.contains(where: { $0.from == from && $0.to == to }) else { return }
+        guard !connections.contains(where: {
+            ($0.from == from && $0.to == to) || ($0.from == to && $0.to == from)
+        }) else { return }
         connections.append(CardConnection(from: from, to: to))
     }
 
@@ -181,6 +372,21 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         textElements[index].text = text
     }
 
+    public mutating func updateTextElementFontSize(id: UUID, to fontSize: Double) {
+        guard let index = textElements.firstIndex(where: { $0.id == id }) else { return }
+        textElements[index].fontSize = fontSize
+    }
+
+    public mutating func updateTextElementColor(id: UUID, toHex hex: String) {
+        guard let index = textElements.firstIndex(where: { $0.id == id }) else { return }
+        textElements[index].colorHex = hex
+    }
+
+    public mutating func updateTextElementFont(id: UUID, to fontName: String?) {
+        guard let index = textElements.firstIndex(where: { $0.id == id }) else { return }
+        textElements[index].fontName = fontName
+    }
+
     public mutating func deleteTextElement(id: UUID) {
         textElements.removeAll { $0.id == id }
         if selectedTextID == id {
@@ -205,9 +411,11 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     ///
     /// - `wholeStroke`: removes any stroke the eraser disc touches (tested
     ///   against the stroke's line segments, so sparse strokes still erase).
-    /// - `segment`: drops the vertices that fall inside the disc and splits the
-    ///   surviving runs into separate strokes of >=2 points, preserving each
-    ///   fragment's color/thickness.
+    /// - `segment`: erases exactly the pixels under the circular footprint —
+    ///   each segment is clipped against the disc, keeping only the portions
+    ///   outside it and inserting boundary intersection points, so even sparse
+    ///   straight strokes are cut where the disc visually covers them. Surviving
+    ///   runs become separate strokes of >=2 points, preserving color/thickness.
     ///
     /// Returns true if any stroke was removed or split.
     @discardableResult
@@ -225,43 +433,117 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
             var result: [DrawingStroke] = []
 
             for stroke in strokes {
-                var runs: [[CanvasPoint]] = []
-                var run: [CanvasPoint] = []
-                var dropped = false
+                let pts = stroke.points
+                guard !pts.isEmpty else { continue }
 
-                for vertex in stroke.points {
-                    if Self.distance(vertex, point) <= radius {
-                        dropped = true
-                        if !run.isEmpty {
-                            runs.append(run)
-                            run = []
-                        }
+                if pts.count == 1 {
+                    if Self.distance(pts[0], point) <= radius {
+                        changed = true
                     } else {
-                        run.append(vertex)
+                        result.append(stroke)
                     }
-                }
-                if !run.isEmpty { runs.append(run) }
-
-                if !dropped {
-                    result.append(stroke)
                     continue
                 }
 
-                changed = true
-                for fragment in runs where fragment.count >= 2 {
-                    result.append(
-                        DrawingStroke(
-                            points: fragment,
-                            color: stroke.color,
-                            thickness: stroke.thickness
+                var fragments: [[CanvasPoint]] = []
+                var run: [CanvasPoint] = []
+                var strokeChanged = false
+
+                func endRun() {
+                    if !run.isEmpty {
+                        fragments.append(run)
+                        run = []
+                    }
+                }
+
+                // Seed the first run with the start vertex when it is outside the
+                // disc; otherwise it is erased.
+                if Self.distance(pts[0], point) > radius {
+                    run.append(pts[0])
+                } else {
+                    strokeChanged = true
+                }
+
+                for index in 0..<(pts.count - 1) {
+                    let a = pts[index]
+                    let b = pts[index + 1]
+                    var inside = Self.distance(a, point) <= radius
+
+                    for t in Self.segmentCircleIntersections(a, b, center: point, radius: radius) {
+                        let crossing = CanvasPoint(
+                            x: a.x + (t * (b.x - a.x)),
+                            y: a.y + (t * (b.y - a.y))
                         )
-                    )
+                        if inside {
+                            // Exiting the disc: begin a new fragment on the boundary.
+                            run.append(crossing)
+                        } else {
+                            // Entering the disc: close the current fragment on the boundary.
+                            run.append(crossing)
+                            endRun()
+                        }
+                        inside.toggle()
+                        strokeChanged = true
+                    }
+
+                    if Self.distance(b, point) <= radius {
+                        strokeChanged = true
+                    } else {
+                        run.append(b)
+                    }
+                }
+                endRun()
+
+                if strokeChanged {
+                    changed = true
+                    for fragment in fragments where fragment.count >= 2 {
+                        result.append(
+                            DrawingStroke(
+                                points: fragment,
+                                color: stroke.color,
+                                thickness: stroke.thickness
+                            )
+                        )
+                    }
+                } else {
+                    result.append(stroke)
                 }
             }
 
             if changed { strokes = result }
             return changed
         }
+    }
+
+    /// Parameters `t` in (0, 1) where the segment a→b crosses the circle of
+    /// `radius` about `center`, sorted ascending. Used to clip strokes against
+    /// the eraser's circular footprint.
+    private static func segmentCircleIntersections(
+        _ a: CanvasPoint,
+        _ b: CanvasPoint,
+        center: CanvasPoint,
+        radius: Double
+    ) -> [Double] {
+        let dx = b.x - a.x
+        let dy = b.y - a.y
+        let lengthSquared = (dx * dx) + (dy * dy)
+        guard lengthSquared > 0 else { return [] }
+
+        let fx = a.x - center.x
+        let fy = a.y - center.y
+        let b2 = 2 * ((fx * dx) + (fy * dy))
+        let c = (fx * fx) + (fy * fy) - (radius * radius)
+        let discriminant = (b2 * b2) - (4 * lengthSquared * c)
+        guard discriminant > 0 else { return [] }
+
+        let root = discriminant.squareRoot()
+        let t1 = (-b2 - root) / (2 * lengthSquared)
+        let t2 = (-b2 + root) / (2 * lengthSquared)
+
+        var crossings: [Double] = []
+        if t1 > 0, t1 < 1 { crossings.append(t1) }
+        if t2 > 0, t2 < 1 { crossings.append(t2) }
+        return crossings
     }
 
     private static func distance(_ a: CanvasPoint, _ b: CanvasPoint) -> Double {

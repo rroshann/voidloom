@@ -31,6 +31,53 @@ public struct CanvasViewport: Codable, Equatable, Sendable {
         origin.y += screenTranslation.dy
     }
 
+    /// Pans so that canvas point `p` lands at screen point `s` (scale unchanged).
+    public mutating func pan(soCanvasPoint p: CanvasPoint, appearsAt s: ScreenPoint) {
+        origin = CanvasPoint(
+            x: s.x - (p.x * scale),
+            y: s.y - (p.y * scale)
+        )
+    }
+
+    /// Pans the minimum amount needed to bring a canvas rect fully inside the
+    /// viewport's `margin` inset. A no-op when the rect is already visible. The
+    /// top-left edge is prioritized, so an oversized rect stays pinned top-left.
+    public mutating func panToReveal(
+        canvasRectOrigin rectOrigin: CanvasPoint,
+        size: CardSize,
+        viewportSize: ScreenPoint,
+        margin: Double
+    ) {
+        guard viewportSize.x > 0, viewportSize.y > 0 else { return }
+
+        let topLeft = screenPoint(forCanvasPoint: rectOrigin)
+        let rectWidth = size.width * scale
+        let rectHeight = size.height * scale
+
+        let minX = margin
+        let maxX = viewportSize.x - margin
+        let minY = margin
+        let maxY = viewportSize.y - margin
+
+        var dx = 0.0
+        if topLeft.x < minX {
+            dx = minX - topLeft.x
+        } else if topLeft.x + rectWidth > maxX {
+            dx = maxX - (topLeft.x + rectWidth)
+        }
+
+        var dy = 0.0
+        if topLeft.y < minY {
+            dy = minY - topLeft.y
+        } else if topLeft.y + rectHeight > maxY {
+            dy = maxY - (topLeft.y + rectHeight)
+        }
+
+        if dx != 0 || dy != 0 {
+            pan(by: CanvasVector(dx: dx, dy: dy))
+        }
+    }
+
     public mutating func zoom(by magnification: Double, anchoredAt anchor: ScreenPoint) {
         guard magnification.isFinite, magnification > 0 else { return }
 

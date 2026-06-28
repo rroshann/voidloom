@@ -9,6 +9,7 @@ struct WorkspaceCardView: View {
     var onToggleCardFocus: () -> Void = {}
     var onClose: () -> Void = {}
     @Binding var isEditingTitle: Bool
+    @Binding var editingCardTitleID: UUID?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -178,6 +179,7 @@ struct WorkspaceCardView: View {
     private func beginTitleEdit() {
         editingTitle = card.title
         isEditingTitle = true
+        editingCardTitleID = card.id
         isTitleFieldFocused = true
     }
 
@@ -190,12 +192,14 @@ struct WorkspaceCardView: View {
 
         store.updateCardTitle(id: card.id, to: trimmed)
         isEditingTitle = false
+        editingCardTitleID = nil
         isTitleFieldFocused = false
     }
 
     private func cancelTitleEdit() {
         editingTitle = card.title
         isEditingTitle = false
+        editingCardTitleID = nil
         isTitleFieldFocused = false
     }
 
@@ -254,6 +258,7 @@ struct WorkspaceCardView: View {
 #Preview("Workspace Cards") {
     struct PreviewContainer: View {
         @State private var isEditingTitle = false
+        @State private var editingCardTitleID: UUID?
 
         var body: some View {
             let cards = PreviewSupport.cards
@@ -263,7 +268,8 @@ struct WorkspaceCardView: View {
                         card: unselected,
                         store: PreviewSupport.makeStore(),
                         isSelected: false,
-                        isEditingTitle: $isEditingTitle
+                        isEditingTitle: $isEditingTitle,
+                        editingCardTitleID: $editingCardTitleID
                     )
                     .frame(width: CGFloat(unselected.size.width), height: CGFloat(unselected.size.height))
                 }
@@ -272,7 +278,8 @@ struct WorkspaceCardView: View {
                         card: selected,
                         store: PreviewSupport.makeStore(),
                         isSelected: true,
-                        isEditingTitle: $isEditingTitle
+                        isEditingTitle: $isEditingTitle,
+                        editingCardTitleID: $editingCardTitleID
                     )
                     .frame(width: CGFloat(selected.size.width), height: CGFloat(selected.size.height))
                 }

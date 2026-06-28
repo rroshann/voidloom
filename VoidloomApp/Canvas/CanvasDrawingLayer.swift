@@ -6,7 +6,7 @@ import VoidloomCore
 /// grid and beneath the cards), so strokes are expressed in canvas coordinates,
 /// pan/zoom with everything else, and — by render order alone — always sit
 /// BENEATH the cards. Never hit-tested.
-struct CanvasDrawingLayer: View {
+struct CanvasDrawingLayer: View, Equatable {
     let strokes: [DrawingStroke]
     let liveStroke: DrawingStroke?
     let canvasSize: CGSize

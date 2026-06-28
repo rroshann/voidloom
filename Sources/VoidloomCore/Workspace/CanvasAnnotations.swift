@@ -1,7 +1,9 @@
 import Foundation
 
-/// A visual-only directed edge connecting two cards. Connections carry no agent
-/// communication — they are purely decorative links rendered on the canvas.
+/// A visual-only, non-directional (undirected) edge connecting two cards. The
+/// `from`/`to` order is incidental — the edge reads the same both ways and
+/// renders without an arrowhead. Connections carry no agent communication —
+/// they are purely decorative links rendered on the canvas.
 public struct CardConnection: Codable, Equatable, Identifiable, Sendable {
     public var id: UUID
     public var from: UUID
@@ -27,6 +29,10 @@ public struct TextElement: Codable, Equatable, Identifiable, Sendable {
     public var text: String
     public var fontSize: Double
     public var colorHex: String
+    /// The PostScript font name applied to the element, or nil for the default
+    /// system-rounded face. Optional + synthesized `Codable` means legacy JSON
+    /// (written before fonts existed) decodes to nil and nil is omitted on write.
+    public var fontName: String?
 
     public init(
         id: UUID = UUID(),
@@ -34,7 +40,8 @@ public struct TextElement: Codable, Equatable, Identifiable, Sendable {
         size: CardSize,
         text: String = "",
         fontSize: Double = 17,
-        colorHex: String = "#FFFFFFFF"
+        colorHex: String = "#FFFFFFFF",
+        fontName: String? = nil
     ) {
         self.id = id
         self.position = position
@@ -42,6 +49,7 @@ public struct TextElement: Codable, Equatable, Identifiable, Sendable {
         self.text = text
         self.fontSize = fontSize
         self.colorHex = colorHex
+        self.fontName = fontName
     }
 }
 

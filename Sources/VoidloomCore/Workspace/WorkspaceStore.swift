@@ -85,6 +85,23 @@ public final class WorkspaceStore: ObservableObject {
         persist()
     }
 
+    /// Moves a marquee group of cards together. Debounced like `moveCard`, since
+    /// a drag emits many translations.
+    public func moveCards(ids: Set<UUID>, screenTranslation: CanvasVector) {
+        guard !ids.isEmpty, screenTranslation != .zero else { return }
+        state.moveCards(ids: ids, screenTranslation: screenTranslation)
+        schedulePersistence()
+    }
+
+    /// Deletes a marquee group of cards (and their connections). Persists
+    /// immediately — a structural change, like `deleteCard`.
+    public func deleteCards(ids: Set<UUID>) {
+        let present = ids.filter { id in state.cards.contains(where: { $0.id == id }) }
+        guard !present.isEmpty else { return }
+        state.deleteCards(ids: Set(present))
+        persist()
+    }
+
     public func resizeCard(id: UUID, to size: CardSize, position: CanvasPoint? = nil) {
         guard state.cards.contains(where: { $0.id == id }) else { return }
         state.resizeCard(id: id, to: size, position: position)
@@ -115,8 +132,21 @@ public final class WorkspaceStore: ObservableObject {
     }
 
     public func clearSelection() {
-        guard state.selectedCardID != nil else { return }
+        // Clear whenever ANY selection is live — card, text, or a transient
+        // marquee set — so clicking empty canvas also de-highlights a selected
+        // text element immediately instead of only clearing card selection.
+        guard state.selectedCardID != nil
+            || state.selectedTextID != nil
+            || !state.marqueeSelectedCardIDs.isEmpty else { return }
         state.clearSelection()
+        schedulePersistence()
+    }
+
+    /// Marquee multi-selection driven by a left-drag selection box (two opposite
+    /// canvas corners). The marquee set is transient/unpersisted, but a single
+    /// hit also sets `selectedCardID`, so persistence is still scheduled.
+    public func selectCards(fromCorner a: CanvasPoint, toCorner b: CanvasPoint) {
+        state.selectCards(fromCorner: a, toCorner: b)
         schedulePersistence()
     }
 
@@ -126,17 +156,26 @@ public final class WorkspaceStore: ObservableObject {
     }
 
     /// Adds a card centered on the given canvas point (e.g. the center of the
-    /// visible viewport, or a click location), with a small cascade offset so
-    /// consecutive additions don't stack exactly on top of each other.
+    /// visible viewport, or a click location). When that spot would overlap an
+    /// existing card the origin cascades diagonally to the nearest free slot, so
+    /// rapid additions never stack on top of one another.
     public func addCard(kind: CardKind, centeredAt center: CanvasPoint) {
         var card = Self.defaultCard(kind: kind)
-        let cascade = Double(state.cards.count % 6) * 22
-        card.position = CanvasPoint(
-            x: center.x - (card.size.width / 2) + cascade,
-            y: center.y - (card.size.height / 2) + cascade
-        )
+        card.position = state.nonOverlappingOrigin(for: card.size, centeredAt: center)
         state.addCard(card)
         persist()
+    }
+
+    /// Adds a card via the reading-order 2x2 grid (double-click instant-create),
+    /// panning the viewport so the newest card is always fully on-screen. The
+    /// structural add persists immediately; the viewport pan rides along. Returns
+    /// the new card's id. No auto-select, matching today's double-click behavior.
+    @discardableResult
+    public func addCardInGrid(kind: CardKind, viewportSize: ScreenPoint) -> UUID {
+        let card = Self.defaultCard(kind: kind)
+        state.placeCardInGrid(card, viewportSize: viewportSize)
+        persist()
+        return card.id
     }
 
     /// Adds a card sized by a press-drag-release rectangle (two opposite canvas
@@ -171,14 +210,22 @@ public final class WorkspaceStore: ObservableObject {
     /// Adds a default-sized text element centered on the given canvas point,
     /// selects it, and returns its id so the caller can begin inline editing.
     @discardableResult
-    public func addTextElement(centeredAt center: CanvasPoint) -> UUID {
+    public func addTextElement(
+        centeredAt center: CanvasPoint,
+        fontSize: Double = 17,
+        colorHex: String = "#FFFFFFFF",
+        fontName: String? = nil
+    ) -> UUID {
         let size = CardSize(width: 200, height: 44)
         let element = TextElement(
             position: CanvasPoint(
                 x: center.x - (size.width / 2),
                 y: center.y - (size.height / 2)
             ),
-            size: size
+            size: size,
+            fontSize: fontSize,
+            colorHex: colorHex,
+            fontName: fontName
         )
         state.addTextElement(element)
         state.selectTextElement(id: element.id)
@@ -189,14 +236,23 @@ public final class WorkspaceStore: ObservableObject {
     /// Adds a text element sized by a press-drag-release rectangle, normalized
     /// and clamped to the text minimums. Selects it and returns its id.
     @discardableResult
-    public func addTextElement(fromCorner a: CanvasPoint, toCorner b: CanvasPoint) -> UUID {
+    public func addTextElement(
+        fromCorner a: CanvasPoint,
+        toCorner b: CanvasPoint,
+        fontSize: Double = 17,
+        colorHex: String = "#FFFFFFFF",
+        fontName: String? = nil
+    ) -> UUID {
         let rect = WorkspaceState.normalizedRect(a, b)
         let element = TextElement(
             position: rect.origin,
             size: rect.size.clamped(
                 minWidth: TextElement.minimumWidth,
                 minHeight: TextElement.minimumHeight
-            )
+            ),
+            fontSize: fontSize,
+            colorHex: colorHex,
+            fontName: fontName
         )
         state.addTextElement(element)
         state.selectTextElement(id: element.id)
@@ -217,6 +273,21 @@ public final class WorkspaceStore: ObservableObject {
 
     public func updateTextElementText(id: UUID, to text: String) {
         state.updateTextElementText(id: id, to: text)
+        schedulePersistence()
+    }
+
+    public func updateTextElementFontSize(id: UUID, to fontSize: Double) {
+        state.updateTextElementFontSize(id: id, to: fontSize)
+        schedulePersistence()
+    }
+
+    public func updateTextElementColor(id: UUID, toHex hex: String) {
+        state.updateTextElementColor(id: id, toHex: hex)
+        schedulePersistence()
+    }
+
+    public func updateTextElementFont(id: UUID, to fontName: String?) {
+        state.updateTextElementFont(id: id, to: fontName)
         schedulePersistence()
     }
 
@@ -244,10 +315,14 @@ public final class WorkspaceStore: ObservableObject {
     /// Erases strokes under the eraser disc. Persistence is debounced during a
     /// drag; call `flushErase()` on drag end to write the final result once.
     public func erase(at point: CanvasPoint, radius: Double, mode: EraseMode) {
-        let changed = state.eraseStrokes(at: point, radius: radius, mode: mode)
-        if changed {
-            schedulePersistence()
-        }
+        // Erase on a copy and only publish when something actually changed, so
+        // empty-space erase moves don't trigger a full canvas re-render (which
+        // made the eraser visibly lag the cursor). Persistence stays debounced.
+        var working = state
+        let changed = working.eraseStrokes(at: point, radius: radius, mode: mode)
+        guard changed else { return }
+        state = working
+        schedulePersistence()
     }
 
     public func flushErase() {
@@ -696,7 +771,7 @@ public final class WorkspaceStore: ObservableObject {
             return WorkspaceCard(
                 kind: .agent,
                 position: .zero,
-                size: CardSize(width: 360, height: 240),
+                size: CardSize(width: 480, height: 320),
                 title: "New Agent",
                 content: "Placeholder for an AI coding agent session."
             )
@@ -704,7 +779,7 @@ public final class WorkspaceStore: ObservableObject {
             return WorkspaceCard(
                 kind: .note,
                 position: .zero,
-                size: CardSize(width: 320, height: 190),
+                size: CardSize(width: 440, height: 300),
                 title: "New Note",
                 content: "Capture spatial context here."
             )
@@ -712,7 +787,7 @@ public final class WorkspaceStore: ObservableObject {
             return WorkspaceCard(
                 kind: .todo,
                 position: .zero,
-                size: CardSize(width: 300, height: 210),
+                size: CardSize(width: 420, height: 300),
                 title: "New Todo",
                 content: "[ ] First item\n[ ] Next item"
             )
@@ -720,7 +795,7 @@ public final class WorkspaceStore: ObservableObject {
             return WorkspaceCard(
                 kind: .browser,
                 position: .zero,
-                size: CardSize(width: 380, height: 230),
+                size: CardSize(width: 520, height: 340),
                 title: "New Preview",
                 content: "Browser card placeholder."
             )

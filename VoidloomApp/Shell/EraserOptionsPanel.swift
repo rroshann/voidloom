@@ -40,7 +40,7 @@ struct EraserOptionsPanel: View {
                     .foregroundStyle(.white.opacity(0.6))
                 Picker("", selection: $interaction.eraserMode) {
                     Text("Whole stroke").tag(EraseMode.wholeStroke)
-                    Text("Erase area").tag(EraseMode.segment)
+                    Text("Erase pixel").tag(EraseMode.segment)
                 }
                 .pickerStyle(.segmented)
                 .labelsHidden()

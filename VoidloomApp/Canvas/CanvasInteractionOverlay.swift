@@ -12,9 +12,6 @@ import VoidloomCore
 /// coordinates and owns the per-mode cursor via an always-active tracking area.
 struct CanvasInteractionOverlay: NSViewRepresentable {
     var mode: CanvasInteractionModel.Mode
-    /// Eraser disc diameter in SCREEN points (canvas thickness × viewport scale)
-    /// used to size the hollow-circle erase cursor.
-    var eraserScreenDiameter: CGFloat
 
     var onMouseDown: (CGPoint) -> Void
     var onMouseDragged: (CGPoint) -> Void
@@ -33,7 +30,6 @@ struct CanvasInteractionOverlay: NSViewRepresentable {
 
     final class InteractionView: NSView {
         private var mode: CanvasInteractionModel.Mode = .idle
-        private var eraserScreenDiameter: CGFloat = 28
         private var onMouseDown: (CGPoint) -> Void = { _ in }
         private var onMouseDragged: (CGPoint) -> Void = { _ in }
         private var onMouseMoved: (CGPoint) -> Void = { _ in }
@@ -44,15 +40,15 @@ struct CanvasInteractionOverlay: NSViewRepresentable {
         override var isFlipped: Bool { true }
 
         func apply(_ representable: CanvasInteractionOverlay) {
+            let previousMode = mode
             mode = representable.mode
-            eraserScreenDiameter = representable.eraserScreenDiameter
             onMouseDown = representable.onMouseDown
             onMouseDragged = representable.onMouseDragged
             onMouseMoved = representable.onMouseMoved
             onMouseUp = representable.onMouseUp
-            // Refresh cursor immediately so arming/disarming updates it even
-            // without a mouse move.
-            window?.invalidateCursorRects(for: self)
+            if previousMode != mode {
+                window?.invalidateCursorRects(for: self)
+            }
         }
 
         override func hitTest(_ point: NSPoint) -> NSView? {
@@ -77,7 +73,6 @@ struct CanvasInteractionOverlay: NSViewRepresentable {
 
         override func mouseDragged(with event: NSEvent) {
             guard mode.capturesCanvas else { return }
-            applyCursor()
             onMouseDragged(localPoint(event))
         }
 
@@ -88,7 +83,6 @@ struct CanvasInteractionOverlay: NSViewRepresentable {
 
         override func mouseMoved(with event: NSEvent) {
             guard mode.capturesCanvas else { return }
-            applyCursor()
             onMouseMoved(localPoint(event))
         }
 
@@ -115,14 +109,13 @@ struct CanvasInteractionOverlay: NSViewRepresentable {
             addCursorRect(bounds, cursor: cursor(for: mode))
         }
 
-        private func applyCursor() {
-            cursor(for: mode).set()
-        }
-
         private func cursor(for mode: CanvasInteractionModel.Mode) -> NSCursor {
             switch mode {
             case .erasing:
-                return Self.eraserCursor(diameter: eraserScreenDiameter)
+                // The round eraser footprint is drawn as a SwiftUI overlay that
+                // tracks the pointer, so the system cursor is hidden (a fully
+                // transparent cursor) over the canvas while erasing.
+                return Self.transparentCursor
             case .idle:
                 return .arrow
             default:
@@ -130,26 +123,11 @@ struct CanvasInteractionOverlay: NSViewRepresentable {
             }
         }
 
-        /// A hollow-circle cursor sized to the live eraser diameter so the user
-        /// sees exactly what the eraser will touch.
-        private static func eraserCursor(diameter: CGFloat) -> NSCursor {
-            let clamped = max(10, min(diameter, 160))
-            let padding: CGFloat = 2
-            let side = clamped + padding * 2
-            let size = NSSize(width: side, height: side)
-            let image = NSImage(size: size)
-            image.lockFocus()
-            let rect = NSRect(x: padding, y: padding, width: clamped, height: clamped)
-            let path = NSBezierPath(ovalIn: rect)
-            path.lineWidth = 1.5
-            NSColor.white.withAlphaComponent(0.9).setStroke()
-            path.stroke()
-            NSColor.black.withAlphaComponent(0.45).setStroke()
-            let inner = NSBezierPath(ovalIn: rect.insetBy(dx: 1.2, dy: 1.2))
-            inner.lineWidth = 1
-            inner.stroke()
-            image.unlockFocus()
-            return NSCursor(image: image, hotSpot: NSPoint(x: side / 2, y: side / 2))
-        }
+        /// A fully transparent cursor used to hide the system pointer over the
+        /// canvas while the SwiftUI eraser footprint indicator is shown.
+        private static let transparentCursor: NSCursor = {
+            let image = NSImage(size: NSSize(width: 1, height: 1))
+            return NSCursor(image: image, hotSpot: NSPoint(x: 0, y: 0))
+        }()
     }
 }

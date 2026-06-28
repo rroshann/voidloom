@@ -32,7 +32,26 @@ final class CanvasInteractionModel: ObservableObject {
         var isFreehand: Bool { self == .drawing || self == .erasing }
     }
 
-    @Published private(set) var mode: Mode = .idle
+    @Published private(set) var mode: Mode = .idle {
+        didSet {
+            // A selected connection edge and an armed tool are mutually
+            // exclusive — arming any tool drops the edge selection so its
+            // delete control disappears.
+            if mode != .idle { selectedConnectionID = nil }
+            // The hover highlight only exists while the connect tool is armed,
+            // so disarming or arming another tool clears the prospective pick.
+            if case .connecting = mode {} else { hoveredCardID = nil }
+        }
+    }
+
+    /// The connection edge currently selected (e.g. tapped on the canvas),
+    /// showing its delete control. Independent of card/text selection.
+    @Published var selectedConnectionID: UUID?
+
+    /// While the connect tool is armed, the card under the cursor — the
+    /// prospective source (before a source is chosen) or target (after). Drives
+    /// the hover highlight ring; cleared automatically when connect is disarmed.
+    @Published var hoveredCardID: UUID?
 
     // Live tool settings bound to the option panels. Defined up front so the
     // brush/eraser panels can bind to them in Stage 1 even though the actual
@@ -48,6 +67,18 @@ final class CanvasInteractionModel: ObservableObject {
     /// the user double-taps an existing element. Read by `TextElementView` to
     /// focus its field. Independent of `mode` — editing text does not arm a tool.
     @Published var editingTextID: UUID?
+
+    /// The card whose title is currently in inline-edit mode, if any. Shared so
+    /// RootView's Delete shortcut can stay inert while a card title is being
+    /// edited (mirrors `editingTextID`). Set by the card title edit lifecycle.
+    @Published var editingCardTitleID: UUID?
+
+    // Default text styling applied to NEWLY created text elements. The text
+    // options panel writes these when no element is selected; the creation paths
+    // (place-drag, dock double-click, palette) seed new elements from them.
+    @Published var textFontSize: Double = 17
+    @Published var textColor: Color = .white
+    @Published var textFontName: String? = nil
 
     // MARK: - Arming
 
@@ -70,12 +101,16 @@ final class CanvasInteractionModel: ObservableObject {
         toggle(.placingText)
     }
 
-    func armConnect() {
-        // Re-arming connect resets any in-progress source pick.
+    /// Arms the connect tool, optionally seeding the source card so the very
+    /// next canvas click completes the link. Pass `preselectedSource` from the
+    /// current card selection: if a card is selected the user only picks the
+    /// target; if none is selected the user picks both source then target.
+    /// Re-arming connect (no toggle) toggles it back off.
+    func armConnect(preselectedSource: UUID? = nil) {
         if case .connecting = mode {
             mode = .idle
         } else {
-            mode = .connecting(source: nil)
+            mode = .connecting(source: preselectedSource)
         }
     }
 

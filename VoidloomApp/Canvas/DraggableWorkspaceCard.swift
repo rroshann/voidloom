@@ -8,13 +8,19 @@ struct DraggableWorkspaceCard: View {
     let viewportScale: Double
     var isCardFocused: Bool = false
     var onToggleCardFocus: () -> Void
+    @Binding var editingCardTitleID: UUID?
 
     @State private var lastDragTranslation: CGSize = .zero
     @State private var isEditingTitle = false
     @State private var isResizing = false
+    /// The marquee group captured on the first move of a drag, so the choice of
+    /// group-move vs single-move is decided once and held for the whole drag
+    /// (mirrors the idle-drag "decide once" pattern). Nil between drags.
+    @State private var draggingGroup: Set<UUID>?
 
     private var isSelected: Bool {
         store.state.selectedCardID == card.id
+            || store.state.marqueeSelectedCardIDs.contains(card.id)
     }
 
     private var dragEnabled: Bool {
@@ -30,7 +36,8 @@ struct DraggableWorkspaceCard: View {
                 isCardFocused: isCardFocused,
                 onToggleCardFocus: onToggleCardFocus,
                 onClose: closeCard,
-                isEditingTitle: $isEditingTitle
+                isEditingTitle: $isEditingTitle,
+                editingCardTitleID: $editingCardTitleID
             )
             .frame(width: CGFloat(card.size.width), height: CGFloat(card.size.height))
 
@@ -62,21 +69,37 @@ struct DraggableWorkspaceCard: View {
     private var cardDragGesture: some Gesture {
         DragGesture(minimumDistance: 1, coordinateSpace: .global)
             .onChanged { value in
-                store.selectCard(id: card.id)
+                // Decide once, on the first move, whether this drag moves the
+                // whole marquee group or just this card. A group only counts when
+                // it has >1 member and includes this card.
+                let group: Set<UUID>
+                if let captured = draggingGroup {
+                    group = captured
+                } else {
+                    let marquee = store.state.marqueeSelectedCardIDs
+                    group = (marquee.count > 1 && marquee.contains(card.id)) ? marquee : []
+                    draggingGroup = group
+                }
 
                 let delta = CGSize(
                     width: value.translation.width - lastDragTranslation.width,
                     height: value.translation.height - lastDragTranslation.height
                 )
+                let translation = CanvasVector(dx: delta.width, dy: delta.height)
 
-                store.moveCard(
-                    id: card.id,
-                    screenTranslation: CanvasVector(dx: delta.width, dy: delta.height)
-                )
+                if group.count > 1 {
+                    // Group drag: move every member together. Do NOT call
+                    // selectCard — that would collapse the marquee set to one.
+                    store.moveCards(ids: group, screenTranslation: translation)
+                } else {
+                    store.selectCard(id: card.id)
+                    store.moveCard(id: card.id, screenTranslation: translation)
+                }
                 lastDragTranslation = value.translation
             }
             .onEnded { _ in
                 lastDragTranslation = .zero
+                draggingGroup = nil
             }
     }
 
