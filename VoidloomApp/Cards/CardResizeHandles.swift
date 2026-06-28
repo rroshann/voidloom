@@ -77,37 +77,6 @@ private struct ResizeHitRegion: Shape {
     }
 }
 
-/// Self-balancing diagonal-resize cursor for the corner hot zone. Uses an
-/// `NSTrackingArea` with `.cursorUpdate` (not `NSCursor.push/pop`) so AppKit
-/// owns enter/exit and the cursor can never get stuck — even across the
-/// per-frame re-renders of a live resize. `hitTest` returns nil so it never
-/// consumes the SwiftUI resize gesture underneath it.
-private struct ResizeCursorView: NSViewRepresentable {
-    func makeNSView(context: Context) -> CursorView { CursorView() }
-    func updateNSView(_ nsView: CursorView, context: Context) {}
-
-    final class CursorView: NSView {
-        override func hitTest(_ point: NSPoint) -> NSView? { nil }
-
-        override func updateTrackingAreas() {
-            super.updateTrackingAreas()
-            trackingAreas.forEach(removeTrackingArea)
-            addTrackingArea(
-                NSTrackingArea(
-                    rect: .zero,
-                    options: [.cursorUpdate, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
-                    owner: self,
-                    userInfo: nil
-                )
-            )
-        }
-
-        override func cursorUpdate(with event: NSEvent) {
-            DiagonalResizeCursor.nwse().set()
-        }
-    }
-}
-
 struct CardResizeHandles: View {
     let cardSize: CardSize
     let cardPosition: CanvasPoint
@@ -145,10 +114,25 @@ struct CardResizeHandles: View {
 
                 Color.clear
                     .frame(width: hotZoneSide, height: hotZoneSide)
-                    .overlay(ResizeCursorView().allowsHitTesting(false))
                     .contentShape(
                         ResizeHitRegion(cornerRadius: cornerRadius, edgeLength: edgeLength, hitWidth: hitWidth)
                     )
+                    // Re-apply the cursor on every move (a one-shot set gets
+                    // overridden by AppKit's per-move reset). Gate on the actual
+                    // L-shaped hit path so the diagonal cursor shows ONLY where a
+                    // resize drag would start — not over the inner corner box.
+                    .onContinuousHover(coordinateSpace: .local) { phase in
+                        switch phase {
+                        case .active(let location):
+                            if isInResizeRegion(location) {
+                                DiagonalResizeCursor.nwse().set()
+                            } else if !isDragging {
+                                NSCursor.arrow.set()
+                            }
+                        case .ended:
+                            if !isDragging { NSCursor.arrow.set() }
+                        }
+                    }
                     .highPriorityGesture(resizeGesture)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
@@ -182,11 +166,19 @@ struct CardResizeHandles: View {
                 onResize(result.size, result.position)
             }
             .onEnded { _ in
-                // No manual cursor revert: AppKit re-evaluates the tracking area
-                // on mouse-up and restores the arrow automatically.
                 isDragging = false
+                NSCursor.arrow.set()
                 onResizeEnd()
             }
+    }
+
+    /// Whether a point in the corner box falls on the L-shaped resize hit path —
+    /// the same shape that scopes the resize gesture, so cursor and drag agree.
+    private func isInResizeRegion(_ point: CGPoint) -> Bool {
+        let rect = CGRect(x: 0, y: 0, width: hotZoneSide, height: hotZoneSide)
+        return ResizeHitRegion(cornerRadius: cornerRadius, edgeLength: edgeLength, hitWidth: hitWidth)
+            .path(in: rect)
+            .contains(point)
     }
 
     private func resizedFrame(
