@@ -78,17 +78,6 @@ struct ToolDock: View {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .stroke(.white.opacity(0.12), lineWidth: 1)
         )
-        .overlay(
-            RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [.white.opacity(0.35), .white.opacity(0)],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    ),
-                    lineWidth: 1
-                )
-        )
         .shadow(color: .black.opacity(0.32), radius: 28, x: 0, y: 18)
         .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
     }
