@@ -81,6 +81,7 @@ private struct CanvasZoomButton: View {
                 )
         }
         .buttonStyle(.plain)
+        .pointerCursor()
         .help(label)
     }
 }

@@ -121,6 +121,7 @@ struct WorkspaceSidebar: View {
                         .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .buttonStyle(.plain)
+                .pointerCursor()
                 .help("Create a new workspace")
             }
             .padding(.top, 6)
@@ -185,6 +186,7 @@ struct WorkspaceSidebar: View {
                         )
                 }
                 .buttonStyle(.plain)
+                .pointerCursor()
                 .help("Hide sidebar")
             }
         }

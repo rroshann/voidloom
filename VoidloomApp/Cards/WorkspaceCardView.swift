@@ -152,6 +152,7 @@ struct WorkspaceCardView: View {
                 )
         }
         .buttonStyle(.plain)
+        .pointerCursor()
         .help(label)
         .highPriorityGesture(
             TapGesture().onEnded {

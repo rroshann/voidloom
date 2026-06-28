@@ -63,6 +63,7 @@ struct AIConversationSidebar: View {
                     .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
             .buttonStyle(.plain)
+            .pointerCursor()
             .help("Close conversation")
         }
     }
@@ -121,6 +122,7 @@ struct AIConversationSidebar: View {
                     .foregroundStyle(canSubmit ? .teal : .white.opacity(0.22))
             }
             .buttonStyle(.plain)
+            .pointerCursor()
             .disabled(!canSubmit)
         }
         .padding(.horizontal, 14)

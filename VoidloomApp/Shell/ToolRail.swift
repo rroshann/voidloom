@@ -135,6 +135,7 @@ private struct DockWorkspaceSegment: View {
         }
         .buttonStyle(DockPressStyle())
         .onHover { isHovering = $0 }
+        .pointerCursor()
         .help(isWorkspaceSidebarVisible ? "Hide workspaces" : "Show workspaces")
     }
 }
@@ -168,6 +169,7 @@ private struct DockButton: View {
                 )
         }
         .buttonStyle(.plain)
+        .pointerCursor()
         .help(label)
     }
 }
@@ -220,6 +222,7 @@ private struct DockAIHint: View {
                 )
         }
         .buttonStyle(.plain)
+        .pointerCursor()
         .help(message)
     }
 }
