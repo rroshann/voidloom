@@ -3,24 +3,16 @@ import SwiftUI
 import VoidloomCore
 
 private enum DiagonalResizeCursor {
+    /// The system NW–SE diagonal resize cursor (private API, with a graceful
+    /// fallback). Resolved fresh each call; cheap and avoids caching surprises.
     @MainActor
-    private static func northWestSouthEast() -> NSCursor {
+    static func nwse() -> NSCursor {
         let selector = NSSelectorFromString("_windowResizeNorthWestSouthEastCursor")
         guard NSCursor.responds(to: selector),
               let cursor = (NSCursor.self as AnyObject).perform(selector)?.takeUnretainedValue() as? NSCursor else {
             return NSCursor.crosshair
         }
         return cursor
-    }
-
-    @MainActor
-    static func push() {
-        northWestSouthEast().push()
-    }
-
-    @MainActor
-    static func pop() {
-        NSCursor.pop()
     }
 }
 
@@ -85,6 +77,37 @@ private struct ResizeHitRegion: Shape {
     }
 }
 
+/// Self-balancing diagonal-resize cursor for the corner hot zone. Uses an
+/// `NSTrackingArea` with `.cursorUpdate` (not `NSCursor.push/pop`) so AppKit
+/// owns enter/exit and the cursor can never get stuck — even across the
+/// per-frame re-renders of a live resize. `hitTest` returns nil so it never
+/// consumes the SwiftUI resize gesture underneath it.
+private struct ResizeCursorView: NSViewRepresentable {
+    func makeNSView(context: Context) -> CursorView { CursorView() }
+    func updateNSView(_ nsView: CursorView, context: Context) {}
+
+    final class CursorView: NSView {
+        override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+        override func updateTrackingAreas() {
+            super.updateTrackingAreas()
+            trackingAreas.forEach(removeTrackingArea)
+            addTrackingArea(
+                NSTrackingArea(
+                    rect: .zero,
+                    options: [.cursorUpdate, .mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect],
+                    owner: self,
+                    userInfo: nil
+                )
+            )
+        }
+
+        override func cursorUpdate(with event: NSEvent) {
+            DiagonalResizeCursor.nwse().set()
+        }
+    }
+}
+
 struct CardResizeHandles: View {
     let cardSize: CardSize
     let cardPosition: CanvasPoint
@@ -103,29 +126,29 @@ struct CardResizeHandles: View {
     private let strokeWidth: CGFloat = 3.5
     private let hitWidth: CGFloat = 14
 
+    /// Side of the square hot zone pinned to the card's bottom-right corner.
+    /// Confining hover + gesture to this box (instead of the full card frame)
+    /// keeps the resize cursor at the corner and stops it occluding the header.
+    private var hotZoneSide: CGFloat {
+        cornerRadius + edgeLength + hitWidth
+    }
+
     var body: some View {
         GeometryReader { geometry in
-            let guide = BottomRightResizeGuide(cornerRadius: cornerRadius, edgeLength: edgeLength)
-
             ZStack(alignment: .bottomTrailing) {
-                guide
+                BottomRightResizeGuide(cornerRadius: cornerRadius, edgeLength: edgeLength)
                     .stroke(
                         accentColor.opacity(0.92),
                         style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round, lineJoin: .round)
                     )
+                    .allowsHitTesting(false)
 
-                ResizeHitRegion(cornerRadius: cornerRadius, edgeLength: edgeLength, hitWidth: hitWidth)
-                    .fill(Color.clear)
+                Color.clear
+                    .frame(width: hotZoneSide, height: hotZoneSide)
+                    .overlay(ResizeCursorView().allowsHitTesting(false))
                     .contentShape(
                         ResizeHitRegion(cornerRadius: cornerRadius, edgeLength: edgeLength, hitWidth: hitWidth)
                     )
-                    .onHover { isHovering in
-                        if isHovering {
-                            DiagonalResizeCursor.push()
-                        } else if !isDragging {
-                            DiagonalResizeCursor.pop()
-                        }
-                    }
                     .highPriorityGesture(resizeGesture)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
@@ -135,6 +158,11 @@ struct CardResizeHandles: View {
     private var resizeGesture: some Gesture {
         DragGesture(minimumDistance: 1, coordinateSpace: .global)
             .onChanged { value in
+                // Keep the diagonal cursor pinned for the whole drag even when
+                // the pointer leaves the corner box. `.set()` is idempotent and
+                // AppKit suppresses cursor-rect resets while a button is down.
+                DiagonalResizeCursor.nwse().set()
+
                 if !isDragging {
                     isDragging = true
                     startSize = cardSize
@@ -154,8 +182,9 @@ struct CardResizeHandles: View {
                 onResize(result.size, result.position)
             }
             .onEnded { _ in
+                // No manual cursor revert: AppKit re-evaluates the tracking area
+                // on mouse-up and restores the arrow automatically.
                 isDragging = false
-                DiagonalResizeCursor.pop()
                 onResizeEnd()
             }
     }

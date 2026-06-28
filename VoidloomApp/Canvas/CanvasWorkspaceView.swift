@@ -27,6 +27,24 @@ struct CanvasWorkspaceView: View {
                     .gesture(panGesture)
                     .simultaneousGesture(zoomGesture(in: geometry))
 
+                // Pointer overlays sit BELOW the cards so they never occlude
+                // card hover (header chrome, resize cursor). Pan runs off a
+                // global scroll monitor (so it needs no hit testing); right-click
+                // is claimed only over empty canvas — cards above intercept their
+                // own right-clicks.
+                CanvasTrackpadPanView { translation in
+                    guard store.state.selectedCardID == nil else { return false }
+                    store.pan(by: translation)
+                    return true
+                }
+                .frame(width: geometry.size.width, height: geometry.size.height)
+                .allowsHitTesting(false)
+
+                CanvasRightClickCatcher { point in
+                    contextMenuLocation = point
+                }
+                .frame(width: geometry.size.width, height: geometry.size.height)
+
                 ZStack(alignment: .topLeading) {
                     CanvasGrid()
 
@@ -48,18 +66,6 @@ struct CanvasWorkspaceView: View {
                     x: CGFloat(store.state.viewport.origin.x),
                     y: CGFloat(store.state.viewport.origin.y)
                 )
-
-                CanvasTrackpadPanView { translation in
-                    guard store.state.selectedCardID == nil else { return false }
-                    store.pan(by: translation)
-                    return true
-                }
-                .frame(width: geometry.size.width, height: geometry.size.height)
-
-                CanvasRightClickCatcher { point in
-                    contextMenuLocation = point
-                }
-                .frame(width: geometry.size.width, height: geometry.size.height)
 
                 if let location = contextMenuLocation {
                     Color.clear
