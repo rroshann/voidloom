@@ -205,14 +205,14 @@ struct RootView: View {
                                     x: geometry.size.width / 2,
                                     y: geometry.size.height / 2
                                 )
-                                store.zoom(by: 1.15, anchoredAt: anchor)
+                                store.zoomStep(by: 1.15, anchoredAt: anchor)
                             },
                             onZoomOut: {
                                 let anchor = ScreenPoint(
                                     x: geometry.size.width / 2,
                                     y: geometry.size.height / 2
                                 )
-                                store.zoom(by: 1 / 1.15, anchoredAt: anchor)
+                                store.zoomStep(by: 1 / 1.15, anchoredAt: anchor)
                             },
                             isCardFocused: viewportBeforeCardFocus != nil,
                             isCardSelected: store.state.selectedCardID != nil,
@@ -227,11 +227,31 @@ struct RootView: View {
                                 }
                             },
                             onAddCard: { kind in
-                                store.addCardInGrid(
-                                    kind: kind,
-                                    viewportSize: ScreenPoint(x: geometry.size.width, y: geometry.size.height),
-                                    bottomInset: gridBottomInset
+                                let viewportSize = ScreenPoint(
+                                    x: geometry.size.width,
+                                    y: geometry.size.height
                                 )
+                                // A full page flips the viewport one width to the
+                                // right; animate that pan so the canvas glides over
+                                // rather than jumping. Cards 1-4 of a page don't
+                                // move the viewport, so they still appear instantly.
+                                let willFlipPage =
+                                    store.state.gridPlacementSlot >= GridPlacement.cardsPerPage
+                                if willFlipPage {
+                                    withAnimation(.easeInOut(duration: 0.35)) {
+                                        store.addCardInGrid(
+                                            kind: kind,
+                                            viewportSize: viewportSize,
+                                            bottomInset: gridBottomInset
+                                        )
+                                    }
+                                } else {
+                                    store.addCardInGrid(
+                                        kind: kind,
+                                        viewportSize: viewportSize,
+                                        bottomInset: gridBottomInset
+                                    )
+                                }
                                 // Match onAddText: a double-click instant-create
                                 // always resolves back to idle so the transient
                                 // mouse-down arm never lingers.
@@ -418,10 +438,10 @@ struct RootView: View {
             store.resetViewport()
         })
         commands.append(PaletteCommand(id: "zoom-in", title: "Zoom In", section: .view, systemImage: "plus.magnifyingglass") {
-            store.zoom(by: 1.15, anchoredAt: zoomAnchor)
+            store.zoomStep(by: 1.15, anchoredAt: zoomAnchor)
         })
         commands.append(PaletteCommand(id: "zoom-out", title: "Zoom Out", section: .view, systemImage: "minus.magnifyingglass") {
-            store.zoom(by: 1 / 1.15, anchoredAt: zoomAnchor)
+            store.zoomStep(by: 1 / 1.15, anchoredAt: zoomAnchor)
         })
         if store.state.selectedCardID != nil {
             let focused = viewportBeforeCardFocus != nil

@@ -1276,6 +1276,50 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(viewport.scale, CanvasViewport.minimumScale, accuracy: 0.0001)
     }
 
+    func testZoomStepSnapsToHundredPercentWhenStepWouldCrossIt() {
+        let anchor = ScreenPoint(x: 400, y: 250)
+
+        // Stepping up from just below 100% lands exactly on 100%.
+        var zoomingIn = CanvasViewport(scale: 0.98)
+        zoomingIn.zoomStep(by: 1.15, anchoredAt: anchor)
+        XCTAssertEqual(zoomingIn.scale, 1.0, accuracy: 1e-9)
+
+        // Stepping down from just above 100% lands exactly on 100%.
+        var zoomingOut = CanvasViewport(scale: 1.02)
+        zoomingOut.zoomStep(by: 1 / 1.15, anchoredAt: anchor)
+        XCTAssertEqual(zoomingOut.scale, 1.0, accuracy: 1e-9)
+    }
+
+    func testZoomStepDoesNotSnapWhenStepStaysOnOneSideOfHundred() {
+        let anchor = ScreenPoint(x: 0, y: 0)
+
+        // A step that never crosses 100% behaves like a plain zoom.
+        var viewport = CanvasViewport(scale: 0.8)
+        viewport.zoomStep(by: 1.15, anchoredAt: anchor)
+        XCTAssertEqual(viewport.scale, 0.92, accuracy: 1e-9)
+    }
+
+    func testZoomStepFromExactlyHundredPercentStepsAwayNormally() {
+        let anchor = ScreenPoint(x: 0, y: 0)
+
+        // Already at 100%, a step moves away (it must not stay pinned at 100%).
+        var viewport = CanvasViewport(scale: 1.0)
+        viewport.zoomStep(by: 1.15, anchoredAt: anchor)
+        XCTAssertEqual(viewport.scale, 1.15, accuracy: 1e-9)
+    }
+
+    func testZoomStepKeepsAnchorFixed() {
+        var viewport = CanvasViewport(origin: CanvasPoint(x: 30, y: 20), scale: 0.95)
+        let anchor = ScreenPoint(x: 400, y: 250)
+        let anchorCanvasBefore = viewport.canvasPoint(forScreenPoint: anchor)
+
+        viewport.zoomStep(by: 1.15, anchoredAt: anchor)
+
+        let anchorScreenAfter = viewport.screenPoint(forCanvasPoint: anchorCanvasBefore)
+        XCTAssertEqual(anchorScreenAfter.x, anchor.x, accuracy: 0.001)
+        XCTAssertEqual(anchorScreenAfter.y, anchor.y, accuracy: 0.001)
+    }
+
     func testStrokesRoundTripThroughCodable() throws {
         var state = WorkspaceState()
         state.addStroke(
@@ -1664,15 +1708,16 @@ final class WorkspaceModelTests: XCTestCase {
             state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
         }
 
-        // The 5th card starts a fresh page: content shifts up one full viewport
-        // height and the new card lands at the viewport's top-left margin.
-        assertPoint(state.cards[4].position, 48, 1048)
+        // The 5th card starts a fresh page to the RIGHT: content shifts left one
+        // full viewport width and the new card lands at the viewport's top-left
+        // margin, so pages flow horizontally.
+        assertPoint(state.cards[4].position, 1648, 48)
 
         let screen = state.viewport.screenPoint(forCanvasPoint: state.cards[4].position)
         XCTAssertEqual(screen.x, 48, accuracy: 0.001)
         XCTAssertEqual(screen.y, 48, accuracy: 0.001)
-        XCTAssertEqual(state.viewport.origin.x, 0, accuracy: 0.001)
-        XCTAssertEqual(state.viewport.origin.y, -1000, accuracy: 0.001)
+        XCTAssertEqual(state.viewport.origin.x, -1600, accuracy: 0.001)
+        XCTAssertEqual(state.viewport.origin.y, 0, accuracy: 0.001)
     }
 
     func testGridPlacementContinuesReadingOrderAfterMidPageDeletes() {
@@ -1693,9 +1738,9 @@ final class WorkspaceModelTests: XCTestCase {
 
         let newest = state.cards.last!
         // The page was already full (slot == 4), so the new card opens a fresh
-        // page at the top-left, not a slot-0 overlap on the current page.
-        assertPoint(newest.position, 48, 1048)
-        XCTAssertEqual(state.viewport.origin.y, -1000, accuracy: 0.001)
+        // page to the right at the top-left, not a slot-0 overlap on the page.
+        assertPoint(newest.position, 1648, 48)
+        XCTAssertEqual(state.viewport.origin.x, -1600, accuracy: 0.001)
         for survivor in survivorPositions {
             XCTAssertFalse(
                 abs(newest.position.x - survivor.x) < 0.001

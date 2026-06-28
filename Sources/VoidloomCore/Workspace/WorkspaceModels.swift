@@ -150,7 +150,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     /// `bottomInset` reserves a band (screen px) at the bottom of the viewport for
     /// the floating dock, so the bottom row never renders behind it (see
     /// `GridPlacement.pageLayout`). The page-flip shift stays a full viewport
-    /// height: each new page re-lays from the top margin, so the reserved band
+    /// width: each new page re-lays from the top margin, so the reserved band
     /// only enlarges the empty gap below a page, never the top-left landing spot.
     public mutating func placeCardInGrid(
         _ card: WorkspaceCard,
@@ -158,9 +158,10 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         bottomInset: Double = 0
     ) {
         if gridPlacementSlot >= GridPlacement.cardsPerPage {
-            // Page full: start a new page by shifting content up one viewport
-            // height, so the empty region appears at the top-left.
-            viewport.origin.y -= viewportSize.y
+            // Page full: start a new page to the RIGHT by shifting content left
+            // one viewport width, so the empty region appears at the top-left and
+            // pages flow horizontally.
+            viewport.origin.x -= viewportSize.x
             gridPlacementSlot = 0
         }
 

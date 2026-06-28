@@ -73,6 +73,13 @@ public final class WorkspaceStore: ObservableObject {
         schedulePersistence()
     }
 
+    /// A discrete zoom step (the +/- controls) that snaps to 100% when a step
+    /// would otherwise skip over it, so 100% is always reachable by clicking.
+    public func zoomStep(by magnification: Double, anchoredAt anchor: ScreenPoint) {
+        state.viewport.zoomStep(by: magnification, anchoredAt: anchor)
+        schedulePersistence()
+    }
+
     public func moveCard(id: UUID, screenTranslation: CanvasVector) {
         guard screenTranslation != .zero else { return }
         state.moveCard(id: id, screenTranslation: screenTranslation)

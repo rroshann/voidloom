@@ -80,9 +80,30 @@ public struct CanvasViewport: Codable, Equatable, Sendable {
 
     public mutating func zoom(by magnification: Double, anchoredAt anchor: ScreenPoint) {
         guard magnification.isFinite, magnification > 0 else { return }
+        setScale(scale * magnification, anchoredAt: anchor)
+    }
 
+    /// A discrete zoom step (the +/- buttons) that snaps to `snap` (100% by
+    /// default) whenever the step would otherwise jump over it — so 100% is
+    /// always reachable from a nearby off-100 zoom. A step that starts exactly at
+    /// the snap point, or stays entirely on one side of it, behaves like `zoom`.
+    public mutating func zoomStep(
+        by magnification: Double,
+        anchoredAt anchor: ScreenPoint,
+        snappingTo snap: Double = 1.0
+    ) {
+        guard magnification.isFinite, magnification > 0 else { return }
+
+        let target = Self.clampedScale(scale * magnification)
+        let crossesSnap = (scale < snap && target > snap) || (scale > snap && target < snap)
+        setScale(crossesSnap ? snap : target, anchoredAt: anchor)
+    }
+
+    /// Sets the scale (clamped) while keeping `anchor`'s canvas point pinned to
+    /// the same screen location.
+    private mutating func setScale(_ newScale: Double, anchoredAt anchor: ScreenPoint) {
         let anchorBeforeZoom = canvasPoint(forScreenPoint: anchor)
-        scale = Self.clampedScale(scale * magnification)
+        scale = Self.clampedScale(newScale)
         origin = CanvasPoint(
             x: anchor.x - (anchorBeforeZoom.x * scale),
             y: anchor.y - (anchorBeforeZoom.y * scale)
