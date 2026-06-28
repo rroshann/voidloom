@@ -32,6 +32,8 @@
 		A30000000000000000000008 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000018 /* SettingsView.swift */; };
 		A40000000000000000000001 /* ConversationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000011 /* ConversationStore.swift */; };
 		A40000000000000000000002 /* AIConversationSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000012 /* AIConversationSidebar.swift */; };
+		A50000000000000000000001 /* CommandPaletteModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000011 /* CommandPaletteModel.swift */; };
+		A50000000000000000000002 /* CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000012 /* CommandPaletteView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -62,6 +64,8 @@
 		A30000000000000000000018 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/SettingsView.swift; sourceTree = "<group>"; };
 		A40000000000000000000011 /* ConversationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/ConversationStore.swift; sourceTree = "<group>"; };
 		A40000000000000000000012 /* AIConversationSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/AIConversationSidebar.swift; sourceTree = "<group>"; };
+		A50000000000000000000011 /* CommandPaletteModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPalette/CommandPaletteModel.swift; sourceTree = "<group>"; };
+		A50000000000000000000012 /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPalette/CommandPaletteView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -93,6 +97,8 @@
 				A20000000000000000000011 /* AtmosphereBackground.swift */,
 				A20000000000000000000018 /* WorkspaceSidebar.swift */,
 				A40000000000000000000012 /* AIConversationSidebar.swift */,
+				A50000000000000000000011 /* CommandPaletteModel.swift */,
+				A50000000000000000000012 /* CommandPaletteView.swift */,
 				A20000000000000000000013 /* ToolRail.swift */,
 				A20000000000000000000014 /* CommandBar.swift */,
 				A30000000000000000000018 /* SettingsView.swift */,
@@ -223,6 +229,8 @@
 				A30000000000000000000008 /* SettingsView.swift in Sources */,
 				A40000000000000000000001 /* ConversationStore.swift in Sources */,
 				A40000000000000000000002 /* AIConversationSidebar.swift in Sources */,
+				A50000000000000000000001 /* CommandPaletteModel.swift in Sources */,
+				A50000000000000000000002 /* CommandPaletteView.swift in Sources */,
 				A10000000000000000000005 /* PreviewSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

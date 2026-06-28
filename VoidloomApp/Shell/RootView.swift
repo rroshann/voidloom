@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import VoidloomCore
 
@@ -10,6 +11,8 @@ struct RootView: View {
     @State private var isCommandBarVisible = false
     @State private var isAIConversationVisible = false
     @State private var commandText = ""
+    @State private var isCommandPaletteVisible = false
+    @State private var paletteQuery = ""
     @State private var viewportBeforeCardFocus: CanvasViewport?
 
     private var activeWorkspaceID: UUID {
@@ -139,7 +142,33 @@ struct RootView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 .zIndex(2)
+
+                if isCommandPaletteVisible {
+                    CommandPaletteView(
+                        query: $paletteQuery,
+                        commands: paletteCommands(in: geometry.size),
+                        onAskAI: { text in
+                            conversationStore.submit(workspaceID: activeWorkspaceID, text: text)
+                            withAnimation(.easeInOut(duration: 0.24)) {
+                                isAIConversationVisible = true
+                            }
+                        },
+                        onClose: {
+                            withAnimation(.easeInOut(duration: 0.15)) {
+                                isCommandPaletteVisible = false
+                            }
+                        }
+                    )
+                    .transition(.opacity)
+                    .zIndex(4)
+                }
             }
+            .background(
+                Button("Open Command Palette") { openCommandPalette() }
+                    .keyboardShortcut("k", modifiers: .command)
+                    .hidden()
+            )
+            .animation(.easeInOut(duration: 0.15), value: isCommandPaletteVisible)
             .animation(.easeInOut(duration: 0.24), value: isWorkspaceSidebarVisible)
             .animation(.easeInOut(duration: 0.24), value: isAIConversationVisible)
             .preferredColorScheme(.dark)
@@ -174,6 +203,95 @@ struct RootView: View {
             isCommandBarVisible = false
             isAIConversationVisible = true
         }
+    }
+
+    private func openCommandPalette() {
+        paletteQuery = ""
+        withAnimation(.easeInOut(duration: 0.15)) {
+            isCommandPaletteVisible = true
+        }
+    }
+
+    private func openSettings() {
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+    }
+
+    /// All palette commands for the current state, ordered by section so the
+    /// palette can show section headers without extra grouping logic.
+    private func paletteCommands(in size: CGSize) -> [PaletteCommand] {
+        let zoomAnchor = ScreenPoint(x: size.width / 2, y: size.height / 2)
+        var commands: [PaletteCommand] = []
+
+        // Create
+        commands.append(PaletteCommand(id: "new-agent", title: "New Agent Card", section: .create, systemImage: "sparkles", keywords: ["add", "create"]) {
+            store.addCard(kind: .agent)
+        })
+        commands.append(PaletteCommand(id: "new-note", title: "New Note Card", section: .create, systemImage: "note.text", keywords: ["add", "create"]) {
+            store.addCard(kind: .note)
+        })
+        commands.append(PaletteCommand(id: "new-todo", title: "New Todo Card", section: .create, systemImage: "checklist", keywords: ["add", "create", "task"]) {
+            store.addCard(kind: .todo)
+        })
+        commands.append(PaletteCommand(id: "new-browser", title: "New Browser Card", section: .create, systemImage: "safari", keywords: ["add", "create", "preview", "web"]) {
+            store.addCard(kind: .browser)
+        })
+
+        // Workspaces
+        commands.append(PaletteCommand(id: "new-workspace", title: "New Workspace", section: .workspaces, systemImage: "plus.rectangle.on.rectangle", keywords: ["add", "create"]) {
+            let untitledCount = store.library.workspaces.filter { $0.name.hasPrefix("Untitled") }.count
+            let name = untitledCount == 0 ? "Untitled" : "Untitled \(untitledCount + 1)"
+            store.createWorkspace(named: name)
+        })
+        for workspace in store.library.workspaces where workspace.id != activeWorkspaceID {
+            commands.append(PaletteCommand(id: "switch-\(workspace.id)", title: "Switch to \(workspace.name)", section: .workspaces, systemImage: "rectangle.on.rectangle", keywords: ["open", "go", "workspace"]) {
+                sessionManager.terminateAllSessions()
+                store.switchWorkspace(id: workspace.id)
+            })
+        }
+
+        // View
+        commands.append(PaletteCommand(id: "reset-view", title: "Reset Viewport", section: .view, systemImage: "scope", keywords: ["zoom", "center", "fit"]) {
+            store.resetViewport()
+        })
+        commands.append(PaletteCommand(id: "zoom-in", title: "Zoom In", section: .view, systemImage: "plus.magnifyingglass") {
+            store.zoom(by: 1.15, anchoredAt: zoomAnchor)
+        })
+        commands.append(PaletteCommand(id: "zoom-out", title: "Zoom Out", section: .view, systemImage: "minus.magnifyingglass") {
+            store.zoom(by: 1 / 1.15, anchoredAt: zoomAnchor)
+        })
+        if store.state.selectedCardID != nil {
+            let focused = viewportBeforeCardFocus != nil
+            commands.append(PaletteCommand(
+                id: "focus-card",
+                title: focused ? "Exit Card Focus" : "Focus Selected Card",
+                section: .view,
+                systemImage: focused ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right"
+            ) {
+                toggleCardFocus(in: size)
+            })
+        }
+
+        // App
+        commands.append(PaletteCommand(id: "open-settings", title: "Open Settings", section: .app, systemImage: "gearshape", keywords: ["preferences"]) {
+            openSettings()
+        })
+        commands.append(PaletteCommand(
+            id: "toggle-workspaces",
+            title: isWorkspaceSidebarVisible ? "Hide Workspaces Sidebar" : "Show Workspaces Sidebar",
+            section: .app,
+            systemImage: "sidebar.left"
+        ) {
+            withAnimation(.easeInOut(duration: 0.24)) {
+                isWorkspaceSidebarVisible.toggle()
+            }
+        })
+        commands.append(PaletteCommand(id: "open-ai", title: "Open AI Conversation", section: .app, systemImage: "bubble.left.and.bubble.right", keywords: ["chat", "assistant"]) {
+            withAnimation(.easeInOut(duration: 0.24)) {
+                isAIConversationVisible = true
+            }
+        })
+
+        return commands
     }
 
     private func toggleCardFocus(in size: CGSize) {
