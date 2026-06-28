@@ -125,6 +125,20 @@ public final class WorkspaceStore: ObservableObject {
         persist()
     }
 
+    /// Adds a card centered on the given canvas point (e.g. the center of the
+    /// visible viewport, or a click location), with a small cascade offset so
+    /// consecutive additions don't stack exactly on top of each other.
+    public func addCard(kind: CardKind, centeredAt center: CanvasPoint) {
+        var card = Self.defaultCard(kind: kind)
+        let cascade = Double(state.cards.count % 6) * 22
+        card.position = CanvasPoint(
+            x: center.x - (card.size.width / 2) + cascade,
+            y: center.y - (card.size.height / 2) + cascade
+        )
+        state.addCard(card)
+        persist()
+    }
+
     public func resetViewport() {
         state.viewport = CanvasViewport()
         persist()
@@ -559,19 +573,14 @@ public final class WorkspaceStore: ObservableObject {
         )
     }
 
-    nonisolated private static func makeCard(kind: CardKind, index: Int) -> WorkspaceCard {
-        let column = index % 3
-        let row = index / 3
-        let position = CanvasPoint(
-            x: 140 + Double(column * 340),
-            y: 120 + Double(row * 260)
-        )
-
+    /// A card with default size/title/content for its kind, positioned at the
+    /// origin. Callers set `position` (grid slot, viewport center, cursor, …).
+    nonisolated private static func defaultCard(kind: CardKind) -> WorkspaceCard {
         switch kind {
         case .agent:
             return WorkspaceCard(
                 kind: .agent,
-                position: position,
+                position: .zero,
                 size: CardSize(width: 360, height: 240),
                 title: "New Agent",
                 content: "Placeholder for an AI coding agent session."
@@ -579,7 +588,7 @@ public final class WorkspaceStore: ObservableObject {
         case .note:
             return WorkspaceCard(
                 kind: .note,
-                position: position,
+                position: .zero,
                 size: CardSize(width: 320, height: 190),
                 title: "New Note",
                 content: "Capture spatial context here."
@@ -587,7 +596,7 @@ public final class WorkspaceStore: ObservableObject {
         case .todo:
             return WorkspaceCard(
                 kind: .todo,
-                position: position,
+                position: .zero,
                 size: CardSize(width: 300, height: 210),
                 title: "New Todo",
                 content: "[ ] First item\n[ ] Next item"
@@ -595,11 +604,22 @@ public final class WorkspaceStore: ObservableObject {
         case .browser:
             return WorkspaceCard(
                 kind: .browser,
-                position: position,
+                position: .zero,
                 size: CardSize(width: 380, height: 230),
                 title: "New Preview",
                 content: "Browser card placeholder."
             )
         }
+    }
+
+    nonisolated private static func makeCard(kind: CardKind, index: Int) -> WorkspaceCard {
+        var card = defaultCard(kind: kind)
+        let column = index % 3
+        let row = index / 3
+        card.position = CanvasPoint(
+            x: 140 + Double(column * 340),
+            y: 120 + Double(row * 260)
+        )
+        return card
     }
 }

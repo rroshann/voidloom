@@ -767,4 +767,24 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(card.size.width, 400, accuracy: 0.0001)
         XCTAssertEqual(card.size.height, 220, accuracy: 0.0001)
     }
+
+    @MainActor
+    func testAddCardCenteredAtPlacesCardCenterOnPoint() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(
+            state: WorkspaceState(),
+            storageURL: url,
+            persistenceDelay: 60
+        )
+
+        store.addCard(kind: .note, centeredAt: CanvasPoint(x: 500, y: 400))
+
+        let card = try XCTUnwrap(store.state.cards.last)
+        XCTAssertEqual(card.position.x + (card.size.width / 2), 500, accuracy: 0.0001)
+        XCTAssertEqual(card.position.y + (card.size.height / 2), 400, accuracy: 0.0001)
+    }
 }

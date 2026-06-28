@@ -131,6 +131,9 @@ struct RootView: View {
                                 withAnimation(.easeInOut(duration: 0.24)) {
                                     isWorkspaceSidebarVisible.toggle()
                                 }
+                            },
+                            onAddCard: { kind in
+                                store.addCard(kind: kind, centeredAt: viewportCenterCanvasPoint(in: geometry.size))
                             }
                         )
                     }
@@ -205,6 +208,14 @@ struct RootView: View {
         }
     }
 
+    /// The canvas point currently at the center of the visible viewport — where
+    /// newly created cards should appear.
+    private func viewportCenterCanvasPoint(in size: CGSize) -> CanvasPoint {
+        store.state.viewport.canvasPoint(
+            forScreenPoint: ScreenPoint(x: size.width / 2, y: size.height / 2)
+        )
+    }
+
     private func openCommandPalette() {
         paletteQuery = ""
         withAnimation(.easeInOut(duration: 0.15)) {
@@ -220,20 +231,21 @@ struct RootView: View {
     /// palette can show section headers without extra grouping logic.
     private func paletteCommands(in size: CGSize) -> [PaletteCommand] {
         let zoomAnchor = ScreenPoint(x: size.width / 2, y: size.height / 2)
+        let cardCenter = viewportCenterCanvasPoint(in: size)
         var commands: [PaletteCommand] = []
 
         // Create
         commands.append(PaletteCommand(id: "new-agent", title: "New Agent Card", section: .create, systemImage: "sparkles", keywords: ["add", "create"]) {
-            store.addCard(kind: .agent)
+            store.addCard(kind: .agent, centeredAt: cardCenter)
         })
         commands.append(PaletteCommand(id: "new-note", title: "New Note Card", section: .create, systemImage: "note.text", keywords: ["add", "create"]) {
-            store.addCard(kind: .note)
+            store.addCard(kind: .note, centeredAt: cardCenter)
         })
         commands.append(PaletteCommand(id: "new-todo", title: "New Todo Card", section: .create, systemImage: "checklist", keywords: ["add", "create", "task"]) {
-            store.addCard(kind: .todo)
+            store.addCard(kind: .todo, centeredAt: cardCenter)
         })
         commands.append(PaletteCommand(id: "new-browser", title: "New Browser Card", section: .create, systemImage: "safari", keywords: ["add", "create", "preview", "web"]) {
-            store.addCard(kind: .browser)
+            store.addCard(kind: .browser, centeredAt: cardCenter)
         })
 
         // Workspaces

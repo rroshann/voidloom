@@ -14,6 +14,7 @@ struct ToolDock: View {
     let workspaceName: String
     let isWorkspaceSidebarVisible: Bool
     let onToggleWorkspaceSidebar: () -> Void
+    let onAddCard: (CardKind) -> Void
 
     var body: some View {
         HStack(spacing: 7) {
@@ -27,19 +28,19 @@ struct ToolDock: View {
             DockDivider()
 
             DockButton(systemName: "sparkles", label: "Agent") {
-                store.addCard(kind: .agent)
+                onAddCard(.agent)
             }
 
             DockButton(systemName: "note.text", label: "Note") {
-                store.addCard(kind: .note)
+                onAddCard(.note)
             }
 
             DockButton(systemName: "checklist", label: "Todo") {
-                store.addCard(kind: .todo)
+                onAddCard(.todo)
             }
 
             DockButton(systemName: "safari", label: "Preview") {
-                store.addCard(kind: .browser)
+                onAddCard(.browser)
             }
 
             DockDivider()
