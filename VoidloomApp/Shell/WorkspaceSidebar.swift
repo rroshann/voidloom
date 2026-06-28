@@ -11,6 +11,7 @@ struct WorkspaceSidebar: View {
     let onRenameWorkspace: (UUID, String) -> Void
     let onDeleteWorkspace: (UUID) -> Void
     let onMoveWorkspace: (UUID, UUID) -> Void
+    let onCloseSidebar: () -> Void
 
     @State private var workspaceToRename: WorkspaceSummary?
     @State private var renameText = ""
