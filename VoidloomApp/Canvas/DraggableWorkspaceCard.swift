@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import VoidloomCore
 
@@ -61,6 +62,13 @@ struct DraggableWorkspaceCard: View {
         }
         .offset(x: CGFloat(card.position.x), y: CGFloat(card.position.y))
         .onTapGesture {
+            // ⌘-click toggles this card in/out of the multi-selection. Evaluated
+            // before the marquee no-op below so ⌘-clicking an existing group
+            // member is honored instead of being swallowed by it.
+            if NSEvent.modifierFlags.contains(.command) {
+                store.toggleCardInSelection(id: card.id)
+                return
+            }
             // A tap on a marquee member is a no-op so the group stays selected for
             // a subsequent group drag. macOS can fire this co-located tap eagerly
             // on press; calling selectCard here would collapse the marquee set to

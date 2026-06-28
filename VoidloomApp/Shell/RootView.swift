@@ -26,15 +26,63 @@ struct RootView: View {
             .name ?? "Workspace"
     }
 
-    /// Whether the Delete shortcut should act. It must stay inert while any text
-    /// element or card title is being edited (so Backspace flows to the editor),
-    /// and only fires when there's a selected connection edge or a marquee card
-    /// group to remove.
-    private var canDeleteSelection: Bool {
-        interaction.editingTextID == nil
-            && interaction.editingCardTitleID == nil
-            && (interaction.selectedConnectionID != nil
-                || !store.state.marqueeSelectedCardIDs.isEmpty)
+    /// Handles a Delete/Backspace key press for the canvas. Removes, in priority
+    /// order, the selected connection edge, the marquee-selected card group, or
+    /// the single selected card. Returns whether the event was consumed.
+    ///
+    /// Stays inert (returns false, so the key falls through) while any text
+    /// editor has focus — the tracked inline-edit states plus any first-responder
+    /// `NSText` (note/todo bodies, card title, text element, terminal input) —
+    /// so it never swallows Backspace mid-typing.
+    private func handleDeleteKey(_ event: NSEvent) -> Bool {
+        // 51 = delete/backspace, 117 = forward delete.
+        guard event.keyCode == 51 || event.keyCode == 117 else { return false }
+
+        guard interaction.editingTextID == nil,
+              interaction.editingCardTitleID == nil else { return false }
+        if event.window?.firstResponder is NSText { return false }
+
+        if let id = interaction.selectedConnectionID {
+            store.deleteConnection(id: id)
+            interaction.selectedConnectionID = nil
+            return true
+        }
+        if !store.state.marqueeSelectedCardIDs.isEmpty {
+            let ids = store.state.marqueeSelectedCardIDs
+            terminateAgentSessions(for: ids)
+            store.deleteCards(ids: ids)
+            return true
+        }
+        if let id = store.state.selectedCardID {
+            terminateAgentSessions(for: [id])
+            store.deleteCard(id: id)
+            return true
+        }
+        return false
+    }
+
+    /// Handles the Escape key: always disarms any armed canvas tool, and also
+    /// deselects the current card/text selection — except when the selected card
+    /// is an agent. An agent card's terminal may bind Escape to its own action
+    /// (e.g. interrupting an AI agent), so its selection is left intact here
+    /// rather than the terminal having to special-case the key.
+    private func handleEscape() {
+        interaction.disarm()
+
+        let selectedIsAgent = store.state.selectedCardID
+            .flatMap { id in store.state.cards.first(where: { $0.id == id }) }?
+            .kind == .agent
+        if !selectedIsAgent {
+            store.clearSelection()
+        }
+    }
+
+    /// Terminates the agent session for every `.agent` card in `ids`, mirroring
+    /// the per-card close button so Delete never leaks a running terminal.
+    private func terminateAgentSessions(for ids: Set<UUID>) {
+        for id in ids where store.state.cards.first(where: { $0.id == id })?.kind == .agent {
+            sessionManager.terminateSession(cardID: id)
+        }
     }
 
     var body: some View {
@@ -212,27 +260,16 @@ struct RootView: View {
                 ZStack {
                     Button("Open Command Palette") { openCommandPalette() }
                         .keyboardShortcut("k", modifiers: .command)
-                    Button("Disarm Canvas Tool") { interaction.disarm() }
+                    Button("Disarm Canvas Tool or Deselect") { handleEscape() }
                         .keyboardShortcut(.escape, modifiers: [])
-                    // Delete removes the selected connection edge, or — when an
-                    // edge isn't selected — the whole marquee-selected card group
-                    // (and their connections). Disabled while a text field or
-                    // card title is being edited so it never swallows backspace,
-                    // and when there's nothing key-deletable selected (a single
-                    // tap-selected card is closed via its button, not Delete).
-                    Button("Delete Selection") {
-                        if let id = interaction.selectedConnectionID {
-                            store.deleteConnection(id: id)
-                            interaction.selectedConnectionID = nil
-                        } else if !store.state.marqueeSelectedCardIDs.isEmpty {
-                            store.deleteCards(ids: store.state.marqueeSelectedCardIDs)
-                        }
-                    }
-                    .keyboardShortcut(.delete, modifiers: [])
-                    .disabled(!canDeleteSelection)
                 }
                 .hidden()
             )
+            // Delete/Backspace is handled by a window-level key monitor rather
+            // than a hidden button: it must fire for a single selected card and a
+            // marquee group, yet stay inert while a text editor holds focus (so
+            // Backspace keeps reaching the editor).
+            .background(CanvasKeyMonitor(onKeyDown: handleDeleteKey))
             .animation(.easeInOut(duration: 0.15), value: isCommandPaletteVisible)
             .animation(.easeInOut(duration: 0.24), value: isWorkspaceSidebarVisible)
             .animation(.easeInOut(duration: 0.24), value: isAIConversationVisible)

@@ -1405,6 +1405,125 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertTrue(decoded.marqueeSelectedCardIDs.isEmpty)
     }
 
+    // MARK: - Toggle selection (⌘-click)
+
+    func testToggleAddsCardToEmptySelection() {
+        var (state, left, _) = makeMarqueeState()
+
+        state.toggleCardInSelection(id: left)
+
+        XCTAssertEqual(state.marqueeSelectedCardIDs, Set([left]))
+        XCTAssertEqual(state.selectedCardID, left)
+    }
+
+    func testTogglePromotesLoneSingleSelectionIntoSet() {
+        var (state, left, right) = makeMarqueeState()
+        state.selectCard(id: left)
+        XCTAssertEqual(state.selectedCardID, left)
+        XCTAssertTrue(state.marqueeSelectedCardIDs.isEmpty)
+
+        state.toggleCardInSelection(id: right)
+
+        XCTAssertEqual(state.marqueeSelectedCardIDs, Set([left, right]))
+        // Two members: no lone selectedCardID.
+        XCTAssertNil(state.selectedCardID)
+    }
+
+    func testToggleRemovesAlreadySelectedMember() {
+        var (state, left, right) = makeMarqueeState()
+        state.selectCards(
+            fromCorner: CanvasPoint(x: -10, y: -10),
+            toCorner: CanvasPoint(x: 510, y: 110)
+        )
+        XCTAssertEqual(state.marqueeSelectedCardIDs, Set([left, right]))
+
+        state.toggleCardInSelection(id: left)
+
+        // Down to one member: it becomes the lone selectedCardID.
+        XCTAssertEqual(state.marqueeSelectedCardIDs, Set([right]))
+        XCTAssertEqual(state.selectedCardID, right)
+    }
+
+    func testToggleLastMemberClearsSelection() {
+        var (state, left, _) = makeMarqueeState()
+        state.selectCard(id: left)
+
+        state.toggleCardInSelection(id: left)
+
+        XCTAssertTrue(state.marqueeSelectedCardIDs.isEmpty)
+        XCTAssertNil(state.selectedCardID)
+    }
+
+    func testToggleClearsTextSelection() {
+        var (state, left, _) = makeMarqueeState()
+        state.textElements = [
+            TextElement(position: CanvasPoint(x: 0, y: 0), size: CardSize(width: 120, height: 40), text: "hi")
+        ]
+        state.selectTextElement(id: state.textElements[0].id)
+        XCTAssertNotNil(state.selectedTextID)
+
+        state.toggleCardInSelection(id: left)
+
+        XCTAssertNil(state.selectedTextID)
+    }
+
+    func testToggleUnknownCardIsNoOp() {
+        var (state, left, _) = makeMarqueeState()
+        state.selectCard(id: left)
+
+        state.toggleCardInSelection(id: UUID())
+
+        XCTAssertEqual(state.selectedCardID, left)
+        XCTAssertTrue(state.marqueeSelectedCardIDs.isEmpty)
+    }
+
+    // MARK: - Additive marquee (⌘-drag)
+
+    func testAdditiveMarqueeUnionsWithBase() {
+        var (state, left, right) = makeMarqueeState()
+
+        // Box hits only `right`, additive against a base that already holds `left`.
+        state.selectCards(
+            fromCorner: CanvasPoint(x: 390, y: -10),
+            toCorner: CanvasPoint(x: 510, y: 110),
+            additive: true,
+            base: Set([left])
+        )
+
+        XCTAssertEqual(state.marqueeSelectedCardIDs, Set([left, right]))
+        XCTAssertNil(state.selectedCardID)
+    }
+
+    func testAdditiveMarqueeKeepsBaseWhenBoxHitsNothing() {
+        var (state, left, _) = makeMarqueeState()
+
+        state.selectCards(
+            fromCorner: CanvasPoint(x: 1_000, y: 1_000),
+            toCorner: CanvasPoint(x: 1_100, y: 1_100),
+            additive: true,
+            base: Set([left])
+        )
+
+        XCTAssertEqual(state.marqueeSelectedCardIDs, Set([left]))
+        // A single surviving member is promoted to the lone selectedCardID.
+        XCTAssertEqual(state.selectedCardID, left)
+    }
+
+    func testNonAdditiveMarqueeReplacesIgnoringBase() {
+        var (state, left, right) = makeMarqueeState()
+
+        // Box hits only `right`; non-additive must drop the base entirely.
+        state.selectCards(
+            fromCorner: CanvasPoint(x: 390, y: -10),
+            toCorner: CanvasPoint(x: 510, y: 110),
+            additive: false,
+            base: Set([left])
+        )
+
+        XCTAssertEqual(state.marqueeSelectedCardIDs, Set([right]))
+        XCTAssertEqual(state.selectedCardID, right)
+    }
+
     // MARK: - Stage 4: text styling + deselect
 
     @MainActor

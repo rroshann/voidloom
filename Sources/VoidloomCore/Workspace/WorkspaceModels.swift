@@ -251,19 +251,66 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         marqueeSelectedCardIDs = []
     }
 
+    /// Toggles `id` in or out of the multi-selection (⌘-click). A lone
+    /// `selectedCardID` is first promoted into the marquee set, so ⌘-clicking a
+    /// second card grows a single selection into a two-card group. After the
+    /// toggle, `selectedCardID` mirrors the marquee set the same way
+    /// `selectCards` does: the lone id when one card remains, nil when several
+    /// do; an empty result clears the whole selection. Text selection is always
+    /// cleared. Unknown ids are ignored.
+    public mutating func toggleCardInSelection(id: UUID) {
+        guard cards.contains(where: { $0.id == id }) else { return }
+        selectedTextID = nil
+
+        var working = marqueeSelectedCardIDs
+        if working.isEmpty, let single = selectedCardID {
+            working.insert(single)
+        }
+
+        if working.contains(id) {
+            working.remove(id)
+        } else {
+            working.insert(id)
+        }
+
+        if working.isEmpty {
+            clearSelection()
+        } else {
+            marqueeSelectedCardIDs = working
+            selectedCardID = working.count == 1 ? working.first : nil
+        }
+    }
+
     /// Selects every card whose rect intersects the marquee rectangle defined by
     /// two opposite canvas corners. A single hit also sets `selectedCardID` (so
     /// resize/keyboard affordances keep working); multiple hits leave it nil and
     /// rely on `marqueeSelectedCardIDs`. A miss clears the selection. Text
     /// selection is always cleared.
     public mutating func selectCards(fromCorner a: CanvasPoint, toCorner b: CanvasPoint) {
+        selectCards(fromCorner: a, toCorner: b, additive: false, base: [])
+    }
+
+    /// Marquee selection with an optional additive mode (⌘-drag). When
+    /// `additive` is true the box's hits are unioned with `base` — the set
+    /// captured at drag start — so dragging keeps extending the original
+    /// selection rather than its own growing result. When false it replaces the
+    /// selection with the hits and ignores `base`, matching the plain marquee.
+    /// `selectedCardID`/`selectedTextID` follow the same rules as the plain
+    /// overload (lone hit ⇒ `selectedCardID`, else nil; text always cleared).
+    public mutating func selectCards(
+        fromCorner a: CanvasPoint,
+        toCorner b: CanvasPoint,
+        additive: Bool,
+        base: Set<UUID>
+    ) {
         let rect = Self.normalizedRect(a, b)
         let hitIDs = cards
             .filter { Self.cardIntersects(card: $0, marqueeOrigin: rect.origin, marqueeSize: rect.size) }
             .map { $0.id }
 
-        marqueeSelectedCardIDs = Set(hitIDs)
-        selectedCardID = hitIDs.count == 1 ? hitIDs.first : nil
+        let combined = additive ? base.union(hitIDs) : Set(hitIDs)
+        marqueeSelectedCardIDs = combined
+        selectedCardID = combined.count == 1 ? combined.first : nil
         selectedTextID = nil
     }
 

@@ -52,6 +52,7 @@ struct TodoCardContentView: View {
 
     @State private var items: [TodoItem]
     @State private var newItemText = ""
+    @FocusState private var isNewItemFocused: Bool
 
     init(cardID: UUID, content: String, store: WorkspaceStore, isSelected: Bool) {
         self.cardID = cardID
@@ -85,7 +86,11 @@ struct TodoCardContentView: View {
                         .textFieldStyle(.plain)
                         .font(.system(size: 12, weight: .semibold, design: .monospaced))
                         .foregroundStyle(.white.opacity(0.72))
+                        .focused($isNewItemFocused)
                         .onSubmit(addItem)
+                        // Esc ends editing and is consumed here so it never
+                        // bubbles to the window and exits native full screen.
+                        .onExitCommand { isNewItemFocused = false }
                 }
                 .padding(.top, 4)
             }

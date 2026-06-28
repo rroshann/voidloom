@@ -48,6 +48,11 @@ struct CanvasWorkspaceView: View {
     /// Selection-box corners in screen (view) coordinates while marquee dragging.
     @State private var marqueeStart: CGPoint?
     @State private var marqueeCurrent: CGPoint?
+    /// For an additive (⌘) marquee: the selection captured on the first move, so
+    /// the box keeps unioning against the original set rather than its own
+    /// growing result. Empty for a plain (replacing) marquee. Decided once.
+    @State private var marqueeBase: Set<UUID> = []
+    @State private var marqueeAdditive = false
 
     /// Which modifier (if any) a mouse/keyboard user must hold for a left-drag to
     /// draw a selection box instead of panning. `.none` makes plain drag draw the
@@ -638,9 +643,22 @@ struct CanvasWorkspaceView: View {
         DragGesture(minimumDistance: 1)
             .onChanged { value in
                 if idleDragMode == .none {
-                    if selectionBoxModifier.matches(NSEvent.modifierFlags) {
+                    // ⌘ held ⇒ additive marquee, regardless of the configured
+                    // selection-box modifier (so ⌘-drag always extends the
+                    // selection). Otherwise the configured modifier decides
+                    // marquee-vs-pan as before.
+                    let additive = NSEvent.modifierFlags.contains(.command)
+                    if additive || selectionBoxModifier.matches(NSEvent.modifierFlags) {
                         idleDragMode = .marquee
                         marqueeStart = value.startLocation
+                        marqueeAdditive = additive
+                        if additive {
+                            var base = store.state.marqueeSelectedCardIDs
+                            if let single = store.state.selectedCardID { base.insert(single) }
+                            marqueeBase = base
+                        } else {
+                            marqueeBase = []
+                        }
                     } else {
                         idleDragMode = .pan
                     }
@@ -662,7 +680,12 @@ struct CanvasWorkspaceView: View {
                     let endCanvas = store.state.viewport.canvasPoint(
                         forScreenPoint: ScreenPoint(x: value.location.x, y: value.location.y)
                     )
-                    store.selectCards(fromCorner: startCanvas, toCorner: endCanvas)
+                    store.selectCards(
+                        fromCorner: startCanvas,
+                        toCorner: endCanvas,
+                        additive: marqueeAdditive,
+                        base: marqueeBase
+                    )
                 case .none:
                     break
                 }
@@ -672,6 +695,8 @@ struct CanvasWorkspaceView: View {
                 idleDragMode = .none
                 marqueeStart = nil
                 marqueeCurrent = nil
+                marqueeBase = []
+                marqueeAdditive = false
             }
     }
 

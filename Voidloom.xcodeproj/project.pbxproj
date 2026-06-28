@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		A10000000000000000000001 /* VoidloomApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000011 /* VoidloomApp.swift */; };
 		A10000000000000000000002 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000012 /* RootView.swift */; };
+		A100000000000000000000F0 /* CanvasKeyMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000F1 /* CanvasKeyMonitor.swift */; };
 		A10000000000000000000003 /* CanvasWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* CanvasWorkspaceView.swift */; };
 		A10000000000000000000004 /* WorkspaceCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000014 /* WorkspaceCardView.swift */; };
 		A10000000000000000000005 /* PreviewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000015 /* PreviewSupport.swift */; };
@@ -53,6 +54,7 @@
 		A10000000000000000000010 /* Voidloom.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Voidloom.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000011 /* VoidloomApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/VoidloomApp.swift; sourceTree = "<group>"; };
 		A10000000000000000000012 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/RootView.swift; sourceTree = "<group>"; };
+		A100000000000000000000F1 /* CanvasKeyMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/CanvasKeyMonitor.swift; sourceTree = "<group>"; };
 		A10000000000000000000013 /* CanvasWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/CanvasWorkspaceView.swift; sourceTree = "<group>"; };
 		A10000000000000000000014 /* WorkspaceCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/WorkspaceCardView.swift; sourceTree = "<group>"; };
 		A10000000000000000000015 /* PreviewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewSupport/PreviewSupport.swift; sourceTree = "<group>"; };
@@ -120,6 +122,7 @@
 			children = (
 				A10000000000000000000011 /* VoidloomApp.swift */,
 				A10000000000000000000012 /* RootView.swift */,
+				A100000000000000000000F1 /* CanvasKeyMonitor.swift */,
 				A20000000000000000000011 /* AtmosphereBackground.swift */,
 				A20000000000000000000018 /* WorkspaceSidebar.swift */,
 				A40000000000000000000012 /* AIConversationSidebar.swift */,
@@ -248,6 +251,7 @@
 			files = (
 				A10000000000000000000001 /* VoidloomApp.swift in Sources */,
 				A10000000000000000000002 /* RootView.swift in Sources */,
+				A100000000000000000000F0 /* CanvasKeyMonitor.swift in Sources */,
 				A20000000000000000000001 /* AtmosphereBackground.swift in Sources */,
 				A20000000000000000000003 /* ToolRail.swift in Sources */,
 				A20000000000000000000004 /* CommandBar.swift in Sources */,

@@ -9,6 +9,7 @@ struct NoteCardContentView: View {
 
     @State private var draft: String
     @State private var persistTask: Task<Void, Never>?
+    @FocusState private var isEditorFocused: Bool
 
     init(cardID: UUID, content: String, store: WorkspaceStore, isSelected: Bool) {
         self.cardID = cardID
@@ -25,6 +26,14 @@ struct NoteCardContentView: View {
             .scrollContentBackground(.hidden)
             .padding(12)
             .allowsHitTesting(isSelected)
+            .focused($isEditorFocused)
+            // Esc ends editing (resign focus + persist) and is consumed here, so
+            // it never bubbles to the window — which in native full screen would
+            // otherwise treat Esc as "exit full screen".
+            .onExitCommand {
+                isEditorFocused = false
+                flushPersist()
+            }
             .onChange(of: draft) { _, newValue in
                 guard isSelected else { return }
                 schedulePersist(newValue)

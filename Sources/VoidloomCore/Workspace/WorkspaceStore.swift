@@ -142,11 +142,33 @@ public final class WorkspaceStore: ObservableObject {
         schedulePersistence()
     }
 
+    /// Toggles a card in/out of the multi-selection (⌘-click). Promotes a lone
+    /// single selection into the marquee set first; see
+    /// `WorkspaceState.toggleCardInSelection`.
+    public func toggleCardInSelection(id: UUID) {
+        guard state.cards.contains(where: { $0.id == id }) else { return }
+        state.toggleCardInSelection(id: id)
+        schedulePersistence()
+    }
+
     /// Marquee multi-selection driven by a left-drag selection box (two opposite
     /// canvas corners). The marquee set is transient/unpersisted, but a single
     /// hit also sets `selectedCardID`, so persistence is still scheduled.
     public func selectCards(fromCorner a: CanvasPoint, toCorner b: CanvasPoint) {
         state.selectCards(fromCorner: a, toCorner: b)
+        schedulePersistence()
+    }
+
+    /// Additive marquee (⌘-drag): unions the box's hits with `base` (the
+    /// selection captured at drag start) when `additive` is true, else replaces.
+    /// See `WorkspaceState.selectCards(fromCorner:toCorner:additive:base:)`.
+    public func selectCards(
+        fromCorner a: CanvasPoint,
+        toCorner b: CanvasPoint,
+        additive: Bool,
+        base: Set<UUID>
+    ) {
+        state.selectCards(fromCorner: a, toCorner: b, additive: additive, base: base)
         schedulePersistence()
     }
 
