@@ -104,58 +104,47 @@ struct RootView: View {
                 VStack(spacing: 0) {
                     Spacer(minLength: 0)
 
-                    ZStack(alignment: .bottom) {
-                        VStack(spacing: 12) {
-                            if let persistenceError = store.lastPersistenceError {
-                                PersistenceErrorBanner(message: persistenceError)
-                            }
-
-                            if isCommandBarVisible {
-                                CommandBar(text: $commandText, onSubmit: submitCommand)
-                                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                            }
-
-                            ToolDock(
-                                store: store,
-                                errorMessage: store.lastPersistenceError,
-                                isAIHintActive: isCommandBarVisible || isAIConversationVisible,
-                                onToggleAIHint: toggleAISurface
-                            )
+                    VStack(spacing: 12) {
+                        if let persistenceError = store.lastPersistenceError {
+                            PersistenceErrorBanner(message: persistenceError)
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.horizontal, 24)
-                        .padding(.bottom, 24)
-                        .animation(.easeInOut(duration: 0.22), value: store.lastPersistenceError)
-                        .animation(.easeInOut(duration: 0.22), value: isCommandBarVisible)
 
-                        HStack {
-                            Spacer()
-
-                            CanvasZoomControls(
-                                scale: store.state.viewport.scale,
-                                onZoomIn: {
-                                    let anchor = ScreenPoint(
-                                        x: geometry.size.width / 2,
-                                        y: geometry.size.height / 2
-                                    )
-                                    store.zoom(by: 1.15, anchoredAt: anchor)
-                                },
-                                onZoomOut: {
-                                    let anchor = ScreenPoint(
-                                        x: geometry.size.width / 2,
-                                        y: geometry.size.height / 2
-                                    )
-                                    store.zoom(by: 1 / 1.15, anchoredAt: anchor)
-                                },
-                                isCardFocused: viewportBeforeCardFocus != nil,
-                                onToggleCardFocus: store.state.selectedCardID == nil ? nil : {
-                                    toggleCardFocus(in: geometry.size)
-                                }
-                            )
+                        if isCommandBarVisible {
+                            CommandBar(text: $commandText, onSubmit: submitCommand)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
                         }
-                        .padding(.trailing, 24)
-                        .padding(.bottom, 24)
+
+                        ToolDock(
+                            store: store,
+                            errorMessage: store.lastPersistenceError,
+                            isAIHintActive: isCommandBarVisible || isAIConversationVisible,
+                            onToggleAIHint: toggleAISurface,
+                            zoomScale: store.state.viewport.scale,
+                            onZoomIn: {
+                                let anchor = ScreenPoint(
+                                    x: geometry.size.width / 2,
+                                    y: geometry.size.height / 2
+                                )
+                                store.zoom(by: 1.15, anchoredAt: anchor)
+                            },
+                            onZoomOut: {
+                                let anchor = ScreenPoint(
+                                    x: geometry.size.width / 2,
+                                    y: geometry.size.height / 2
+                                )
+                                store.zoom(by: 1 / 1.15, anchoredAt: anchor)
+                            },
+                            isCardFocused: viewportBeforeCardFocus != nil,
+                            onToggleCardFocus: store.state.selectedCardID == nil ? nil : {
+                                toggleCardFocus(in: geometry.size)
+                            }
+                        )
                     }
+                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 24)
+                    .padding(.bottom, 24)
+                    .animation(.easeInOut(duration: 0.22), value: store.lastPersistenceError)
+                    .animation(.easeInOut(duration: 0.22), value: isCommandBarVisible)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 .zIndex(2)

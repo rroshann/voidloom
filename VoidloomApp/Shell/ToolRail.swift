@@ -6,6 +6,11 @@ struct ToolDock: View {
     let errorMessage: String?
     let isAIHintActive: Bool
     let onToggleAIHint: () -> Void
+    let zoomScale: Double
+    let onZoomIn: () -> Void
+    let onZoomOut: () -> Void
+    let isCardFocused: Bool
+    let onToggleCardFocus: (() -> Void)?
 
     var body: some View {
         HStack(spacing: 12) {
@@ -37,6 +42,17 @@ struct ToolDock: View {
                 errorMessage: errorMessage,
                 isActive: isAIHintActive,
                 action: onToggleAIHint
+            )
+
+            DockDivider()
+
+            CanvasZoomControls(
+                scale: zoomScale,
+                onZoomIn: onZoomIn,
+                onZoomOut: onZoomOut,
+                isCardFocused: isCardFocused,
+                onToggleCardFocus: onToggleCardFocus,
+                embedded: true
             )
         }
         .padding(12)

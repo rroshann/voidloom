@@ -6,12 +6,31 @@ struct CanvasZoomControls: View {
     let onZoomOut: () -> Void
     let isCardFocused: Bool
     let onToggleCardFocus: (() -> Void)?
+    /// When embedded inside the tool dock, render only the controls and let the
+    /// dock supply the shared capsule background.
+    var embedded: Bool = false
 
     private var zoomPercentage: Int {
         Int((scale * 100).rounded())
     }
 
     var body: some View {
+        if embedded {
+            controls
+        } else {
+            controls
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(.ultraThinMaterial, in: Capsule())
+                .overlay(
+                    Capsule()
+                        .stroke(.white.opacity(0.12), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.22), radius: 18, x: 0, y: 12)
+        }
+    }
+
+    private var controls: some View {
         HStack(spacing: 8) {
             CanvasZoomButton(systemName: "minus", label: "Zoom out", action: onZoomOut)
 
@@ -36,14 +55,6 @@ struct CanvasZoomControls: View {
                 )
             }
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 8)
-        .background(.ultraThinMaterial, in: Capsule())
-        .overlay(
-            Capsule()
-                .stroke(.white.opacity(0.12), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.22), radius: 18, x: 0, y: 12)
         .animation(.easeOut(duration: 0.15), value: onToggleCardFocus != nil)
         .animation(.easeOut(duration: 0.15), value: isCardFocused)
     }
