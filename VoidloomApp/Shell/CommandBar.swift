@@ -1,19 +1,36 @@
 import SwiftUI
 
+/// Bottom command launcher — the empty-state entry point into the AI assistant.
+/// Submitting routes the text into a conversation and opens the right sidebar.
 struct CommandBar: View {
-    let errorMessage: String?
+    @Binding var text: String
+    let onSubmit: () -> Void
+
+    @FocusState private var isFocused: Bool
+
+    private var canSubmit: Bool {
+        !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     var body: some View {
         HStack(spacing: 12) {
-            Image(systemName: errorMessage == nil ? "terminal" : "exclamationmark.triangle")
-                .foregroundStyle(errorMessage == nil ? .teal : .orange)
+            Image(systemName: "sparkles")
+                .foregroundStyle(.teal)
 
-            Text(errorMessage ?? "Try: add agent, add note, reset canvas")
+            TextField("Try: add agent, add note, reset canvas", text: $text)
+                .textFieldStyle(.plain)
                 .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                .foregroundStyle(.white.opacity(errorMessage == nil ? 0.68 : 0.86))
-                .lineLimit(2)
+                .foregroundStyle(.white.opacity(0.86))
+                .focused($isFocused)
+                .onSubmit(submit)
 
-            Spacer(minLength: 0)
+            Button(action: submit) {
+                Image(systemName: "arrow.up.circle.fill")
+                    .font(.system(size: 20, weight: .semibold))
+                    .foregroundStyle(canSubmit ? .teal : .white.opacity(0.22))
+            }
+            .buttonStyle(.plain)
+            .disabled(!canSubmit)
         }
         .frame(width: 520)
         .padding(.horizontal, 18)
@@ -21,9 +38,15 @@ struct CommandBar: View {
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(.white.opacity(errorMessage == nil ? 0.13 : 0.22), lineWidth: 1)
+                .stroke(.white.opacity(0.13), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.3), radius: 24, x: 0, y: 16)
+        .onAppear { isFocused = true }
+    }
+
+    private func submit() {
+        guard canSubmit else { return }
+        onSubmit()
     }
 }
 
