@@ -7,11 +7,14 @@ Voidloom is a native macOS v0 for a canvas-first agent workspace. This prototype
 - Infinite-feeling SwiftUI canvas with grid background.
 - Pan, pinch-zoom, and trackpad two-finger pan (when no card is selected).
 - Draggable agent, note, todo, and preview/browser cards with per-kind styling and selection feedback.
+- **Card interiors:** editable note text, checkable todo items, embedded browser `WKWebView`, and a stub agent terminal (no PTY yet).
+- **Card editing:** resize from handles, inline title edit, inline content edit, and header hover chrome (maximize/focus + close).
 - **Multi-workspace sidebar:** create, rename, delete, drag-to-reorder, and switch workspaces.
 - **Top toolbar:** sidebar toggle, active workspace name, and card count (does not shift when sidebar opens).
 - **Bottom tool dock:** add Agent / Note / Todo / Preview cards, reset viewport, AI icon (toggles command hint bar).
 - **Bottom-right zoom controls:** +/−, zoom %, focus/unfocus selected card.
 - **Command hint bar:** display-only hints above the dock (toggled by AI dock icon); persistence errors surface in the same strip.
+- **Settings window:** sidebar visibility toggle, data folder location, and app version.
 - Local JSON persistence (see Storage below).
 
 ## Shell Layout
@@ -39,12 +42,12 @@ On first launch, a legacy single-file `workspace.json` (if present) is migrated 
 ## Out Of Scope For V0
 
 - Voice commands.
-- Real agent or terminal subprocesses (stub terminal UI is planned/in progress; no PTY yet).
+- Real agent or terminal subprocesses (the Agent card shows a stub terminal; no PTY yet).
 - Remote canvas sync.
 - Shared cross-agent memory.
 - App Store packaging / signing polish.
 
-**In scope (roadmap):** embedded browser WebView on preview cards, editable note/todo content, header hover chrome (maximize + close), card resize, and inline title edit.
+**Still on the roadmap:** real command input in the AI bar (currently display-only hints) and keyboard shortcuts.
 
 ## Run
 
