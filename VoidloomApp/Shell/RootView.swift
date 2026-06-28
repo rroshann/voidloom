@@ -80,27 +80,6 @@ struct RootView: View {
                     .zIndex(1)
                 }
 
-                VStack {
-                    HStack {
-                        TopToolbar(
-                            workspaceName: activeWorkspaceName,
-                            cardCount: store.state.cards.count,
-                            isSidebarVisible: isWorkspaceSidebarVisible
-                        ) {
-                            withAnimation(.easeInOut(duration: 0.24)) {
-                                isWorkspaceSidebarVisible.toggle()
-                            }
-                        }
-                        .padding(.top, 6)
-
-                        Spacer()
-                    }
-
-                    Spacer()
-                }
-                .padding(.horizontal, 24)
-                .zIndex(3)
-
                 VStack(spacing: 0) {
                     Spacer(minLength: 0)
 
@@ -137,6 +116,13 @@ struct RootView: View {
                             isCardFocused: viewportBeforeCardFocus != nil,
                             onToggleCardFocus: store.state.selectedCardID == nil ? nil : {
                                 toggleCardFocus(in: geometry.size)
+                            },
+                            workspaceName: activeWorkspaceName,
+                            isWorkspaceSidebarVisible: isWorkspaceSidebarVisible,
+                            onToggleWorkspaceSidebar: {
+                                withAnimation(.easeInOut(duration: 0.24)) {
+                                    isWorkspaceSidebarVisible.toggle()
+                                }
                             }
                         )
                     }
