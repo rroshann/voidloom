@@ -61,6 +61,13 @@ struct DraggableWorkspaceCard: View {
         }
         .offset(x: CGFloat(card.position.x), y: CGFloat(card.position.y))
         .onTapGesture {
+            // A tap on a marquee member is a no-op so the group stays selected for
+            // a subsequent group drag. macOS can fire this co-located tap eagerly
+            // on press; calling selectCard here would collapse the marquee set to
+            // one card before cardDragGesture.onChanged reads it. A tap on a lone
+            // or non-member card still selects normally.
+            let marquee = store.state.marqueeSelectedCardIDs
+            if marquee.count > 1 && marquee.contains(card.id) { return }
             store.selectCard(id: card.id)
         }
         .gesture(cardDragGesture, isEnabled: dragEnabled)

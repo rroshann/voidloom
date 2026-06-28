@@ -48,6 +48,12 @@ struct CanvasInteractionOverlay: NSViewRepresentable {
             onMouseUp = representable.onMouseUp
             if previousMode != mode {
                 window?.invalidateCursorRects(for: self)
+                // Flip the cursor instantly on arming/disarming rather than
+                // waiting for the next mouse-move, so the pen/eraser cursor
+                // appears the moment a tool is selected.
+                if mode.capturesCanvas {
+                    cursor(for: mode).set()
+                }
             }
         }
 
@@ -95,7 +101,7 @@ struct CanvasInteractionOverlay: NSViewRepresentable {
             }
             let area = NSTrackingArea(
                 rect: bounds,
-                options: [.activeAlways, .mouseMoved, .inVisibleRect],
+                options: [.activeAlways, .mouseMoved, .cursorUpdate, .inVisibleRect],
                 owner: self,
                 userInfo: nil
             )
@@ -109,6 +115,17 @@ struct CanvasInteractionOverlay: NSViewRepresentable {
             addCursorRect(bounds, cursor: cursor(for: mode))
         }
 
+        /// Re-asserts the per-mode cursor on every cursor-update event. This is
+        /// hit-test independent, so the pen/eraser cursor survives pointer moves
+        /// even though `hitTest` only claims left-mouse-down events.
+        override func cursorUpdate(with event: NSEvent) {
+            if mode.capturesCanvas {
+                cursor(for: mode).set()
+            } else {
+                super.cursorUpdate(with: event)
+            }
+        }
+
         private func cursor(for mode: CanvasInteractionModel.Mode) -> NSCursor {
             switch mode {
             case .erasing:
@@ -116,6 +133,8 @@ struct CanvasInteractionOverlay: NSViewRepresentable {
                 // tracks the pointer, so the system cursor is hidden (a fully
                 // transparent cursor) over the canvas while erasing.
                 return Self.transparentCursor
+            case .drawing:
+                return Self.penCursor
             case .idle:
                 return .arrow
             default:
@@ -124,10 +143,37 @@ struct CanvasInteractionOverlay: NSViewRepresentable {
         }
 
         /// A fully transparent cursor used to hide the system pointer over the
-        /// canvas while the SwiftUI eraser footprint indicator is shown.
+        /// canvas while the SwiftUI eraser footprint indicator is shown. The
+        /// image must carry a real (cleared) bitmap — an empty `NSImage` with no
+        /// rep renders as the default arrow, which is what made both the arrow
+        /// and the ring appear while erasing.
         private static let transparentCursor: NSCursor = {
-            let image = NSImage(size: NSSize(width: 1, height: 1))
-            return NSCursor(image: image, hotSpot: NSPoint(x: 0, y: 0))
+            let size = NSSize(width: 16, height: 16)
+            let image = NSImage(size: size)
+            image.lockFocus()
+            NSColor.clear.set()
+            NSBezierPath.fill(NSRect(origin: .zero, size: size))
+            image.unlockFocus()
+            return NSCursor(image: image, hotSpot: .zero)
+        }()
+
+        /// A pen-style cursor shown while the brush tool is armed, with the hot
+        /// spot at the drawing tip. Falls back to the crosshair if the SF Symbol
+        /// cannot be rendered.
+        private static let penCursor: NSCursor = {
+            let config = NSImage.SymbolConfiguration(pointSize: 18, weight: .regular)
+            guard
+                let symbol = NSImage(
+                    systemSymbolName: "paintbrush.pointed.fill",
+                    accessibilityDescription: "Brush"
+                )?.withSymbolConfiguration(config)
+            else {
+                return .crosshair
+            }
+            return NSCursor(
+                image: symbol,
+                hotSpot: NSPoint(x: 0, y: symbol.size.height)
+            )
         }()
     }
 }

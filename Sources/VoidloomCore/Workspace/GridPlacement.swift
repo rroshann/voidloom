@@ -1,58 +1,69 @@
 import Foundation
 
-/// Pure slot geometry for double-click instant-create card placement.
+/// Viewport-relative slot geometry for double-click instant-create card placement.
 ///
-/// Cards fill a tidy 2x2 "page" in reading order — slot 0 top-left, 1 top-right,
-/// 2 bottom-left, 3 bottom-right — then the next card starts a fresh page below.
-/// All values are canvas-space constants; the viewport-follow logic lives in
-/// `WorkspaceState.placeCardInGrid`.
+/// Each page is a tidy 2x2 grid that exactly fills the *current* viewport (at the
+/// current zoom) minus a comfortable margin and inter-card gap: every card owns
+/// one quadrant of the visible area. Slots fill in reading order — slot 0
+/// top-left, 1 top-right, 2 bottom-left, 3 bottom-right — then the next card
+/// starts a fresh page (the viewport-follow logic lives in
+/// `WorkspaceState.placeCardInGrid`).
 public enum GridPlacement {
-    /// Padding from the viewport edge to the first card of a page (screen px,
-    /// reused as a canvas inset at the current scale).
+    /// Padding from the viewport edge to the first card of a page (screen px).
     public static let margin: Double = 48
-    /// Visible gap between adjacent cards on a page.
+    /// Visible gap between adjacent cards on a page (screen px).
     public static let gap: Double = 40
-    /// Reference card footprint used for stride math (real card sizes vary by
-    /// kind but stay within this envelope).
-    public static let nominalCardWidth: Double = 520
-    public static let nominalCardHeight: Double = 340
 
     public static let columnsPerPage = 2
     public static let rowsPerPage = 2
     public static var cardsPerPage: Int { columnsPerPage * rowsPerPage }
 
-    /// Distance between the top-left of one card and the next along each axis.
-    public static var columnStride: Double { nominalCardWidth + gap }
-    public static var rowStride: Double { nominalCardHeight + gap }
+    /// Floor for a card's on-screen side, so a tiny window still yields usable
+    /// (if overflowing) cards rather than zero/negative footprints.
+    public static let minimumCardScreenSide: Double = 120
 
-    /// Vertical distance between the top-left of one page and the next.
-    public static var pageStride: Double { Double(rowsPerPage) * rowStride }
+    /// The screen origins and canvas card size for one full page at a given
+    /// viewport size and scale. `slotScreenOrigins` are in reading order
+    /// (TL, TR, BL, BR) and `cardSize` is in canvas units at `scale`.
+    public struct PageLayout: Equatable {
+        public let cardSize: CardSize
+        public let slotScreenOrigins: [ScreenPoint]
 
-    public struct Slot: Equatable {
-        public let column: Int
-        public let row: Int
-        public let page: Int
-        public let isPageStart: Bool
+        public init(cardSize: CardSize, slotScreenOrigins: [ScreenPoint]) {
+            self.cardSize = cardSize
+            self.slotScreenOrigins = slotScreenOrigins
+        }
     }
 
-    /// The slot the `count`-th placed card occupies (zero-based count).
-    public static func slot(for count: Int) -> Slot {
-        let page = count / cardsPerPage
-        let indexInPage = count % cardsPerPage
-        return Slot(
-            column: indexInPage % columnsPerPage,
-            row: indexInPage / columnsPerPage,
-            page: page,
-            isPageStart: indexInPage == 0
-        )
-    }
+    /// Computes the 2x2 page layout that fills `viewportSize` (screen px) at
+    /// `scale`. Falls back to a 1440x900 viewport when given a non-positive size
+    /// so callers never crash on an unmeasured window.
+    public static func pageLayout(viewportSize: ScreenPoint, scale: Double) -> PageLayout {
+        let size = (viewportSize.x > 0 && viewportSize.y > 0)
+            ? viewportSize
+            : ScreenPoint(x: 1440, y: 900)
+        let safeScale = max(scale, 0.0001)
 
-    /// Top-left canvas origin for a card at `(column, row)` measured from the
-    /// current page anchor (the page's top-left card origin).
-    public static func origin(anchor: CanvasPoint, column: Int, row: Int) -> CanvasPoint {
-        CanvasPoint(
-            x: anchor.x + (Double(column) * columnStride),
-            y: anchor.y + (Double(row) * rowStride)
+        let usableW = size.x - (2 * margin) - gap
+        let usableH = size.y - (2 * margin) - gap
+        let cardWScreen = max(usableW / 2, minimumCardScreenSide)
+        let cardHScreen = max(usableH / 2, minimumCardScreenSide)
+
+        var origins: [ScreenPoint] = []
+        for row in 0..<rowsPerPage {
+            for column in 0..<columnsPerPage {
+                origins.append(
+                    ScreenPoint(
+                        x: margin + (Double(column) * (cardWScreen + gap)),
+                        y: margin + (Double(row) * (cardHScreen + gap))
+                    )
+                )
+            }
+        }
+
+        return PageLayout(
+            cardSize: CardSize(width: cardWScreen / safeScale, height: cardHScreen / safeScale),
+            slotScreenOrigins: origins
         )
     }
 }

@@ -1522,10 +1522,16 @@ final class WorkspaceModelTests: XCTestCase {
         }
 
         XCTAssertEqual(state.cards.count, 4)
+        // Each card fills one quadrant: usable = (1600 - 96 - 40)/2 = 732 wide,
+        // (1000 - 96 - 40)/2 = 432 tall, in reading order TL, TR, BL, BR.
         assertPoint(state.cards[0].position, 48, 48)
-        assertPoint(state.cards[1].position, 608, 48)
-        assertPoint(state.cards[2].position, 48, 428)
-        assertPoint(state.cards[3].position, 608, 428)
+        assertPoint(state.cards[1].position, 820, 48)
+        assertPoint(state.cards[2].position, 48, 520)
+        assertPoint(state.cards[3].position, 820, 520)
+        for card in state.cards {
+            XCTAssertEqual(card.size.width, 732, accuracy: 0.001)
+            XCTAssertEqual(card.size.height, 432, accuracy: 0.001)
+        }
         // A full page fits, so the viewport stays put where the user was looking.
         XCTAssertEqual(state.viewport.origin.x, 0, accuracy: 0.001)
         XCTAssertEqual(state.viewport.origin.y, 0, accuracy: 0.001)
@@ -1539,13 +1545,45 @@ final class WorkspaceModelTests: XCTestCase {
             state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
         }
 
-        assertPoint(state.cards[4].position, 48, 808)
+        // The 5th card starts a fresh page: content shifts up one full viewport
+        // height and the new card lands at the viewport's top-left margin.
+        assertPoint(state.cards[4].position, 48, 1048)
 
         let screen = state.viewport.screenPoint(forCanvasPoint: state.cards[4].position)
         XCTAssertEqual(screen.x, 48, accuracy: 0.001)
         XCTAssertEqual(screen.y, 48, accuracy: 0.001)
         XCTAssertEqual(state.viewport.origin.x, 0, accuracy: 0.001)
-        XCTAssertEqual(state.viewport.origin.y, -760, accuracy: 0.001)
+        XCTAssertEqual(state.viewport.origin.y, -1000, accuracy: 0.001)
+    }
+
+    func testGridPlacementContinuesReadingOrderAfterMidPageDeletes() {
+        var state = WorkspaceState()
+        let viewportSize = ScreenPoint(x: 1600, y: 1000)
+
+        for _ in 0..<4 {
+            state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
+        }
+
+        // Delete the first two cards mid-page; the slot counter must NOT rewind
+        // to cards.count, which would drop the next card on top of a survivor.
+        let toDelete: Set<UUID> = [state.cards[0].id, state.cards[1].id]
+        let survivorPositions = [state.cards[2].position, state.cards[3].position]
+        state.deleteCards(ids: toDelete)
+
+        state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
+
+        let newest = state.cards.last!
+        // The page was already full (slot == 4), so the new card opens a fresh
+        // page at the top-left, not a slot-0 overlap on the current page.
+        assertPoint(newest.position, 48, 1048)
+        XCTAssertEqual(state.viewport.origin.y, -1000, accuracy: 0.001)
+        for survivor in survivorPositions {
+            XCTAssertFalse(
+                abs(newest.position.x - survivor.x) < 0.001
+                    && abs(newest.position.y - survivor.y) < 0.001,
+                "new card must not overlap a surviving card"
+            )
+        }
     }
 
     func testGridPlacementKeepsNewestCardFullyVisibleOnSmallViewport() {
@@ -1573,14 +1611,12 @@ final class WorkspaceModelTests: XCTestCase {
         for _ in 0..<3 {
             state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
         }
-        XCTAssertEqual(state.gridPlacementCount, 3)
-        XCTAssertNotNil(state.gridPlacementAnchor)
+        XCTAssertEqual(state.gridPlacementSlot, 3)
 
         let data = try JSONEncoder().encode(state)
         let decoded = try JSONDecoder().decode(WorkspaceState.self, from: data)
 
-        XCTAssertEqual(decoded.gridPlacementCount, 0)
-        XCTAssertNil(decoded.gridPlacementAnchor)
+        XCTAssertEqual(decoded.gridPlacementSlot, 0)
         XCTAssertEqual(decoded.cards.count, 3)
     }
 
@@ -1591,8 +1627,12 @@ final class WorkspaceModelTests: XCTestCase {
         state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
 
         let card = state.cards[0]
-        // The anchor is derived from the screen margin in canvas space, so the
-        // first card's screen top-left lands at the margin regardless of scale.
+        // Card size is the on-screen quadrant divided back into canvas units:
+        // 732 / 0.5 = 1464 wide, 432 / 0.5 = 864 tall.
+        XCTAssertEqual(card.size.width, 1464, accuracy: 0.001)
+        XCTAssertEqual(card.size.height, 864, accuracy: 0.001)
+        // The slot is placed by screen margin, so the canvas origin scales but
+        // the on-screen top-left still lands at the margin.
         assertPoint(card.position, 96, 96)
         let screen = state.viewport.screenPoint(forCanvasPoint: card.position)
         XCTAssertEqual(screen.x, 48, accuracy: 0.001)

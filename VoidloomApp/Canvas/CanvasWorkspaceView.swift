@@ -14,6 +14,16 @@ struct CanvasWorkspaceView: View {
     /// transform during the gesture; committed to `store.viewport` on end. Keeps
     /// pinch-zoom from publishing `state` (and re-rendering every layer) per tick.
     @State private var liveZoom: CGFloat = 1
+    /// Anchor for the in-progress pinch `scaleEffect`, expressed as a UnitPoint of
+    /// the viewport frame. Snapshotted once on the first magnification tick from
+    /// the live pointer so the preview scales into the cursor, not screen center.
+    @State private var liveZoomAnchor: UnitPoint = .center
+    /// The pinch anchor in view coordinates, captured once on the first tick and
+    /// reused for the commit so the previewed and committed transforms match.
+    @State private var zoomAnchorPoint: CGPoint?
+    /// Live pointer (view coords) tracked while idle, so a pinch can anchor at the
+    /// cursor even before any zoom gesture fires.
+    @State private var hoverLocation: CGPoint?
     @State private var contextMenuLocation: CGPoint?
     @State private var rubberStart: CGPoint?
     @State private var rubberCurrent: CGPoint?
@@ -69,6 +79,9 @@ struct CanvasWorkspaceView: View {
                         resignKeyboardFocus()
                         store.clearSelection()
                         interaction.selectedConnectionID = nil
+                    }
+                    .onContinuousHover(coordinateSpace: .local) { phase in
+                        if case let .active(point) = phase { hoverLocation = point }
                     }
                     .gesture(idleDragGesture, isEnabled: interaction.mode == .idle)
                     .simultaneousGesture(zoomGesture(in: geometry))
@@ -167,11 +180,13 @@ struct CanvasWorkspaceView: View {
                     x: CGFloat(store.state.viewport.origin.x),
                     y: CGFloat(store.state.viewport.origin.y)
                 )
-                // Constrain to the viewport so `.center` matches the screen center
-                // used as the pinch commit anchor, then apply the in-progress
-                // magnification as a pure GPU transform (no state publish/redraw).
+                // Constrain to the viewport so `liveZoomAnchor` (a UnitPoint of this
+                // frame) maps to the same view point used as the pinch commit
+                // anchor, then apply the in-progress magnification as a pure GPU
+                // transform (no state publish/redraw). Anchoring at the cursor here
+                // makes the preview match the committed cursor-anchored zoom.
                 .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
-                .scaleEffect(liveZoom, anchor: .center)
+                .scaleEffect(liveZoom, anchor: liveZoomAnchor)
 
                 // Armed-tool input capture sits ABOVE the cards so place/connect
                 // drags are intercepted before a card drag can begin. It is
@@ -660,26 +675,47 @@ struct CanvasWorkspaceView: View {
             }
     }
 
-    /// Pinch-zoom. During the gesture the cumulative magnification is held in
-    /// `liveZoom` (a pure GPU `scaleEffect`, no `state` publish), then committed
-    /// once to `store.viewport` on end so every stroke/connection/card redraws a
-    /// single time. `liveZoom` is clamped so the previewed scale matches the
-    /// committed (clamped) result, keeping the preview from drifting at the limits.
+    /// Pinch-zoom anchored at the cursor. During the gesture the cumulative
+    /// magnification is held in `liveZoom` (a pure GPU `scaleEffect`, no `state`
+    /// publish), then committed once to `store.viewport` on end so every
+    /// stroke/connection/card redraws a single time. The anchor (cursor position)
+    /// is captured ONCE on the first tick so it stays stable for the whole gesture
+    /// and the preview matches the committed transform. `liveZoom` is clamped so
+    /// the previewed scale matches the committed (clamped) result, keeping the
+    /// preview from drifting/bouncing at the limits.
     private func zoomGesture(in geometry: GeometryProxy) -> some Gesture {
         MagnificationGesture()
             .onChanged { value in
                 guard value > 0 else { return }
+                if liveZoom == 1 {
+                    let point = hoverLocation ?? CGPoint(
+                        x: geometry.size.width / 2,
+                        y: geometry.size.height / 2
+                    )
+                    zoomAnchorPoint = point
+                    liveZoomAnchor = UnitPoint(
+                        x: point.x / max(geometry.size.width, 0.0001),
+                        y: point.y / max(geometry.size.height, 0.0001)
+                    )
+                }
                 liveZoom = clampedLiveZoom(value)
             }
             .onEnded { value in
-                defer { liveZoom = 1 }
+                defer {
+                    liveZoom = 1
+                    liveZoomAnchor = .center
+                    zoomAnchorPoint = nil
+                }
                 guard value > 0 else { return }
 
-                let anchor = ScreenPoint(
+                let point = zoomAnchorPoint ?? CGPoint(
                     x: geometry.size.width / 2,
                     y: geometry.size.height / 2
                 )
-                store.zoom(by: Double(clampedLiveZoom(value)), anchoredAt: anchor)
+                store.zoom(
+                    by: Double(clampedLiveZoom(value)),
+                    anchoredAt: ScreenPoint(x: point.x, y: point.y)
+                )
             }
     }
 
