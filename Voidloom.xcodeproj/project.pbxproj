@@ -30,6 +30,7 @@
 		A30000000000000000000005 /* BrowserWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000015 /* BrowserWebView.swift */; };
 		A30000000000000000000006 /* BrowserCardContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000016 /* BrowserCardContentView.swift */; };
 		A30000000000000000000007 /* AgentTerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000017 /* AgentTerminalView.swift */; };
+		A30000000000000000000008 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000018 /* SettingsView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -58,6 +59,7 @@
 		A30000000000000000000015 /* BrowserWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/BrowserWebView.swift; sourceTree = "<group>"; };
 		A30000000000000000000016 /* BrowserCardContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/BrowserCardContentView.swift; sourceTree = "<group>"; };
 		A30000000000000000000017 /* AgentTerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/AgentTerminalView.swift; sourceTree = "<group>"; };
+		A30000000000000000000018 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/SettingsView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -91,6 +93,7 @@
 				A20000000000000000000018 /* WorkspaceSidebar.swift */,
 				A20000000000000000000013 /* ToolRail.swift */,
 				A20000000000000000000014 /* CommandBar.swift */,
+				A30000000000000000000018 /* SettingsView.swift */,
 				A20000000000000000000019 /* CanvasZoomControls.swift */,
 				A10000000000000000000013 /* CanvasWorkspaceView.swift */,
 				A20000000000000000000015 /* DraggableWorkspaceCard.swift */,
@@ -215,6 +218,7 @@
 				A30000000000000000000005 /* BrowserWebView.swift in Sources */,
 				A30000000000000000000006 /* BrowserCardContentView.swift in Sources */,
 				A30000000000000000000007 /* AgentTerminalView.swift in Sources */,
+				A30000000000000000000008 /* SettingsView.swift in Sources */,
 				A10000000000000000000005 /* PreviewSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

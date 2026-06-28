@@ -20,5 +20,9 @@ struct VoidloomApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unifiedCompact)
+
+        Settings {
+            SettingsView()
+        }
     }
 }
