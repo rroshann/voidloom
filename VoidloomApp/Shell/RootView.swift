@@ -58,6 +58,11 @@ struct RootView: View {
                         },
                         onMoveWorkspace: { draggedID, targetID in
                             store.moveWorkspace(id: draggedID, toPositionOf: targetID)
+                        },
+                        onCloseSidebar: {
+                            withAnimation(.easeInOut(duration: 0.24)) {
+                                isWorkspaceSidebarVisible = false
+                            }
                         }
                     )
                     .transition(.move(edge: .leading).combined(with: .opacity))

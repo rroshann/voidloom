@@ -110,12 +110,14 @@ private struct CanvasTrackpadPanView: NSViewRepresentable {
         view.onScreenFrameChange = { screenFrame in
             context.coordinator.screenFrame = screenFrame
         }
+        context.coordinator.hostView = view
         context.coordinator.install()
         return view
     }
 
     func updateNSView(_ nsView: TrackpadPanHostingView, context: Context) {
         context.coordinator.onPan = onPan
+        context.coordinator.hostView = nsView
         nsView.onScreenFrameChange = { screenFrame in
             context.coordinator.screenFrame = screenFrame
         }
@@ -129,6 +131,7 @@ private struct CanvasTrackpadPanView: NSViewRepresentable {
     final class Coordinator {
         var onPan: (CanvasVector) -> Bool
         var screenFrame: CGRect?
+        weak var hostView: TrackpadPanHostingView?
 
         private var monitor: Any?
 
@@ -153,6 +156,9 @@ private struct CanvasTrackpadPanView: NSViewRepresentable {
         }
 
         private func handle(_ event: NSEvent) -> Bool {
+            // Only pan when the scroll targets the canvas window itself — not the
+            // Settings window or any other window in the app.
+            guard let hostWindow = hostView?.window, event.window === hostWindow else { return false }
             guard screenFrame?.contains(NSEvent.mouseLocation) == true else { return false }
 
             let translation = CanvasVector(

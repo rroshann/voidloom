@@ -111,7 +111,7 @@ private struct DockWorkspaceSegment: View {
 
     var body: some View {
         Button(action: onToggle) {
-            VStack(alignment: .leading, spacing: 1) {
+            VStack(alignment: .center, spacing: 1) {
                 Text(workspaceName)
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.92))
@@ -124,7 +124,7 @@ private struct DockWorkspaceSegment: View {
                     .monospacedDigit()
                     .lineLimit(1)
             }
-            .frame(maxWidth: 160, alignment: .leading)
+            .frame(maxWidth: 160, alignment: .center)
             .padding(.horizontal, 12)
             .padding(.vertical, 5)
             .frame(height: 38)

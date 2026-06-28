@@ -37,11 +37,7 @@ struct WorkspaceSidebar: View {
     var body: some View {
         HStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 18) {
-                Text("Workspaces")
-                    .font(.system(size: 11, weight: .bold, design: .monospaced))
-                    .tracking(1.4)
-                    .textCase(.uppercase)
-                    .foregroundStyle(.white.opacity(0.48))
+                header
 
                 VStack(alignment: .leading, spacing: 10) {
                     ForEach(library.workspaces) { workspace in
@@ -127,7 +123,7 @@ struct WorkspaceSidebar: View {
                 .buttonStyle(.plain)
                 .help("Create a new workspace")
             }
-            .padding(.top, 94)
+            .padding(.top, 6)
             .padding(.horizontal, 18)
             .padding(.bottom, 24)
             .frame(width: 300, alignment: .leading)
@@ -158,6 +154,41 @@ struct WorkspaceSidebar: View {
         } message: {
             Text("This permanently removes the workspace and all of its cards.")
         }
+    }
+
+    /// Top row, aligned with the window's traffic-light controls: the centered
+    /// "Workspaces" title with a hide-sidebar button at the trailing edge.
+    private var header: some View {
+        ZStack {
+            Text("Workspaces")
+                .font(.system(size: 11, weight: .bold, design: .monospaced))
+                .tracking(1.4)
+                .textCase(.uppercase)
+                .foregroundStyle(.white.opacity(0.48))
+                .frame(maxWidth: .infinity)
+
+            HStack {
+                Spacer()
+
+                Button(action: onCloseSidebar) {
+                    Image(systemName: "sidebar.left")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.white.opacity(0.62))
+                        .frame(width: 28, height: 28)
+                        .background(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .fill(.white.opacity(0.06))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 8, style: .continuous)
+                                .stroke(.white.opacity(0.08), lineWidth: 1)
+                        )
+                }
+                .buttonStyle(.plain)
+                .help("Hide sidebar")
+            }
+        }
+        .frame(height: 28)
     }
 
     private func workspaceAccent(for id: UUID) -> (color: Color, icon: String) {
@@ -391,7 +422,8 @@ private struct WorkspaceSidebarRowFramePreferenceKey: PreferenceKey {
         onCreateWorkspace: {},
         onRenameWorkspace: { _, _ in },
         onDeleteWorkspace: { _ in },
-        onMoveWorkspace: { _, _ in }
+        onMoveWorkspace: { _, _ in },
+        onCloseSidebar: {}
     )
     .frame(width: 300, height: 760)
     .preferredColorScheme(.dark)
