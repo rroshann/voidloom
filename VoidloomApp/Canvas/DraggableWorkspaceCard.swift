@@ -38,9 +38,9 @@ struct DraggableWorkspaceCard: View {
                 cardSize: card.size,
                 cardPosition: card.position,
                 viewportScale: viewportScale,
-                isResizeEnabled: isSelected,
                 accentColor: CardPalette(kind: card.kind).accent,
                 onResizeStart: {
+                    store.selectCard(id: card.id)
                     isResizing = true
                 },
                 onResize: { size, position in

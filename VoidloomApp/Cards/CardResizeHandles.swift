@@ -2,6 +2,28 @@ import AppKit
 import SwiftUI
 import VoidloomCore
 
+private enum DiagonalResizeCursor {
+    @MainActor
+    private static func northWestSouthEast() -> NSCursor {
+        let selector = NSSelectorFromString("_windowResizeNorthWestSouthEastCursor")
+        guard NSCursor.responds(to: selector),
+              let cursor = (NSCursor.self as AnyObject).perform(selector)?.takeUnretainedValue() as? NSCursor else {
+            return NSCursor.crosshair
+        }
+        return cursor
+    }
+
+    @MainActor
+    static func push() {
+        northWestSouthEast().push()
+    }
+
+    @MainActor
+    static func pop() {
+        NSCursor.pop()
+    }
+}
+
 private struct BottomRightResizeGuide: Shape {
     let cornerRadius: CGFloat
     let edgeLength: CGFloat
@@ -67,7 +89,6 @@ struct CardResizeHandles: View {
     let cardSize: CardSize
     let cardPosition: CanvasPoint
     let viewportScale: Double
-    let isResizeEnabled: Bool
     let accentColor: Color
     let onResizeStart: () -> Void
     let onResize: (CardSize, CanvasPoint) -> Void
@@ -89,7 +110,7 @@ struct CardResizeHandles: View {
             ZStack(alignment: .bottomTrailing) {
                 guide
                     .stroke(
-                        accentColor.opacity(isResizeEnabled ? 0.92 : 0.55),
+                        accentColor.opacity(0.92),
                         style: StrokeStyle(lineWidth: strokeWidth, lineCap: .round, lineJoin: .round)
                     )
 
@@ -99,25 +120,21 @@ struct CardResizeHandles: View {
                         ResizeHitRegion(cornerRadius: cornerRadius, edgeLength: edgeLength, hitWidth: hitWidth)
                     )
                     .onHover { isHovering in
-                        guard isResizeEnabled else { return }
                         if isHovering {
-                            NSCursor.crosshair.push()
+                            DiagonalResizeCursor.push()
                         } else if !isDragging {
-                            NSCursor.pop()
+                            DiagonalResizeCursor.pop()
                         }
                     }
                     .highPriorityGesture(resizeGesture)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
         }
-        .allowsHitTesting(isResizeEnabled)
     }
 
     private var resizeGesture: some Gesture {
         DragGesture(minimumDistance: 1, coordinateSpace: .global)
             .onChanged { value in
-                guard isResizeEnabled else { return }
-
                 if !isDragging {
                     isDragging = true
                     startSize = cardSize
@@ -138,7 +155,7 @@ struct CardResizeHandles: View {
             }
             .onEnded { _ in
                 isDragging = false
-                NSCursor.pop()
+                DiagonalResizeCursor.pop()
                 onResizeEnd()
             }
     }
