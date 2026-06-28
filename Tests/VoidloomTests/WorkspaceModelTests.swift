@@ -1758,6 +1758,46 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(screen.y, 48, accuracy: 0.001)
     }
 
+    func testGridPlacementReservesBottomInsetSoCardsClearTheDock() {
+        var state = WorkspaceState()
+        let viewportSize = ScreenPoint(x: 1600, y: 1000)
+        let bottomInset: Double = 100
+
+        for _ in 0..<4 {
+            state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize, bottomInset: bottomInset)
+        }
+
+        // The bottom row must stay clear of the reserved dock band: every card's
+        // on-screen bottom edge sits at or above `size.y - bottomInset`.
+        for card in state.cards {
+            let topLeft = state.viewport.screenPoint(forCanvasPoint: card.position)
+            let bottomEdge = topLeft.y + (card.size.height * state.viewport.scale)
+            XCTAssertLessThanOrEqual(bottomEdge, viewportSize.y - bottomInset + 0.001)
+        }
+
+        // The top margin is untouched — only the usable height shrinks — so the
+        // first card still anchors at the top-left margin.
+        assertPoint(state.cards[0].position, 48, 48)
+        // Bottom-row bottom edge lands exactly at size.y - margin - bottomInset.
+        let bottomRow = state.cards[2]
+        let bottomScreen = state.viewport.screenPoint(forCanvasPoint: bottomRow.position)
+        XCTAssertEqual(
+            bottomScreen.y + (bottomRow.size.height * state.viewport.scale),
+            1000 - 48 - 100,
+            accuracy: 0.001
+        )
+    }
+
+    func testGridPlacementDefaultsToNoBottomInset() {
+        var state = WorkspaceState()
+        let viewportSize = ScreenPoint(x: 1600, y: 1000)
+
+        // Omitting bottomInset keeps the legacy full-height layout.
+        state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
+
+        XCTAssertEqual(state.cards[0].size.height, 432, accuracy: 0.001)
+    }
+
     @MainActor
     func testAddCardInGridReturnsNewCardIDAtFirstSlot() {
         let url = FileManager.default.temporaryDirectory

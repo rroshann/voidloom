@@ -15,6 +15,22 @@ struct RootView: View {
     @State private var isCommandPaletteVisible = false
     @State private var paletteQuery = ""
     @State private var viewportBeforeCardFocus: CanvasViewport?
+    /// Measured height of the floating dock capsule (screen px). Grid placement
+    /// reserves this band so freshly created cards never land behind the dock.
+    @State private var measuredDockHeight: CGFloat = 0
+
+    /// Gap between the dock capsule and the window bottom. Kept as a single
+    /// source of truth so the grid reserve below matches the actual padding.
+    private static let bottomChromePadding: CGFloat = 24
+    /// Breathing room between the bottom row of grid cards and the dock's top
+    /// edge, so cards clear the dock comfortably rather than touching it.
+    private static let dockClearanceGap: CGFloat = 16
+
+    /// The screen-space band the grid must keep clear at the bottom: the measured
+    /// dock height plus its bottom padding plus a comfortable gap.
+    private var gridBottomInset: Double {
+        Double(measuredDockHeight + Self.bottomChromePadding + Self.dockClearanceGap)
+    }
 
     private var activeWorkspaceID: UUID {
         store.library.selectedWorkspaceID
@@ -213,7 +229,8 @@ struct RootView: View {
                             onAddCard: { kind in
                                 store.addCardInGrid(
                                     kind: kind,
-                                    viewportSize: ScreenPoint(x: geometry.size.width, y: geometry.size.height)
+                                    viewportSize: ScreenPoint(x: geometry.size.width, y: geometry.size.height),
+                                    bottomInset: gridBottomInset
                                 )
                                 // Match onAddText: a double-click instant-create
                                 // always resolves back to idle so the transient
@@ -224,10 +241,18 @@ struct RootView: View {
                                 addTextAtViewportCenter(in: geometry.size)
                             }
                         )
+                        .background(
+                            GeometryReader { dockProxy in
+                                Color.clear.preference(
+                                    key: DockHeightPreferenceKey.self,
+                                    value: dockProxy.size.height
+                                )
+                            }
+                        )
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, 24)
-                    .padding(.bottom, 24)
+                    .padding(.bottom, Self.bottomChromePadding)
                     .animation(.easeInOut(duration: 0.22), value: store.lastPersistenceError)
                     .animation(.easeInOut(duration: 0.22), value: isCommandBarVisible)
                     .animation(.easeInOut(duration: 0.22), value: interaction.mode)
@@ -274,6 +299,9 @@ struct RootView: View {
             .animation(.easeInOut(duration: 0.24), value: isWorkspaceSidebarVisible)
             .animation(.easeInOut(duration: 0.24), value: isAIConversationVisible)
             .preferredColorScheme(.dark)
+            .onPreferenceChange(DockHeightPreferenceKey.self) { height in
+                measuredDockHeight = height
+            }
             .onChange(of: store.state.selectedCardID) { _, _ in
                 viewportBeforeCardFocus = nil
             }
@@ -442,6 +470,16 @@ struct RootView: View {
                 )
             }
         }
+    }
+}
+
+/// Carries the floating dock's measured height up to `RootView` so grid
+/// placement can reserve that band and keep new cards clear of the dock.
+private struct DockHeightPreferenceKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
     }
 }
 

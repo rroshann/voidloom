@@ -17,6 +17,14 @@ struct CanvasZoomControls: View {
         Int((scale * 100).rounded())
     }
 
+    /// When embedded in the tool dock, icon buttons match the dock's other tool
+    /// buttons (40x40 / 16-pt / corner radius 11) so every dock icon is the same
+    /// size. Standalone, the control keeps its compact 28x28 / 12-pt footprint.
+    private var buttonSide: CGFloat { embedded ? 40 : 28 }
+    private var iconSize: CGFloat { embedded ? 16 : 12 }
+    private var buttonCornerRadius: CGFloat { embedded ? 11 : 10 }
+    private var dividerHeight: CGFloat { embedded ? 34 : 20 }
+
     var body: some View {
         if embedded {
             controls
@@ -35,17 +43,31 @@ struct CanvasZoomControls: View {
 
     private var controls: some View {
         HStack(spacing: 8) {
-            CanvasZoomButton(systemName: "minus", label: "Zoom out", action: onZoomOut)
+            CanvasZoomButton(
+                systemName: "minus",
+                label: "Zoom out",
+                side: buttonSide,
+                iconSize: iconSize,
+                cornerRadius: buttonCornerRadius,
+                action: onZoomOut
+            )
 
             Text("\(zoomPercentage)%")
                 .font(.system(size: 11, weight: .bold, design: .monospaced))
                 .foregroundStyle(.white.opacity(0.72))
                 .frame(minWidth: 44)
 
-            CanvasZoomButton(systemName: "plus", label: "Zoom in", action: onZoomIn)
+            CanvasZoomButton(
+                systemName: "plus",
+                label: "Zoom in",
+                side: buttonSide,
+                iconSize: iconSize,
+                cornerRadius: buttonCornerRadius,
+                action: onZoomIn
+            )
 
             Divider()
-                .frame(height: 20)
+                .frame(height: dividerHeight)
                 .overlay(.white.opacity(0.16))
 
             CanvasZoomButton(
@@ -55,6 +77,9 @@ struct CanvasZoomControls: View {
                 label: isFocusEnabled
                     ? (isCardFocused ? "Exit card focus" : "Focus selected card")
                     : "Select a card to focus",
+                side: buttonSide,
+                iconSize: iconSize,
+                cornerRadius: buttonCornerRadius,
                 isEnabled: isFocusEnabled,
                 action: { onToggleCardFocus?() }
             )
@@ -67,21 +92,24 @@ struct CanvasZoomControls: View {
 private struct CanvasZoomButton: View {
     let systemName: String
     let label: String
+    var side: CGFloat = 28
+    var iconSize: CGFloat = 12
+    var cornerRadius: CGFloat = 10
     var isEnabled: Bool = true
     let action: () -> Void
 
     var body: some View {
         Button(action: { if isEnabled { action() } }) {
             Image(systemName: systemName)
-                .font(.system(size: 12, weight: .bold))
-                .frame(width: 28, height: 28)
+                .font(.system(size: iconSize, weight: .bold))
+                .frame(width: side, height: side)
                 .foregroundStyle(.white.opacity(isEnabled ? 0.84 : 0.22))
                 .background(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                         .fill(.white.opacity(isEnabled ? 0.08 : 0.03))
                 )
                 .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
                         .stroke(.white.opacity(isEnabled ? 0.1 : 0.04), lineWidth: 1)
                 )
         }

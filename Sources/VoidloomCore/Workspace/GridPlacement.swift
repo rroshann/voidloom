@@ -38,14 +38,25 @@ public enum GridPlacement {
     /// Computes the 2x2 page layout that fills `viewportSize` (screen px) at
     /// `scale`. Falls back to a 1440x900 viewport when given a non-positive size
     /// so callers never crash on an unmeasured window.
-    public static func pageLayout(viewportSize: ScreenPoint, scale: Double) -> PageLayout {
+    ///
+    /// `bottomInset` reserves a band (screen px) at the bottom of the viewport —
+    /// e.g. the floating dock's footprint — so the bottom row never lays cards
+    /// behind it. Only the usable height shrinks; the top margin is untouched, so
+    /// the inset is asymmetric (a larger gap below the bottom row than above the
+    /// top row), which matches the dock genuinely occupying that band.
+    public static func pageLayout(
+        viewportSize: ScreenPoint,
+        scale: Double,
+        bottomInset: Double = 0
+    ) -> PageLayout {
         let size = (viewportSize.x > 0 && viewportSize.y > 0)
             ? viewportSize
             : ScreenPoint(x: 1440, y: 900)
         let safeScale = max(scale, 0.0001)
+        let reserve = max(bottomInset, 0)
 
         let usableW = size.x - (2 * margin) - gap
-        let usableH = size.y - (2 * margin) - gap
+        let usableH = size.y - (2 * margin) - gap - reserve
         let cardWScreen = max(usableW / 2, minimumCardScreenSide)
         let cardHScreen = max(usableH / 2, minimumCardScreenSide)
 

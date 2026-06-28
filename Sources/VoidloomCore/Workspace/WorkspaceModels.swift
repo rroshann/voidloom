@@ -146,7 +146,17 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     /// `cards.count`, so reading order survives deletes. Sizing every card to the
     /// margin-inset quadrant guarantees full visibility, so no extra pan-to-reveal
     /// pass is needed.
-    public mutating func placeCardInGrid(_ card: WorkspaceCard, viewportSize: ScreenPoint) {
+    ///
+    /// `bottomInset` reserves a band (screen px) at the bottom of the viewport for
+    /// the floating dock, so the bottom row never renders behind it (see
+    /// `GridPlacement.pageLayout`). The page-flip shift stays a full viewport
+    /// height: each new page re-lays from the top margin, so the reserved band
+    /// only enlarges the empty gap below a page, never the top-left landing spot.
+    public mutating func placeCardInGrid(
+        _ card: WorkspaceCard,
+        viewportSize: ScreenPoint,
+        bottomInset: Double = 0
+    ) {
         if gridPlacementSlot >= GridPlacement.cardsPerPage {
             // Page full: start a new page by shifting content up one viewport
             // height, so the empty region appears at the top-left.
@@ -154,7 +164,11 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
             gridPlacementSlot = 0
         }
 
-        let layout = GridPlacement.pageLayout(viewportSize: viewportSize, scale: viewport.scale)
+        let layout = GridPlacement.pageLayout(
+            viewportSize: viewportSize,
+            scale: viewport.scale,
+            bottomInset: bottomInset
+        )
         let slotScreen = layout.slotScreenOrigins[gridPlacementSlot]
 
         var placed = card

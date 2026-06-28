@@ -192,10 +192,13 @@ public final class WorkspaceStore: ObservableObject {
     /// panning the viewport so the newest card is always fully on-screen. The
     /// structural add persists immediately; the viewport pan rides along. Returns
     /// the new card's id. No auto-select, matching today's double-click behavior.
+    ///
+    /// `bottomInset` reserves a band (screen px) at the bottom of the viewport for
+    /// the floating dock, so the bottom row never lands behind it.
     @discardableResult
-    public func addCardInGrid(kind: CardKind, viewportSize: ScreenPoint) -> UUID {
+    public func addCardInGrid(kind: CardKind, viewportSize: ScreenPoint, bottomInset: Double = 0) -> UUID {
         let card = Self.defaultCard(kind: kind)
-        state.placeCardInGrid(card, viewportSize: viewportSize)
+        state.placeCardInGrid(card, viewportSize: viewportSize, bottomInset: bottomInset)
         persist()
         return card.id
     }

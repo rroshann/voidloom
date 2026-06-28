@@ -311,8 +311,11 @@ private struct DockAIHint: View {
         return errorMessage ?? "Show command hints"
     }
 
+    // `sparkles` is Apple's de-facto AI/generate glyph and is available on the
+    // macOS 14 target; it also avoids clashing with the Terminal tool's icon.
+    // The error state keeps the warning triangle.
     private var iconName: String {
-        errorMessage == nil ? "terminal" : "exclamationmark.triangle"
+        errorMessage == nil ? "sparkles" : "exclamationmark.triangle"
     }
 
     private var accentColor: Color {
