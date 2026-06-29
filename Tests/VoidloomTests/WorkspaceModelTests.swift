@@ -2111,4 +2111,39 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(result.origin, CanvasPoint(x: 600, y: 900))
         XCTAssertTrue(result.guides.isEmpty)
     }
+
+    // MARK: - Absolute card-position setters (A3)
+
+    func testSetCardPositionMovesToAbsolutePoint() {
+        let id = UUID()
+        var state = WorkspaceState(cards: [
+            makePositionedCard(id, x: 50, y: 100)
+        ])
+
+        state.setCardPosition(id: id, to: CanvasPoint(x: 1234, y: 567))
+
+        XCTAssertEqual(state.cards[0].position, CanvasPoint(x: 1234, y: 567))
+    }
+
+    @MainActor
+    func testStoreSetCardPositionsIsDebounced() {
+        let a = UUID(); let b = UUID()
+        let state = WorkspaceState(cards: [
+            makePositionedCard(a, x: 0, y: 0),
+            makePositionedCard(b, x: 200, y: 0)
+        ])
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(state: state, storageURL: url, persistenceDelay: 60)
+
+        let ids = Set(store.state.cards.prefix(2).map(\.id))
+        let map = Dictionary(uniqueKeysWithValues: ids.map { ($0, CanvasPoint(x: 10, y: 10)) })
+        store.setCardPositions(map)
+
+        // Debounced: not written synchronously.
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
 }
