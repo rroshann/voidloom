@@ -235,8 +235,10 @@ struct RootView: View {
                                 // right; animate that pan so the canvas glides over
                                 // rather than jumping. Cards 1-4 of a page don't
                                 // move the viewport, so they still appear instantly.
-                                let willFlipPage =
-                                    store.state.gridPlacementSlot >= GridPlacement.cardsPerPage
+                                let willFlipPage = store.state.gridPlacementWillFlipPage(
+                                    viewportSize: viewportSize,
+                                    bottomInset: gridBottomInset
+                                )
                                 if willFlipPage {
                                     withAnimation(.easeInOut(duration: 0.35)) {
                                         store.addCardInGrid(

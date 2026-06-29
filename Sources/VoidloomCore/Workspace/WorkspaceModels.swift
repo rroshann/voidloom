@@ -49,14 +49,16 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     /// Cleared by single-selection and `clearSelection`.
     public var marqueeSelectedCardIDs: Set<UUID> = []
 
-    /// Transient grid-placement bookkeeping for double-click instant-create: the
-    /// next slot index within the current 2x2 page (0...3, wrapping to a fresh
-    /// page at 4). Like `marqueeSelectedCardIDs`, it is excluded from
-    /// `CodingKeys` and the memberwise/decode inits, so it resets to 0 on every
-    /// decode, workspace switch, or fresh create (no JSON schema change,
-    /// legacy-safe). Deriving the slot from this page-local counter — never from
-    /// `cards.count` — keeps reading order stable across deletes.
-    public var gridPlacementSlot: Int = 0
+    /// Transient anchor for double-click grid placement: the viewport snapshot
+    /// when the current 2x2 page began. It distinguishes "I'm still filling the
+    /// page I'm looking at" from "I panned/zoomed to a new area". When the live
+    /// viewport differs from this anchor the next placement re-anchors a fresh
+    /// page at the visible top-left; while it matches, placement fills the first
+    /// free quadrant by occupancy (so a deleted quadrant is refilled in place).
+    /// Like `marqueeSelectedCardIDs`, it is excluded from `CodingKeys` and the
+    /// inits, so it resets to nil on decode/workspace-switch — a reloaded
+    /// workspace simply continues filling its visible page (no schema change).
+    public var gridPageAnchor: CanvasViewport?
 
     public init(
         viewport: CanvasViewport = CanvasViewport(),
@@ -136,16 +138,28 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         cards.append(card)
     }
 
-    /// Places a card in the next reading-order slot of a 2x2 page that exactly
-    /// fills the current viewport (at the current zoom) minus margins and gap, so
-    /// each card owns one visible quadrant. Slots fill TL, TR, BL, BR; the fifth
-    /// card starts a fresh page, shifting canvas content up one full viewport
-    /// height so the new page's first card lands at the viewport's top-left.
+    /// Places a card in a 2x2 page that exactly fills the *current* viewport (at
+    /// the current zoom) minus margins and gap, so each card owns one visible
+    /// quadrant. Quadrants fill in reading order TL, TR, BL, BR.
     ///
-    /// The slot index is page-local (0...3) and lives in `gridPlacementSlot`, not
-    /// `cards.count`, so reading order survives deletes. Sizing every card to the
-    /// margin-inset quadrant guarantees full visibility, so no extra pan-to-reveal
-    /// pass is needed.
+    /// Which quadrant the card lands in depends on `gridPageAnchor` — the viewport
+    /// the current page was started against:
+    ///
+    /// - **The viewport moved since the last placement** (pan or zoom, so the live
+    ///   viewport differs from the anchor): the user is looking at a new area, so
+    ///   a fresh page re-anchors here and the card lands at the visible top-left —
+    ///   even if a card left over from the previous area still overlaps that
+    ///   quadrant. This is what makes the first card after moving reliably
+    ///   top-left instead of jumping to the right column.
+    /// - **The viewport is unchanged** (still filling the page in view, or a fresh
+    ///   session where the anchor is nil): the card fills the first quadrant whose
+    ///   center is free (`gridSlotIsOccupied`), so a quadrant emptied by a delete
+    ///   is refilled in place. When all four are taken the page flips to a fresh
+    ///   one on the RIGHT (content shifts left one viewport width) and the card
+    ///   lands at the new top-left, so pages flow horizontally.
+    ///
+    /// Sizing every card to the margin-inset quadrant guarantees full visibility,
+    /// so no extra pan-to-reveal pass is needed.
     ///
     /// `bottomInset` reserves a band (screen px) at the bottom of the viewport for
     /// the floating dock, so the bottom row never renders behind it (see
@@ -157,27 +171,86 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         viewportSize: ScreenPoint,
         bottomInset: Double = 0
     ) {
-        if gridPlacementSlot >= GridPlacement.cardsPerPage {
-            // Page full: start a new page to the RIGHT by shifting content left
-            // one viewport width, so the empty region appears at the top-left and
-            // pages flow horizontally.
-            viewport.origin.x -= viewportSize.x
-            gridPlacementSlot = 0
-        }
-
         let layout = GridPlacement.pageLayout(
             viewportSize: viewportSize,
             scale: viewport.scale,
             bottomInset: bottomInset
         )
-        let slotScreen = layout.slotScreenOrigins[gridPlacementSlot]
+
+        let slot: Int
+        if startsFreshGridPage {
+            // The user moved to a new area: re-anchor a fresh page here and pin
+            // the card to the visible top-left, ignoring any stale overlap.
+            slot = 0
+        } else if let free = firstFreeGridSlot(layout: layout) {
+            // Still on the page in view: fill the first free quadrant.
+            slot = free
+        } else {
+            // Page full: flip to a fresh page on the RIGHT, then use its top-left.
+            viewport.origin.x -= viewportSize.x
+            slot = firstFreeGridSlot(layout: layout) ?? 0
+        }
 
         var placed = card
         placed.size = layout.cardSize
-        placed.position = viewport.canvasPoint(forScreenPoint: slotScreen)
+        placed.position = viewport.canvasPoint(forScreenPoint: layout.slotScreenOrigins[slot])
 
         cards.append(placed)
-        gridPlacementSlot += 1
+        gridPageAnchor = viewport
+    }
+
+    /// Whether the next `placeCardInGrid` for this viewport would flip to a new
+    /// page — i.e. the page in view is full and the user has not moved to a fresh
+    /// area. The UI uses this to animate the page-flip pan only when a flip will
+    /// actually happen (a fresh page and cards 1...4 of a page move no viewport,
+    /// so they appear instantly).
+    public func gridPlacementWillFlipPage(
+        viewportSize: ScreenPoint,
+        bottomInset: Double = 0
+    ) -> Bool {
+        // A move re-anchors a fresh page at the top-left without panning.
+        guard !startsFreshGridPage else { return false }
+        let layout = GridPlacement.pageLayout(
+            viewportSize: viewportSize,
+            scale: viewport.scale,
+            bottomInset: bottomInset
+        )
+        return firstFreeGridSlot(layout: layout) == nil
+    }
+
+    /// Whether the next grid placement should re-anchor a fresh page: true once
+    /// the user has panned or zoomed since the last placement. A nil anchor (a
+    /// fresh session or just-decoded workspace) is treated as "continue the
+    /// visible page", so a reloaded workspace fills its remaining quadrants rather
+    /// than dropping a new card on top of the existing top-left one.
+    private var startsFreshGridPage: Bool {
+        guard let anchor = gridPageAnchor else { return false }
+        return anchor != viewport
+    }
+
+    /// The first reading-order quadrant (TL, TR, BL, BR) whose center is not
+    /// covered by an existing card, or nil when every visible quadrant is taken.
+    private func firstFreeGridSlot(layout: GridPlacement.PageLayout) -> Int? {
+        layout.slotScreenOrigins.indices.first { !gridSlotIsOccupied($0, layout: layout) }
+    }
+
+    /// Whether any existing card covers the canvas center of grid `slot` in the
+    /// current viewport — the test that decides a quadrant is "taken". Slot
+    /// geometry is screen-relative, so this re-derives the slot's canvas center
+    /// against the live `viewport` every call; that re-derivation is what keeps
+    /// placement correct across pans, zooms, and deletes without a stored counter.
+    private func gridSlotIsOccupied(_ slot: Int, layout: GridPlacement.PageLayout) -> Bool {
+        let slotOrigin = viewport.canvasPoint(forScreenPoint: layout.slotScreenOrigins[slot])
+        let center = CanvasPoint(
+            x: slotOrigin.x + (layout.cardSize.width / 2),
+            y: slotOrigin.y + (layout.cardSize.height / 2)
+        )
+        return cards.contains { card in
+            center.x >= card.position.x
+                && center.x <= card.position.x + card.size.width
+                && center.y >= card.position.y
+                && center.y <= card.position.y + card.size.height
+        }
     }
 
     public mutating func replaceCard(_ card: WorkspaceCard) {

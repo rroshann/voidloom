@@ -1720,7 +1720,7 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(state.viewport.origin.y, 0, accuracy: 0.001)
     }
 
-    func testGridPlacementContinuesReadingOrderAfterMidPageDeletes() {
+    func testGridPlacementFillsQuadrantFreedByMidPageDelete() {
         var state = WorkspaceState()
         let viewportSize = ScreenPoint(x: 1600, y: 1000)
 
@@ -1728,23 +1728,21 @@ final class WorkspaceModelTests: XCTestCase {
             state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
         }
 
-        // Delete the first two cards mid-page; the slot counter must NOT rewind
-        // to cards.count, which would drop the next card on top of a survivor.
-        let toDelete: Set<UUID> = [state.cards[0].id, state.cards[1].id]
-        let survivorPositions = [state.cards[2].position, state.cards[3].position]
-        state.deleteCards(ids: toDelete)
+        // Delete the top-right card; its visible quadrant is now empty.
+        let topRight = state.cards[1]
+        state.deleteCards(ids: [topRight.id])
 
+        // Occupancy-based placement fills the freed top-right quadrant in place
+        // rather than flipping to a new page or stacking on a survivor.
         state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
 
-        let newest = state.cards.last!
-        // The page was already full (slot == 4), so the new card opens a fresh
-        // page to the right at the top-left, not a slot-0 overlap on the page.
-        assertPoint(newest.position, 1648, 48)
-        XCTAssertEqual(state.viewport.origin.x, -1600, accuracy: 0.001)
-        for survivor in survivorPositions {
+        let newest = try! XCTUnwrap(state.cards.last)
+        XCTAssertEqual(state.viewport.origin.x, 0, accuracy: 0.001)
+        assertPoint(newest.position, 820, 48)
+        for survivor in state.cards.dropLast() {
             XCTAssertFalse(
-                abs(newest.position.x - survivor.x) < 0.001
-                    && abs(newest.position.y - survivor.y) < 0.001,
+                abs(newest.position.x - survivor.position.x) < 0.001
+                    && abs(newest.position.y - survivor.position.y) < 0.001,
                 "new card must not overlap a surviving card"
             )
         }
@@ -1768,20 +1766,105 @@ final class WorkspaceModelTests: XCTestCase {
         }
     }
 
-    func testGridPlacementBookkeepingIsTransientAcrossEncodeDecode() throws {
+    func testGridPlacementAfterPanStartsFreshPageAtTopLeft() {
+        var state = WorkspaceState()
+        let viewportSize = ScreenPoint(x: 1600, y: 1000)
+
+        // Place two cards (TL, TR), then pan to a brand-new, empty area.
+        state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
+        state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
+        state.viewport.pan(by: CanvasVector(dx: -1600, dy: 0))
+
+        // The next double-click must start a fresh page at the visible top-left,
+        // not continue the stale slot order onto the right/bottom column (Issue B).
+        state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
+
+        let newest = try! XCTUnwrap(state.cards.last)
+        let screen = state.viewport.screenPoint(forCanvasPoint: newest.position)
+        XCTAssertEqual(screen.x, 48, accuracy: 0.001)
+        XCTAssertEqual(screen.y, 48, accuracy: 0.001)
+    }
+
+    func testGridPlacementForcesTopLeftAfterPanEvenWhenAStaleCardOverlaps() {
+        var state = WorkspaceState()
+        let viewportSize = ScreenPoint(x: 1600, y: 1000)
+
+        // Place one quadrant-sized card, then pan only slightly — little enough
+        // that the existing card still covers the NEW top-left quadrant's center.
+        state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
+        state.viewport.pan(by: CanvasVector(dx: -100, dy: -100))
+
+        // The first double-click after moving must re-anchor a fresh page at the
+        // visible top-left, NOT get bumped to the right column by the stale
+        // overlap. This is the "first card sometimes on the right" report.
+        state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
+
+        let screen = state.viewport.screenPoint(forCanvasPoint: state.cards.last!.position)
+        XCTAssertEqual(screen.x, 48, accuracy: 0.001)
+        XCTAssertEqual(screen.y, 48, accuracy: 0.001)
+    }
+
+    func testGridPlacementIgnoresStalePageStateAcrossAFullRunThenFlips() {
+        var state = WorkspaceState()
+        let viewportSize = ScreenPoint(x: 1600, y: 1000)
+
+        // Earlier in the session: one grid card placed, then the user panned away
+        // — the classic Issue A setup that leaves a counter out of sync.
+        state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
+        state.viewport.pan(by: CanvasVector(dx: -1600, dy: 0))
+
+        // Four double-clicks fill the current page in reading order, starting at
+        // the visible top-left regardless of the earlier placement.
+        let expectedSlots: [(x: Double, y: Double)] = [(48, 48), (820, 48), (48, 520), (820, 520)]
+        for expected in expectedSlots {
+            state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
+            let screen = state.viewport.screenPoint(forCanvasPoint: state.cards.last!.position)
+            XCTAssertEqual(screen.x, expected.x, accuracy: 0.001)
+            XCTAssertEqual(screen.y, expected.y, accuracy: 0.001)
+        }
+
+        // The fifth fills no remaining quadrant, so it flips to a fresh page to
+        // the right and lands at the visible top-left.
+        let originBeforeFlip = state.viewport.origin.x
+        state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
+        XCTAssertEqual(state.viewport.origin.x, originBeforeFlip - 1600, accuracy: 0.001)
+        let fifth = state.viewport.screenPoint(forCanvasPoint: state.cards.last!.position)
+        XCTAssertEqual(fifth.x, 48, accuracy: 0.001)
+        XCTAssertEqual(fifth.y, 48, accuracy: 0.001)
+    }
+
+    func testGridPlacementIsStatelessAcrossEncodeDecode() throws {
         var state = WorkspaceState()
         let viewportSize = ScreenPoint(x: 1600, y: 1000)
 
         for _ in 0..<3 {
             state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
         }
-        XCTAssertEqual(state.gridPlacementSlot, 3)
 
         let data = try JSONEncoder().encode(state)
-        let decoded = try JSONDecoder().decode(WorkspaceState.self, from: data)
-
-        XCTAssertEqual(decoded.gridPlacementSlot, 0)
+        var decoded = try JSONDecoder().decode(WorkspaceState.self, from: data)
         XCTAssertEqual(decoded.cards.count, 3)
+
+        // Placement carries no transient counter: it is derived entirely from the
+        // persisted cards and viewport, so the post-decode placement fills the one
+        // remaining quadrant (BR) of the same page, just as it would have before.
+        decoded.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
+        assertPoint(decoded.cards.last!.position, 820, 520)
+        XCTAssertEqual(decoded.viewport.origin.x, 0, accuracy: 0.001)
+    }
+
+    func testGridPlacementWillFlipPagePredicateMatchesPlacement() {
+        var state = WorkspaceState()
+        let viewportSize = ScreenPoint(x: 1600, y: 1000)
+
+        // An empty page never flips; placing cards 1...3 keeps a free quadrant.
+        for _ in 0..<3 {
+            XCTAssertFalse(state.gridPlacementWillFlipPage(viewportSize: viewportSize))
+            state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
+        }
+        // After the 4th the page is full, so the predicate now reports a flip.
+        state.placeCardInGrid(makeGridCard(), viewportSize: viewportSize)
+        XCTAssertTrue(state.gridPlacementWillFlipPage(viewportSize: viewportSize))
     }
 
     func testGridPlacementRespectsViewportScale() {
