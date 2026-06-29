@@ -2165,4 +2165,42 @@ final class WorkspaceModelTests: XCTestCase {
     func testBrowserResolverLenientResolveAlwaysReturnsURL() {
         XCTAssertNotNil(BrowserURLResolver.resolve(from: ""))   // fallback, never nil
     }
+
+    // MARK: - C1: Chat models + reducer
+
+    func testReducerAppendsUserThenPendingAssistant() {
+        let assistantID = UUID()
+        let thread = ConversationReducer.appendingUserAndPendingAssistant([], userText: "hi", assistantID: assistantID)
+        XCTAssertEqual(thread.count, 2)
+        XCTAssertEqual(thread[0].role, .user)
+        XCTAssertEqual(thread[0].text, "hi")
+        XCTAssertEqual(thread[1].role, .assistant)
+        XCTAssertEqual(thread[1].id, assistantID)
+        XCTAssertTrue(thread[1].isPending)
+    }
+
+    func testReducerAccumulatesStreamChunks() {
+        let id = UUID()
+        var t = ConversationReducer.appendingUserAndPendingAssistant([], userText: "x", assistantID: id)
+        t = ConversationReducer.appendingStreamChunk(t, messageID: id, chunk: "Hel")
+        t = ConversationReducer.appendingStreamChunk(t, messageID: id, chunk: "lo")
+        XCTAssertEqual(t[1].streamingText, "Hello")
+        XCTAssertTrue(t[1].isStreaming)
+    }
+
+    func testReducerCompletesAndFails() {
+        let id = UUID()
+        var t = ConversationReducer.appendingUserAndPendingAssistant([], userText: "x", assistantID: id)
+        let done = ConversationReducer.completing(t, messageID: id, text: "final")
+        XCTAssertEqual(done[1].text, "final")
+        XCTAssertEqual(done[1].status, .complete)
+        let failed = ConversationReducer.failing(t, messageID: id, error: "boom")
+        XCTAssertEqual(failed[1].status, .failed("boom"))
+    }
+
+    func testReducerFindsUserTextBeforeAssistantForRetry() {
+        let id = UUID()
+        let t = ConversationReducer.appendingUserAndPendingAssistant([], userText: "question", assistantID: id)
+        XCTAssertEqual(ConversationReducer.userText(before: id, in: t), "question")
+    }
 }
