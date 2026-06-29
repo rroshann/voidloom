@@ -51,6 +51,7 @@
 		A70000000000000000000001 /* ConnectionHitLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000011 /* ConnectionHitLayer.swift */; };
 		A70000000000000000000002 /* TextElementEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000012 /* TextElementEditor.swift */; };
 		A70000000000000000000003 /* TextOptionsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000013 /* TextOptionsPanel.swift */; };
+		A80000000000000000000001 /* AlignmentGuidesLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000011 /* AlignmentGuidesLayer.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -100,6 +101,7 @@
 		A70000000000000000000011 /* ConnectionHitLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/ConnectionHitLayer.swift; sourceTree = "<group>"; };
 		A70000000000000000000012 /* TextElementEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/TextElementEditor.swift; sourceTree = "<group>"; };
 		A70000000000000000000013 /* TextOptionsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/TextOptionsPanel.swift; sourceTree = "<group>"; };
+		A80000000000000000000011 /* AlignmentGuidesLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/AlignmentGuidesLayer.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -149,6 +151,7 @@
 				A70000000000000000000011 /* ConnectionHitLayer.swift */,
 				A70000000000000000000012 /* TextElementEditor.swift */,
 				A70000000000000000000013 /* TextOptionsPanel.swift */,
+				A80000000000000000000011 /* AlignmentGuidesLayer.swift */,
 				A20000000000000000000013 /* ToolRail.swift */,
 				A20000000000000000000014 /* CommandBar.swift */,
 				A30000000000000000000018 /* SettingsView.swift */,
@@ -299,6 +302,7 @@
 				A70000000000000000000001 /* ConnectionHitLayer.swift in Sources */,
 				A70000000000000000000002 /* TextElementEditor.swift in Sources */,
 				A70000000000000000000003 /* TextOptionsPanel.swift in Sources */,
+				A80000000000000000000001 /* AlignmentGuidesLayer.swift in Sources */,
 				A10000000000000000000005 /* PreviewSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

@@ -161,6 +161,7 @@ struct CanvasWorkspaceView: View {
                             card: card,
                             store: store,
                             sessionManager: sessionManager,
+                            interaction: interaction,
                             viewportScale: store.state.viewport.scale,
                             isCardFocused: isCardFocused,
                             onToggleCardFocus: onToggleCardFocus,
@@ -192,6 +193,19 @@ struct CanvasWorkspaceView: View {
                 // makes the preview match the committed cursor-anchored zoom.
                 .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
                 .scaleEffect(liveZoom, anchor: liveZoomAnchor)
+
+                // Snap guide lines rendered in screen space — viewport.screenPoint
+                // already converts canvas → screen, so this layer must sit outside
+                // the pan/zoom transform group. Inert to hit testing.
+                if !interaction.activeAlignmentGuides.isEmpty {
+                    AlignmentGuidesLayer(
+                        guides: interaction.activeAlignmentGuides,
+                        viewport: store.state.viewport,
+                        viewSize: geometry.size
+                    )
+                    .frame(width: geometry.size.width, height: geometry.size.height)
+                    .allowsHitTesting(false)
+                }
 
                 // Armed-tool input capture sits ABOVE the cards so place/connect
                 // drags are intercepted before a card drag can begin. It is

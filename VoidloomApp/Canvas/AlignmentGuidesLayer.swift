@@ -6,7 +6,7 @@ import VoidloomCore
 struct AlignmentGuidesLayer: View {
     let guides: [AlignmentGuide]
     let viewport: CanvasViewport
-    let canvasSize: CGSize
+    let viewSize: CGSize
 
     var body: some View {
         Canvas { context, _ in
@@ -16,11 +16,11 @@ struct AlignmentGuidesLayer: View {
                 case .vertical:
                     let x = viewport.screenPoint(forCanvasPoint: .init(x: guide.canvasCoordinate, y: 0)).x
                     path.move(to: CGPoint(x: x, y: 0))
-                    path.addLine(to: CGPoint(x: x, y: canvasSize.height))
+                    path.addLine(to: CGPoint(x: x, y: viewSize.height))
                 case .horizontal:
                     let y = viewport.screenPoint(forCanvasPoint: .init(x: 0, y: guide.canvasCoordinate)).y
                     path.move(to: CGPoint(x: 0, y: y))
-                    path.addLine(to: CGPoint(x: canvasSize.width, y: y))
+                    path.addLine(to: CGPoint(x: viewSize.width, y: y))
                 }
                 context.stroke(path, with: .color(Color(red: 0.34, green: 0.93, blue: 0.82).opacity(0.9)),
                                style: StrokeStyle(lineWidth: 1, dash: [4, 4]))
