@@ -1,24 +1,6 @@
 import SwiftUI
+import VoidloomCore
 import WebKit
-
-enum BrowserURLResolver {
-    static func resolve(from content: String) -> URL {
-        let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            return URL(string: "about:blank")!
-        }
-
-        if let url = URL(string: trimmed), url.scheme != nil {
-            return url
-        }
-
-        if let url = URL(string: "https://\(trimmed)") {
-            return url
-        }
-
-        return URL(string: "https://voidloom.local")!
-    }
-}
 
 struct BrowserWebView: NSViewRepresentable {
     let urlString: String

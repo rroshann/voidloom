@@ -2146,4 +2146,23 @@ final class WorkspaceModelTests: XCTestCase {
         // Debounced: not written synchronously.
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
     }
+
+    // MARK: - BrowserURLResolver (Core)
+
+    func testBrowserResolverPrependsHTTPSForSchemelessHost() {
+        XCTAssertEqual(BrowserURLResolver.normalized(from: "google.com")?.absoluteString, "https://google.com")
+    }
+
+    func testBrowserResolverKeepsExplicitScheme() {
+        XCTAssertEqual(BrowserURLResolver.normalized(from: "http://example.com")?.scheme, "http")
+    }
+
+    func testBrowserResolverRejectsEmpty() {
+        XCTAssertNil(BrowserURLResolver.normalized(from: "   "))
+        XCTAssertFalse(BrowserURLResolver.isValid(""))
+    }
+
+    func testBrowserResolverLenientResolveAlwaysReturnsURL() {
+        XCTAssertNotNil(BrowserURLResolver.resolve(from: ""))   // fallback, never nil
+    }
 }
