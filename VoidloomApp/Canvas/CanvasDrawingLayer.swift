@@ -51,11 +51,7 @@ struct CanvasDrawingLayer: View, Equatable {
             return
         }
 
-        var path = Path()
-        path.move(to: CGPoint(x: first.x, y: first.y))
-        for point in stroke.points.dropFirst() {
-            path.addLine(to: CGPoint(x: point.x, y: point.y))
-        }
+        let path = smoothPath(through: stroke.points)
 
         context.stroke(
             path,
@@ -66,5 +62,38 @@ struct CanvasDrawingLayer: View, Equatable {
                 lineJoin: .round
             )
         )
+    }
+
+    /// Builds a smooth curve through the sampled points using a Catmull-Rom
+    /// spline (converted to cubic Béziers). Fast drags sample the pointer
+    /// sparsely; joining those samples with straight lines makes the stroke look
+    /// polygonal, so the curve follows the intended path instead. Assumes at
+    /// least two points (callers guard the single-point case as a dot).
+    private static func smoothPath(through points: [CanvasPoint]) -> Path {
+        let pts = points.map { CGPoint(x: $0.x, y: $0.y) }
+        var path = Path()
+        path.move(to: pts[0])
+
+        guard pts.count > 2 else {
+            path.addLine(to: pts[1])
+            return path
+        }
+
+        for index in 0..<(pts.count - 1) {
+            let p0 = pts[max(index - 1, 0)]
+            let p1 = pts[index]
+            let p2 = pts[index + 1]
+            let p3 = pts[min(index + 2, pts.count - 1)]
+            let control1 = CGPoint(
+                x: p1.x + (p2.x - p0.x) / 6,
+                y: p1.y + (p2.y - p0.y) / 6
+            )
+            let control2 = CGPoint(
+                x: p2.x - (p3.x - p1.x) / 6,
+                y: p2.y - (p3.y - p1.y) / 6
+            )
+            path.addCurve(to: p2, control1: control1, control2: control2)
+        }
+        return path
     }
 }

@@ -17,7 +17,6 @@ struct EraserOptionsPanel: View {
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
                     .foregroundStyle(.white.opacity(0.9))
                 Spacer(minLength: 0)
-                sizePreview
             }
 
             VStack(alignment: .leading, spacing: 2) {
@@ -54,13 +53,5 @@ struct EraserOptionsPanel: View {
                 .stroke(.white.opacity(0.13), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.3), radius: 24, x: 0, y: 16)
-    }
-
-    private var sizePreview: some View {
-        let diameter = max(8, min(interaction.eraserThickness, 30))
-        return Circle()
-            .strokeBorder(.white.opacity(0.7), lineWidth: 1.5)
-            .frame(width: diameter, height: diameter)
-            .frame(width: 30, height: 30)
     }
 }

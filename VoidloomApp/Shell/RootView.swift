@@ -19,6 +19,13 @@ struct RootView: View {
     /// reserves this band so freshly created cards never land behind the dock.
     @State private var measuredDockHeight: CGFloat = 0
 
+    /// Live pointer location (root coordinates) while it is over the eraser
+    /// options panel, so the size-preview ring tracks the cursor as the user
+    /// drags the thickness slider — the ring effectively *is* the cursor there.
+    /// Held as plain `@State` (not `@StateObject`) so updating it every pointer
+    /// move re-renders only `EraserSizePreview`, never this whole view.
+    @State private var eraserPreview = EraserPreviewModel()
+
     /// Gap between the dock capsule and the window bottom. Kept as a single
     /// source of truth so the grid reserve below matches the actual padding.
     private static let bottomChromePadding: CGFloat = 24
@@ -186,6 +193,28 @@ struct RootView: View {
                         if interaction.isArmed(.erasing) {
                             EraserOptionsPanel(interaction: interaction)
                                 .transition(.move(edge: .bottom).combined(with: .opacity))
+                                // Track the cursor over the panel so the preview
+                                // ring follows it (and resizes) as the slider is
+                                // dragged, instead of sitting at a fixed center.
+                                .onContinuousHover(coordinateSpace: .named("rootSpace")) { phase in
+                                    switch phase {
+                                    case .active(let location):
+                                        beginEraserAdjust(at: location)
+                                    case .ended:
+                                        endEraserAdjust()
+                                    }
+                                }
+                                // `.onContinuousHover` stops firing once the Slider
+                                // captures the drag, so the ring would freeze and the
+                                // arrow would reappear mid-drag. This simultaneous
+                                // gesture keeps the ring tracking the pointer and
+                                // re-hides the cursor while the slider is dragged; it
+                                // runs alongside the Slider, which still works.
+                                .simultaneousGesture(
+                                    DragGesture(minimumDistance: 0, coordinateSpace: .named("rootSpace"))
+                                        .onChanged { beginEraserAdjust(at: $0.location) }
+                                        .onEnded { beginEraserAdjust(at: $0.location) }
+                                )
                         }
 
                         if interaction.isArmed(.placingText) || store.state.selectedTextID != nil {
@@ -283,6 +312,19 @@ struct RootView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottom)
                 .zIndex(2)
 
+                // Eraser size preview: while the pointer is over the eraser panel
+                // adjusting the thickness slider, the on-canvas cursor ring sits
+                // behind the panel (the dock VStack is zIndex 2). This follows the
+                // cursor above the dock so the ring is effectively the cursor and
+                // grows/shrinks as the slider moves. Isolated so pointer-move
+                // updates re-render only the ring, not this whole view.
+                EraserSizePreview(
+                    preview: eraserPreview,
+                    interaction: interaction,
+                    scale: CGFloat(store.state.viewport.scale)
+                )
+                .zIndex(3)
+
                 if isCommandPaletteVisible {
                     CommandPaletteView(
                         query: $paletteQuery,
@@ -316,6 +358,7 @@ struct RootView: View {
             // than a hidden button: it must fire for a single selected card and a
             // marquee group, yet stay inert while a text editor holds focus (so
             // Backspace keeps reaching the editor).
+            .coordinateSpace(.named("rootSpace"))
             .background(CanvasKeyMonitor(onKeyDown: handleDeleteKey))
             .animation(.easeInOut(duration: 0.15), value: isCommandPaletteVisible)
             .animation(.easeInOut(duration: 0.24), value: isWorkspaceSidebarVisible)
@@ -332,6 +375,28 @@ struct RootView: View {
                 interaction.editingTextID = nil
             }
         }
+    }
+
+    /// Tracks the pointer over the eraser panel for the size-preview ring. The
+    /// location goes to the isolated `eraserPreview` model (no shared-model churn),
+    /// and the transparent cursor is re-asserted every move so only the ring shows.
+    /// `isAdjustingEraserSize` is published only on the false→true edge so a drag
+    /// doesn't re-invalidate every canvas observer on each move.
+    private func beginEraserAdjust(at location: CGPoint) {
+        eraserPreview.location = location
+        if !interaction.isAdjustingEraserSize {
+            interaction.isAdjustingEraserSize = true
+        }
+        CanvasToolCursor.transparentCursor.set()
+    }
+
+    /// Pointer left the eraser panel: restore the arrow and let the on-canvas
+    /// cursor ring take over again.
+    private func endEraserAdjust() {
+        if interaction.isAdjustingEraserSize {
+            interaction.isAdjustingEraserSize = false
+        }
+        NSCursor.arrow.set()
     }
 
     /// AI dock icon: open the conversation directly if this workspace already

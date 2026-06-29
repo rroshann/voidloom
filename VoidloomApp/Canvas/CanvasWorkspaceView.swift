@@ -204,19 +204,25 @@ struct CanvasWorkspaceView: View {
                     onMouseUp: handleOverlayUp
                 )
                 .frame(width: geometry.size.width, height: geometry.size.height)
+                // Hold the armed tool's cursor over the canvas. `.onContinuousHover`
+                // re-asserts on every move so it beats SwiftUI's per-move arrow
+                // reset; it adds no click-consuming view, so the overlay below
+                // still receives the left-mouse-down it needs for tool input.
+                .canvasToolCursor(for: interaction.mode)
 
                 // Round eraser footprint, sized to the live thickness (screen px)
                 // and tracking the pointer at refresh rate. Render-only, so it
                 // never intercepts the erase drag below it.
-                if interaction.mode == .erasing, let point = eraserCursor {
+                // The eraser cursor ring tracks the pointer over the canvas. While
+                // the thickness slider is being adjusted, the centered preview in
+                // RootView takes over instead (this one sits behind the panel), so
+                // the two are mutually exclusive and never overlap.
+                if interaction.mode == .erasing,
+                   !interaction.isAdjustingEraserSize,
+                   let point = eraserCursor {
                     let diameter = CGFloat(interaction.eraserThickness) * CGFloat(store.state.viewport.scale)
-                    ZStack {
-                        Circle().stroke(Color.black.opacity(0.45), lineWidth: 3)
-                        Circle().stroke(Color.white.opacity(0.95), lineWidth: 1.5)
-                    }
-                    .frame(width: diameter, height: diameter)
-                    .position(point)
-                    .allowsHitTesting(false)
+                    EraserFootprintRing(diameter: diameter)
+                        .position(point)
                 }
 
                 CanvasInteractionLayer(

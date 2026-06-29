@@ -41,6 +41,8 @@ final class CanvasInteractionModel: ObservableObject {
             // The hover highlight only exists while the connect tool is armed,
             // so disarming or arming another tool clears the prospective pick.
             if case .connecting = mode {} else { hoveredCardID = nil }
+            // The eraser size preview only makes sense while the eraser is armed.
+            if mode != .erasing { isAdjustingEraserSize = false }
         }
     }
 
@@ -61,6 +63,12 @@ final class CanvasInteractionModel: ObservableObject {
     @Published var brushOpacity: Double = 1
     @Published var eraserThickness: Double = 28
     @Published var eraserMode: EraseMode = .wholeStroke
+
+    /// True while the pointer is over the eraser options panel (i.e. adjusting the
+    /// thickness slider). Drives a centered size-preview ring rendered *above* the
+    /// dock — the on-canvas cursor ring would otherwise be hidden behind the
+    /// panel. Mutually exclusive with the canvas ring so the two never overlap.
+    @Published var isAdjustingEraserSize: Bool = false
 
     /// The text element currently in inline-edit mode, if any. Set when a text
     /// element is created (place-drag, double-click dock, or palette) or when

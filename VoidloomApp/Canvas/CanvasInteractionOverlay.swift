@@ -50,9 +50,12 @@ struct CanvasInteractionOverlay: NSViewRepresentable {
                 window?.invalidateCursorRects(for: self)
                 // Flip the cursor instantly on arming/disarming rather than
                 // waiting for the next mouse-move, so the pen/eraser cursor
-                // appears the moment a tool is selected.
+                // appears the moment a tool is selected — and the arrow returns
+                // the moment a tool is disarmed.
                 if mode.capturesCanvas {
-                    cursor(for: mode).set()
+                    CanvasToolCursor.cursor(for: mode).set()
+                } else if previousMode.capturesCanvas {
+                    NSCursor.arrow.set()
                 }
             }
         }
@@ -112,68 +115,21 @@ struct CanvasInteractionOverlay: NSViewRepresentable {
         override func resetCursorRects() {
             super.resetCursorRects()
             guard mode.capturesCanvas else { return }
-            addCursorRect(bounds, cursor: cursor(for: mode))
+            addCursorRect(bounds, cursor: CanvasToolCursor.cursor(for: mode))
         }
 
         /// Re-asserts the per-mode cursor on every cursor-update event. This is
         /// hit-test independent, so the pen/eraser cursor survives pointer moves
-        /// even though `hitTest` only claims left-mouse-down events.
+        /// even though `hitTest` only claims left-mouse-down events. The decisive
+        /// per-move re-assert lives in the SwiftUI `canvasToolCursor` modifier,
+        /// which wins the race against `NSHostingView`'s arrow reset; this path
+        /// is kept as a fast in-AppKit fallback.
         override func cursorUpdate(with event: NSEvent) {
             if mode.capturesCanvas {
-                cursor(for: mode).set()
+                CanvasToolCursor.cursor(for: mode).set()
             } else {
                 super.cursorUpdate(with: event)
             }
         }
-
-        private func cursor(for mode: CanvasInteractionModel.Mode) -> NSCursor {
-            switch mode {
-            case .erasing:
-                // The round eraser footprint is drawn as a SwiftUI overlay that
-                // tracks the pointer, so the system cursor is hidden (a fully
-                // transparent cursor) over the canvas while erasing.
-                return Self.transparentCursor
-            case .drawing:
-                return Self.penCursor
-            case .idle:
-                return .arrow
-            default:
-                return .crosshair
-            }
-        }
-
-        /// A fully transparent cursor used to hide the system pointer over the
-        /// canvas while the SwiftUI eraser footprint indicator is shown. The
-        /// image must carry a real (cleared) bitmap — an empty `NSImage` with no
-        /// rep renders as the default arrow, which is what made both the arrow
-        /// and the ring appear while erasing.
-        private static let transparentCursor: NSCursor = {
-            let size = NSSize(width: 16, height: 16)
-            let image = NSImage(size: size)
-            image.lockFocus()
-            NSColor.clear.set()
-            NSBezierPath.fill(NSRect(origin: .zero, size: size))
-            image.unlockFocus()
-            return NSCursor(image: image, hotSpot: .zero)
-        }()
-
-        /// A pen-style cursor shown while the brush tool is armed, with the hot
-        /// spot at the drawing tip. Falls back to the crosshair if the SF Symbol
-        /// cannot be rendered.
-        private static let penCursor: NSCursor = {
-            let config = NSImage.SymbolConfiguration(pointSize: 18, weight: .regular)
-            guard
-                let symbol = NSImage(
-                    systemSymbolName: "paintbrush.pointed.fill",
-                    accessibilityDescription: "Brush"
-                )?.withSymbolConfiguration(config)
-            else {
-                return .crosshair
-            }
-            return NSCursor(
-                image: symbol,
-                hotSpot: NSPoint(x: 0, y: symbol.size.height)
-            )
-        }()
     }
 }
