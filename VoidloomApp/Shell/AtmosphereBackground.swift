@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct AtmosphereBackground: View {
+    @Environment(\.theme) private var theme
+
     var body: some View {
         ZStack {
             LinearGradient(
@@ -32,6 +34,17 @@ struct AtmosphereBackground: View {
                 startRadius: 20,
                 endRadius: 700
             )
+
+            if theme.showVignette {
+                RadialGradient(
+                    colors: [.clear, .black.opacity(0.35)],
+                    center: .center,
+                    startRadius: 0,
+                    endRadius: 900
+                )
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+            }
         }
         .ignoresSafeArea()
     }
