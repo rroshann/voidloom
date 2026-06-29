@@ -2079,4 +2079,36 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(CanvasSnapping.snap(p, toGrid: 0), p)
         XCTAssertEqual(CanvasSnapping.snap(p, toGrid: -4), p)
     }
+
+    func testAlignSnapsLeftEdgeWithinThreshold() {
+        // Other card left edge at x = 100. Moving card left edge at x = 104 (gap 4 <= threshold 8).
+        let other = CanvasRect(origin: CanvasPoint(x: 100, y: 500),
+                               size: CardSize(width: 300, height: 200))
+        let result = CanvasSnapping.align(
+            movingOrigin: CanvasPoint(x: 104, y: 50),
+            size: CardSize(width: 300, height: 200),
+            others: [other],
+            threshold: 8
+        )
+        XCTAssertEqual(result.origin.x, 100, accuracy: 0.0001)   // snapped to other's left edge
+        XCTAssertEqual(result.origin.y, 50, accuracy: 0.0001)    // y unchanged (no vertical match)
+        XCTAssertTrue(result.guides.contains(AlignmentGuide(axis: .vertical, canvasCoordinate: 100)))
+    }
+
+    func testAlignLeavesOriginWhenNoEdgeWithinThreshold() {
+        // Moving card at x=600 (edges: 600, 750, 900). Other card at x=100 (edges: 100, 250, 400).
+        // Minimum gap on x-axis is |600-400|=200, well above threshold 8. No y match either.
+        // NOTE: Brief used x=400 which accidentally aligns moving.left == other.right (gap=0).
+        // Corrected to x=600 so the "no match" intent is geometrically valid.
+        let other = CanvasRect(origin: CanvasPoint(x: 100, y: 500),
+                               size: CardSize(width: 300, height: 200))
+        let result = CanvasSnapping.align(
+            movingOrigin: CanvasPoint(x: 600, y: 900),
+            size: CardSize(width: 300, height: 200),
+            others: [other],
+            threshold: 8
+        )
+        XCTAssertEqual(result.origin, CanvasPoint(x: 600, y: 900))
+        XCTAssertTrue(result.guides.isEmpty)
+    }
 }
