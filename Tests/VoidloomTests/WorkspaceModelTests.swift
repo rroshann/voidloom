@@ -2065,4 +2065,18 @@ final class WorkspaceModelTests: XCTestCase {
         let loaded = try WorkspaceStore.load(from: url)
         XCTAssertEqual(loaded.cards.map(\.id), [c])
     }
+
+    // MARK: - Snap to grid
+
+    func testSnapToGridRoundsToNearestMultiple() {
+        let snapped = CanvasSnapping.snap(CanvasPoint(x: 53, y: 71), toGrid: 16)
+        XCTAssertEqual(snapped.x, 48, accuracy: 0.0001)   // 53 -> 48
+        XCTAssertEqual(snapped.y, 64, accuracy: 0.0001)   // 71 -> 64
+    }
+
+    func testSnapToGridReturnsPointUnchangedForNonPositiveGrid() {
+        let p = CanvasPoint(x: 53, y: 71)
+        XCTAssertEqual(CanvasSnapping.snap(p, toGrid: 0), p)
+        XCTAssertEqual(CanvasSnapping.snap(p, toGrid: -4), p)
+    }
 }
