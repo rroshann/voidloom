@@ -33,6 +33,7 @@
 		A30000000000000000000008 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000018 /* SettingsView.swift */; };
 		A40000000000000000000001 /* ConversationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000011 /* ConversationStore.swift */; };
 		A40000000000000000000002 /* AIConversationSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000012 /* AIConversationSidebar.swift */; };
+		A40000000000000000000003 /* StubResponseProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000013 /* StubResponseProvider.swift */; };
 		A50000000000000000000001 /* CommandPaletteModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000011 /* CommandPaletteModel.swift */; };
 		A50000000000000000000002 /* CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000012 /* CommandPaletteView.swift */; };
 		A50000000000000000000003 /* CanvasContextMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000013 /* CanvasContextMenu.swift */; };
@@ -84,6 +85,7 @@
 		A30000000000000000000018 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/SettingsView.swift; sourceTree = "<group>"; };
 		A40000000000000000000011 /* ConversationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/ConversationStore.swift; sourceTree = "<group>"; };
 		A40000000000000000000012 /* AIConversationSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/AIConversationSidebar.swift; sourceTree = "<group>"; };
+		A40000000000000000000013 /* StubResponseProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/StubResponseProvider.swift; sourceTree = "<group>"; };
 		A50000000000000000000011 /* CommandPaletteModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPalette/CommandPaletteModel.swift; sourceTree = "<group>"; };
 		A50000000000000000000012 /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPalette/CommandPaletteView.swift; sourceTree = "<group>"; };
 		A50000000000000000000013 /* CanvasContextMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/CanvasContextMenu.swift; sourceTree = "<group>"; };
@@ -158,6 +160,7 @@
 				A20000000000000000000014 /* CommandBar.swift */,
 				A30000000000000000000018 /* SettingsView.swift */,
 				A40000000000000000000011 /* ConversationStore.swift */,
+				A40000000000000000000013 /* StubResponseProvider.swift */,
 				A20000000000000000000019 /* CanvasZoomControls.swift */,
 				A10000000000000000000013 /* CanvasWorkspaceView.swift */,
 				A20000000000000000000015 /* DraggableWorkspaceCard.swift */,
@@ -287,6 +290,7 @@
 				A30000000000000000000008 /* SettingsView.swift in Sources */,
 				A40000000000000000000001 /* ConversationStore.swift in Sources */,
 				A40000000000000000000002 /* AIConversationSidebar.swift in Sources */,
+				A40000000000000000000003 /* StubResponseProvider.swift in Sources */,
 				A50000000000000000000001 /* CommandPaletteModel.swift in Sources */,
 				A50000000000000000000002 /* CommandPaletteView.swift in Sources */,
 				A50000000000000000000003 /* CanvasContextMenu.swift in Sources */,

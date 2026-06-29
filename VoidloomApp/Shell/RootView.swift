@@ -159,9 +159,8 @@ struct RootView: View {
                 if isAIConversationVisible {
                     AIConversationSidebar(
                         messages: conversationStore.messages(for: activeWorkspaceID),
-                        onSubmit: { text in
-                            conversationStore.submit(workspaceID: activeWorkspaceID, text: text)
-                        },
+                        onSubmit: { conversationStore.submit(workspaceID: activeWorkspaceID, text: $0) },
+                        onRetry: { conversationStore.retry(workspaceID: activeWorkspaceID, messageID: $0) },
                         onClose: {
                             withAnimation(.easeInOut(duration: 0.24)) {
                                 isAIConversationVisible = false
