@@ -362,7 +362,6 @@ struct RootView: View {
             .animation(.easeInOut(duration: 0.15), value: isCommandPaletteVisible)
             .animation(.easeInOut(duration: 0.24), value: isWorkspaceSidebarVisible)
             .animation(.easeInOut(duration: 0.24), value: isAIConversationVisible)
-            .preferredColorScheme(.dark)
             .onPreferenceChange(DockHeightPreferenceKey.self) { height in
                 measuredDockHeight = height
             }

@@ -54,6 +54,8 @@
 		A70000000000000000000003 /* TextOptionsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000013 /* TextOptionsPanel.swift */; };
 		A80000000000000000000001 /* AlignmentGuidesLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000011 /* AlignmentGuidesLayer.swift */; };
 		A90000000000000000000001 /* BrowserLoadModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90000000000000000000011 /* BrowserLoadModel.swift */; };
+		AB0000000000000000000002 /* Color+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000001 /* Color+Hex.swift */; };
+		AB0000000000000000000004 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000003 /* Theme.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -106,6 +108,8 @@
 		A70000000000000000000013 /* TextOptionsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/TextOptionsPanel.swift; sourceTree = "<group>"; };
 		A80000000000000000000011 /* AlignmentGuidesLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/AlignmentGuidesLayer.swift; sourceTree = "<group>"; };
 		A90000000000000000000011 /* BrowserLoadModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/BrowserLoadModel.swift; sourceTree = "<group>"; };
+		AB0000000000000000000001 /* Color+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Hex.swift"; sourceTree = "<group>"; };
+		AB0000000000000000000003 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -129,9 +133,19 @@
 			);
 			sourceTree = "<group>";
 		};
+		AB0000000000000000000005 /* Design */ = {
+			isa = PBXGroup;
+			children = (
+				AB0000000000000000000001 /* Color+Hex.swift */,
+				AB0000000000000000000003 /* Theme.swift */,
+			);
+			path = Design;
+			sourceTree = "<group>";
+		};
 		A10000000000000000000023 /* VoidloomApp */ = {
 			isa = PBXGroup;
 			children = (
+				AB0000000000000000000005 /* Design */,
 				A10000000000000000000011 /* VoidloomApp.swift */,
 				A10000000000000000000012 /* RootView.swift */,
 				A100000000000000000000F1 /* CanvasKeyMonitor.swift */,
@@ -312,6 +326,8 @@
 				A80000000000000000000001 /* AlignmentGuidesLayer.swift in Sources */,
 				A90000000000000000000001 /* BrowserLoadModel.swift in Sources */,
 				A10000000000000000000005 /* PreviewSupport.swift in Sources */,
+				AB0000000000000000000002 /* Color+Hex.swift in Sources */,
+				AB0000000000000000000004 /* Theme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

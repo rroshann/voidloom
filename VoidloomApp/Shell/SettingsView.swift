@@ -115,7 +115,7 @@ private struct GeneralSettingsTab: View {
 
 private struct AppearanceSettingsTab: View {
     @AppStorage("appearance.mode") private var appearanceMode: AppearanceMode = .system
-    @State private var accentColor: Color = .accentColor
+    @AppStorage("appearance.accentHex") private var accentHex = "#5EE6D3"
     @AppStorage("appearance.reduceTransparency") private var reduceTransparency = false
     @AppStorage("appearance.canvasBackground") private var canvasBackground: CanvasBackground = .dots
     @AppStorage("appearance.backgroundContrast") private var backgroundContrast = 0.35
@@ -131,7 +131,10 @@ private struct AppearanceSettingsTab: View {
                 }
                 .pickerStyle(.segmented)
 
-                ColorPicker("Accent color", selection: $accentColor, supportsOpacity: false)
+                ColorPicker("Accent color", selection: Binding(
+                    get: { Color(hex: accentHex) },
+                    set: { accentHex = $0.toHex() }
+                ), supportsOpacity: false)
 
                 Toggle("Reduce transparency in panels", isOn: $reduceTransparency)
             }
