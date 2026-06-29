@@ -52,6 +52,7 @@
 		A70000000000000000000002 /* TextElementEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000012 /* TextElementEditor.swift */; };
 		A70000000000000000000003 /* TextOptionsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000013 /* TextOptionsPanel.swift */; };
 		A80000000000000000000001 /* AlignmentGuidesLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000011 /* AlignmentGuidesLayer.swift */; };
+		A90000000000000000000001 /* BrowserLoadModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90000000000000000000011 /* BrowserLoadModel.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -102,6 +103,7 @@
 		A70000000000000000000012 /* TextElementEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/TextElementEditor.swift; sourceTree = "<group>"; };
 		A70000000000000000000013 /* TextOptionsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/TextOptionsPanel.swift; sourceTree = "<group>"; };
 		A80000000000000000000011 /* AlignmentGuidesLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/AlignmentGuidesLayer.swift; sourceTree = "<group>"; };
+		A90000000000000000000011 /* BrowserLoadModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/BrowserLoadModel.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -167,6 +169,7 @@
 				A30000000000000000000014 /* TodoCardContentView.swift */,
 				A30000000000000000000015 /* BrowserWebView.swift */,
 				A30000000000000000000016 /* BrowserCardContentView.swift */,
+				A90000000000000000000011 /* BrowserLoadModel.swift */,
 				A30000000000000000000017 /* AgentTerminalView.swift */,
 				A20000000000000000000017 /* CardPalette.swift */,
 				A30000000000000000000011 /* AgentSessionManager.swift */,
@@ -303,6 +306,7 @@
 				A70000000000000000000002 /* TextElementEditor.swift in Sources */,
 				A70000000000000000000003 /* TextOptionsPanel.swift in Sources */,
 				A80000000000000000000001 /* AlignmentGuidesLayer.swift in Sources */,
+				A90000000000000000000001 /* BrowserLoadModel.swift in Sources */,
 				A10000000000000000000005 /* PreviewSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

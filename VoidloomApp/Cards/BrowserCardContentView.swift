@@ -7,6 +7,7 @@ struct BrowserCardContentView: View {
     @ObservedObject var store: WorkspaceStore
     let isSelected: Bool
 
+    @StateObject private var loadModel = BrowserLoadModel()
     @State private var urlDraft: String
     @State private var isEditingURL = false
     @FocusState private var isURLFieldFocused: Bool
@@ -33,6 +34,8 @@ struct BrowserCardContentView: View {
                             .focused($isURLFieldFocused)
                             .onSubmit(commitURL)
                             .onExitCommand { cancelURLEdit() }
+                            .foregroundStyle(urlDraft.isEmpty || BrowserURLResolver.isValid(urlDraft)
+                                             ? .white.opacity(0.55) : .red.opacity(0.8))
                     } else {
                         Text(displayURL)
                             .lineLimit(1)
@@ -55,9 +58,41 @@ struct BrowserCardContentView: View {
             }
             .allowsHitTesting(isSelected)
 
-            BrowserWebView(urlString: content)
-                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                .allowsHitTesting(isSelected)
+            ZStack {
+                BrowserWebView(urlString: content, model: loadModel)
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                    .allowsHitTesting(isSelected)
+
+                if loadModel.isLoading {
+                    VStack {
+                        ProgressView(value: loadModel.progress)
+                            .progressViewStyle(.linear)
+                            .tint(.white.opacity(0.7))
+                        Spacer()
+                    }
+                    .padding(8)
+                    .allowsHitTesting(false)
+                }
+
+                if let error = loadModel.lastError {
+                    VStack(spacing: 12) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.title2).foregroundStyle(.orange)
+                        Text("Couldn't load page").font(.headline).foregroundStyle(.white.opacity(0.9))
+                        Text(error).font(.caption).foregroundStyle(.white.opacity(0.6))
+                            .multilineTextAlignment(.center).lineLimit(3)
+                        Button("Retry") { loadModel.reload() }
+                            .buttonStyle(.plain)
+                            .padding(.horizontal, 14).padding(.vertical, 7)
+                            .background(.white.opacity(0.12), in: Capsule())
+                            .foregroundStyle(.white.opacity(0.85))
+                    }
+                    .padding(20)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .background(.black.opacity(0.45))
+                    .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                }
+            }
         }
         .padding(12)
         .onChange(of: isURLFieldFocused) { _, focused in
@@ -83,9 +118,13 @@ struct BrowserCardContentView: View {
 
     private func commitURL() {
         let trimmed = urlDraft.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard BrowserURLResolver.isValid(trimmed) else {
+            // keep editing; the red tint (below) signals invalid; do not persist garbage.
+            return
+        }
         isEditingURL = false
         isURLFieldFocused = false
-        store.updateCardContent(id: cardID, to: trimmed.isEmpty ? "https://voidloom.local" : trimmed)
+        store.updateCardContent(id: cardID, to: trimmed)
     }
 
     private func cancelURLEdit() {
