@@ -114,29 +114,6 @@ private struct GeneralSettingsTab: View {
 // MARK: - Appearance
 
 private struct AppearanceSettingsTab: View {
-    enum AppearanceMode: String, CaseIterable, Identifiable {
-        case system = "System"
-        case light = "Light"
-        case dark = "Dark"
-        var id: String { rawValue }
-    }
-
-    enum CanvasBackground: String, CaseIterable, Identifiable {
-        case dots = "Dots"
-        case grid = "Grid"
-        case lines = "Lines"
-        case solid = "Solid"
-        case blueprint = "Blueprint"
-        var id: String { rawValue }
-    }
-
-    enum TextSize: String, CaseIterable, Identifiable {
-        case small = "Small"
-        case medium = "Medium"
-        case large = "Large"
-        var id: String { rawValue }
-    }
-
     @AppStorage("appearance.mode") private var appearanceMode: AppearanceMode = .system
     @State private var accentColor: Color = .accentColor
     @AppStorage("appearance.reduceTransparency") private var reduceTransparency = false
@@ -150,7 +127,7 @@ private struct AppearanceSettingsTab: View {
         Form {
             Section("Theme") {
                 Picker("Appearance", selection: $appearanceMode) {
-                    ForEach(AppearanceMode.allCases) { Text($0.rawValue).tag($0) }
+                    ForEach(AppearanceMode.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) }
                 }
                 .pickerStyle(.segmented)
 
@@ -161,7 +138,7 @@ private struct AppearanceSettingsTab: View {
 
             Section("Canvas") {
                 Picker("Background style", selection: $canvasBackground) {
-                    ForEach(CanvasBackground.allCases) { Text($0.rawValue).tag($0) }
+                    ForEach(CanvasBackground.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) }
                 }
                 .pickerStyle(.menu)
 
@@ -181,7 +158,7 @@ private struct AppearanceSettingsTab: View {
 
             Section("Interface Text") {
                 Picker("Interface text size", selection: $textSize) {
-                    ForEach(TextSize.allCases) { Text($0.rawValue).tag($0) }
+                    ForEach(TextSize.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) }
                 }
                 .pickerStyle(.menu)
 

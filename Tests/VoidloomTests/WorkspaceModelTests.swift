@@ -2203,4 +2203,16 @@ final class WorkspaceModelTests: XCTestCase {
         let t = ConversationReducer.appendingUserAndPendingAssistant([], userText: "question", assistantID: id)
         XCTAssertEqual(ConversationReducer.userText(before: id, in: t), "question")
     }
+
+    // MARK: - Appearance enums (Task D1)
+
+    func testTextSizeFontScale() {
+        XCTAssertEqual(TextSize.small.fontScale, 0.9, accuracy: 0.0001)
+        XCTAssertEqual(TextSize.medium.fontScale, 1.0, accuracy: 0.0001)
+        XCTAssertEqual(TextSize.large.fontScale, 1.1, accuracy: 0.0001)
+    }
+
+    func testAppearanceModeRoundTripsRawValue() {
+        XCTAssertEqual(AppearanceMode(rawValue: "dark"), .dark)
+    }
 }
