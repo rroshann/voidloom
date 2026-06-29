@@ -70,6 +70,11 @@ final class CanvasInteractionModel: ObservableObject {
     /// panel. Mutually exclusive with the canvas ring so the two never overlap.
     @Published var isAdjustingEraserSize: Bool = false
 
+    /// Transient alignment guide lines produced by the snapping engine while a
+    /// card is being dragged. Populated by the drag handler; cleared on drag end.
+    /// Consumed by `AlignmentGuidesLayer` to draw the overlay lines.
+    @Published var activeAlignmentGuides: [AlignmentGuide] = []
+
     /// The text element currently in inline-edit mode, if any. Set when a text
     /// element is created (place-drag, double-click dock, or palette) or when
     /// the user double-taps an existing element. Read by `TextElementView` to
