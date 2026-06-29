@@ -10,7 +10,7 @@ struct VoidloomApp: App {
     @StateObject private var conversationStore = ConversationStore()
     @StateObject private var interaction = CanvasInteractionModel()
 
-    @AppStorage("appearance.mode") private var appearanceMode: AppearanceMode = .system
+    @AppStorage("appearance.mode") private var appearanceMode: AppearanceMode = .dark
     @AppStorage("appearance.accentHex") private var accentHex = "#5EE6D3"
     @AppStorage("appearance.canvasBackground") private var canvasBackground: CanvasBackground = .dots
     @AppStorage("appearance.backgroundContrast") private var backgroundContrast = 0.35
@@ -43,6 +43,7 @@ struct VoidloomApp: App {
                 .environmentObject(agentSessionManager)
                 .environment(\.theme, theme)
                 .preferredColorScheme(theme.colorScheme)
+                .tint(theme.accent)
                 .frame(minWidth: 1180, minHeight: 760)
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
                     agentSessionManager.terminateAllSessions()

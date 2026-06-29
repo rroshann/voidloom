@@ -114,7 +114,7 @@ private struct GeneralSettingsTab: View {
 // MARK: - Appearance
 
 private struct AppearanceSettingsTab: View {
-    @AppStorage("appearance.mode") private var appearanceMode: AppearanceMode = .system
+    @AppStorage("appearance.mode") private var appearanceMode: AppearanceMode = .dark
     @AppStorage("appearance.accentHex") private var accentHex = "#5EE6D3"
     @AppStorage("appearance.reduceTransparency") private var reduceTransparency = false
     @AppStorage("appearance.canvasBackground") private var canvasBackground: CanvasBackground = .dots
