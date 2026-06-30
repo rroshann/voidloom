@@ -13,6 +13,9 @@ struct SpacesShellView: View {
     @State private var topBarHeight: CGFloat = 0
     @State private var dockHeight: CGFloat = 0
 
+    /// Index of the tile currently being dragged, or nil when idle.
+    @State private var draggingIndex: Int?
+
     private static let topPadding: CGFloat = 16
     private static let bottomPadding: CGFloat = 24
     private static let dockGap: CGFloat = 16
@@ -47,17 +50,38 @@ struct SpacesShellView: View {
                 }
 
                 // Single ForEach + zIndex (Canvas gotcha #1 discipline: never split
-                // the selected tile into its own branch). Selected tile floats above.
+                // the selected tile into its own branch). Dragged tile floats highest;
+                // selected tile floats above idle tiles.
                 ForEach(Array(orderedIDs.enumerated()), id: \.element) { index, id in
                     if let card = cardsByID[id], index < layout.tileOrigins.count {
                         let origin = layout.tileOrigins[index]
-                        SpaceTileCard(card: card, store: store, sessionManager: sessionManager)
-                            .frame(width: layout.tileSize.x, height: layout.tileSize.y)
-                            .position(
-                                x: origin.x + layout.tileSize.x / 2,
-                                y: origin.y + layout.tileSize.y / 2
-                            )
-                            .zIndex(store.state.selectedCardID == id ? 1 : 0)
+                        SpaceTileCard(
+                            card: card,
+                            index: index,
+                            store: store,
+                            sessionManager: sessionManager,
+                            onDragChanged: { _ in
+                                if draggingIndex != index { draggingIndex = index }
+                            },
+                            onDropped: { globalLocation in
+                                let geoFrame = geo.frame(in: .global)
+                                let geoOrigin = CGPoint(x: geoFrame.origin.x, y: geoFrame.origin.y)
+                                if let target = slotIndex(
+                                    for: globalLocation,
+                                    layout: layout,
+                                    geoOrigin: geoOrigin
+                                ), target != index {
+                                    store.moveSpaceCard(fromIndex: index, toIndex: target)
+                                }
+                                draggingIndex = nil
+                            }
+                        )
+                        .frame(width: layout.tileSize.x, height: layout.tileSize.y)
+                        .position(
+                            x: origin.x + layout.tileSize.x / 2,
+                            y: origin.y + layout.tileSize.y / 2
+                        )
+                        .zIndex(draggingIndex == index ? 2 : (store.state.selectedCardID == id ? 1 : 0))
                     }
                 }
                 .animation(.spring(response: 0.4, dampingFraction: 0.85), value: orderedIDs)
@@ -106,11 +130,30 @@ struct SpacesShellView: View {
     }
 
     private func reTile() {
-        // Order already follows the cards array in v0; clearing any manual order
-        // resets to default. Layout is derived, so this just nudges a re-render.
-        var tiling = store.state.space?.tiling ?? SpaceTiling()
+        // Order follows the cards array (drag-to-reorder mutates that array via
+        // store.moveSpaceCard). Layout is derived, so persisting the current tiling
+        // nudges a re-render without discarding any reordered positions.
+        let tiling = store.state.space?.tiling ?? SpaceTiling()
         store.setSpaceTiling(tiling)   // immediate persist; layout recomputes
-        _ = tiling   // (no-op placeholder; real reorder reset arrives with Task 12)
+        draggingIndex = nil
+    }
+
+    /// Returns the tile index whose frame contains `globalPoint` (converted to the
+    /// GeometryReader's local space via `geoOrigin`), or nil if no tile was hit.
+    private func slotIndex(
+        for globalPoint: CGPoint,
+        layout: SpaceGrid.Layout,
+        geoOrigin: CGPoint
+    ) -> Int? {
+        let lx = globalPoint.x - geoOrigin.x
+        let ly = globalPoint.y - geoOrigin.y
+        for (i, origin) in layout.tileOrigins.enumerated() {
+            if lx >= origin.x && lx <= origin.x + layout.tileSize.x
+                && ly >= origin.y && ly <= origin.y + layout.tileSize.y {
+                return i
+            }
+        }
+        return nil
     }
 }
 
