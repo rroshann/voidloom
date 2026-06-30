@@ -2219,6 +2219,24 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertLessThan(rangeA.lowerBound, rangeB.lowerBound, "focus card must appear before neighbor")
     }
 
+    func testLinkedContextIsEmptyForBlankUnlinkedCard() throws {
+        let id = try XCTUnwrap(UUID(uuidString: "EC200000-0000-0000-0000-000000000001"))
+        let state = WorkspaceState(cards: [
+            WorkspaceCard(
+                id: id,
+                kind: .note,
+                position: .zero,
+                size: CardSize(width: 300, height: 200),
+                title: "",
+                content: ""
+            )
+        ])
+
+        let context = state.linkedContext(for: id)
+
+        XCTAssertEqual(context, "", "blank unlinked card must produce an empty context string, not a bare newline")
+    }
+
     func testConnectionTypeDefaultsToGenericForLegacyJSON() throws {
         let legacyJSON = """
         {"id":"DEADBEEF-0000-0000-0000-000000000001","from":"DEADBEEF-0000-0000-0000-000000000002","to":"DEADBEEF-0000-0000-0000-000000000003"}
@@ -2358,6 +2376,47 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(
             recoveredStore.state.cards.count, savedCardCount,
             "state must be recovered from the newest backup when the current file is corrupt"
+        )
+    }
+
+    @MainActor
+    func testRecoversFromBackupOnCorruptFileEvenAfterCleanShutdown() throws {
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let libraryURL = baseDirectory.appendingPathComponent("library.json")
+        let workspacesDirectory = baseDirectory.appendingPathComponent("workspaces", isDirectory: true)
+        let legacyURL = baseDirectory.appendingPathComponent("workspace.json")
+
+        // First launch: create store, add card (persists immediately + writes backup).
+        let store = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: legacyURL
+        )
+        store.addCard(kind: .note)
+        let savedCardCount = store.state.cards.count
+        let workspaceID = store.library.selectedWorkspaceID
+
+        // Graceful (clean) shutdown — the bug case: shutdown was clean but the file
+        // gets corrupted afterwards (disk error, external tool, etc.).
+        store.markCleanShutdown()
+
+        // Corrupt the current workspace file after the clean shutdown.
+        let workspaceFileURL = WorkspaceStore.workspaceURL(for: workspaceID, in: workspacesDirectory)
+        try "{ not json".data(using: .utf8)!.write(to: workspaceFileURL)
+
+        // Second launch must still recover from backup even though shutdown was clean.
+        let recoveredStore = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: legacyURL
+        )
+
+        XCTAssertEqual(
+            recoveredStore.state.cards.count, savedCardCount,
+            "state must be recovered from backup even after a clean shutdown when the current file is corrupt"
         )
     }
 

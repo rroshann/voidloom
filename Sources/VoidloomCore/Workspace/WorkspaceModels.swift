@@ -479,6 +479,9 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     /// Assembles a single context string from the focus card plus every directly
     /// linked neighbor. The focus card's title + content comes first; neighbors
     /// follow in `cards` array order. Pure — no mutations, no I/O.
+    /// Returns an empty string when the assembled context has no non-whitespace
+    /// content (e.g. a blank, unlinked card), so callers receive a byte-equivalent
+    /// empty value rather than a lone newline.
     public func linkedContext(for id: UUID) -> String {
         guard let focus = cards.first(where: { $0.id == id }) else { return "" }
         var parts: [String] = ["\(focus.title)\n\(focus.content)"]
@@ -486,7 +489,8 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         for card in cards where neighborIDs.contains(card.id) {
             parts.append("\(card.title)\n\(card.content)")
         }
-        return parts.joined(separator: "\n\n")
+        let assembled = parts.joined(separator: "\n\n")
+        return assembled.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "" : assembled
     }
 
     public mutating func removeConnection(id: UUID) {

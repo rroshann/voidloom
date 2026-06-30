@@ -646,19 +646,23 @@ public final class WorkspaceStore: ObservableObject {
             // Attempt to load current workspace; nil if missing OR corrupt.
             let loadedState = try? load(from: wsURL)
 
-            // Recover from backup when shutdown was unclean AND current file is missing or corrupt.
-            let wasClean = readShutdownMarker(from: shutdownMarkerURL)
-            if shouldRecover(cleanShutdown: wasClean, currentLoadable: loadedState != nil) {
+            // Recover from the newest valid backup whenever the current file is
+            // missing or corrupt — independent of the cleanShutdown flag.
+            if shouldRecover(currentLoadable: loadedState != nil) {
                 let baseDir = shutdownMarkerURL.deletingLastPathComponent()
                 let backupDir = backupsDirectory(for: library.selectedWorkspaceID, relativeTo: baseDir)
-                if let backupFiles = try? FileManager.default.contentsOfDirectory(atPath: backupDir.path),
-                   let newestName = backupFiles.filter({ $0.hasSuffix(".json") }).sorted().last,
-                   let recovered = try? load(from: backupDir.appendingPathComponent(newestName)) {
-                    return LoadedLibrary(library: library, state: recovered)
+                if let backupFiles = try? FileManager.default.contentsOfDirectory(atPath: backupDir.path) {
+                    for name in backupFiles.filter({ $0.hasSuffix(".json") }).sorted().reversed() {
+                        if let recovered = try? load(from: backupDir.appendingPathComponent(name)) {
+                            return LoadedLibrary(library: library, state: recovered)
+                        }
+                    }
                 }
             }
 
             // Use successfully-loaded state or fall back to a fresh seed workspace.
+            // Only reaches here when current file loaded successfully, or when no
+            // valid backup exists to recover from.
             let state = loadedState ?? makeSeedState()
             if loadedState == nil { try? save(state, to: wsURL) }
             return LoadedLibrary(library: library, state: state)
@@ -821,10 +825,12 @@ public final class WorkspaceStore: ObservableObject {
     // MARK: - Recovery decision (pure, testable)
 
     /// Returns true when the store should attempt to load from a backup.
-    /// Recovery is warranted only when the previous session did NOT shut down
-    /// cleanly AND the current workspace file is missing or corrupt (not loadable).
-    nonisolated public static func shouldRecover(cleanShutdown: Bool, currentLoadable: Bool) -> Bool {
-        !cleanShutdown && !currentLoadable
+    /// Recovery is warranted whenever the current workspace file is missing or
+    /// corrupt (not loadable), regardless of how the previous session ended.
+    /// The cleanShutdown marker is still written on terminate but no longer gates
+    /// this decision — a clean shutdown followed by file corruption must recover.
+    nonisolated public static func shouldRecover(currentLoadable: Bool) -> Bool {
+        !currentLoadable
     }
 
     // MARK: - Rolling backup helpers (pure, testable)
