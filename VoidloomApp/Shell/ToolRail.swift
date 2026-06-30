@@ -7,6 +7,8 @@ struct ToolDock: View {
     let errorMessage: String?
     let isAIHintActive: Bool
     let onToggleAIHint: () -> Void
+    let isMinimapVisible: Bool
+    let onToggleMinimap: () -> Void
     let zoomScale: Double
     let onZoomIn: () -> Void
     let onZoomOut: () -> Void
@@ -99,6 +101,14 @@ struct ToolDock: View {
 
             DockButton(systemName: "scope", label: "Reset") {
                 store.resetViewport()
+            }
+
+            DockButton(
+                systemName: "map",
+                label: isMinimapVisible ? "Hide minimap" : "Show minimap",
+                isActive: isMinimapVisible
+            ) {
+                onToggleMinimap()
             }
 
             DockDivider()
@@ -204,26 +214,33 @@ private struct DockPressStyle: ButtonStyle {
 private struct DockButton: View {
     let systemName: String
     let label: String
+    var isActive: Bool = false
     let action: () -> Void
+
+    private let accent = Color.teal
 
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 16, weight: .semibold))
                 .frame(width: 40, height: 40)
-                .foregroundStyle(.white.opacity(0.86))
+                .foregroundStyle(isActive ? accent : .white.opacity(0.86))
                 .background(
                     RoundedRectangle(cornerRadius: 11, style: .continuous)
-                        .fill(.white.opacity(0.08))
+                        .fill(.white.opacity(isActive ? 0.14 : 0.08))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 11, style: .continuous)
-                        .stroke(.white.opacity(0.06), lineWidth: 1)
+                        .stroke(
+                            isActive ? accent.opacity(0.55) : .white.opacity(0.06),
+                            lineWidth: isActive ? 1.5 : 1
+                        )
                 )
         }
         .buttonStyle(.plain)
         .pointerCursor()
         .help(label)
+        .animation(.easeInOut(duration: 0.15), value: isActive)
     }
 }
 

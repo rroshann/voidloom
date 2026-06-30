@@ -9,6 +9,7 @@ struct RootView: View {
     @ObservedObject var interaction: CanvasInteractionModel
 
     @AppStorage("isWorkspaceSidebarVisible") private var isWorkspaceSidebarVisible = false
+    @AppStorage("isMinimapVisible") private var isMinimapVisible = false
     @State private var isCommandBarVisible = false
     @State private var isAIConversationVisible = false
     @State private var commandText = ""
@@ -227,6 +228,8 @@ struct RootView: View {
                             errorMessage: store.lastPersistenceError,
                             isAIHintActive: isCommandBarVisible || isAIConversationVisible,
                             onToggleAIHint: toggleAISurface,
+                            isMinimapVisible: isMinimapVisible,
+                            onToggleMinimap: { isMinimapVisible.toggle() },
                             zoomScale: store.state.viewport.scale,
                             onZoomIn: {
                                 let anchor = ScreenPoint(
@@ -324,6 +327,16 @@ struct RootView: View {
                 )
                 .zIndex(3)
 
+                // Minimap overview panel: bottom-right, above the dock chrome.
+                if isMinimapVisible {
+                    MinimapPanel(store: store, viewportSize: geometry.size)
+                        .padding(.trailing, 24)
+                        .padding(.bottom, measuredDockHeight + Self.bottomChromePadding + 12)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                        .transition(.opacity)
+                        .zIndex(3.5)
+                }
+
                 if isCommandPaletteVisible {
                     CommandPaletteView(
                         query: $paletteQuery,
@@ -362,6 +375,7 @@ struct RootView: View {
             .animation(.easeInOut(duration: 0.15), value: isCommandPaletteVisible)
             .animation(.easeInOut(duration: 0.24), value: isWorkspaceSidebarVisible)
             .animation(.easeInOut(duration: 0.24), value: isAIConversationVisible)
+            .animation(.easeInOut(duration: 0.22), value: isMinimapVisible)
             .onPreferenceChange(DockHeightPreferenceKey.self) { height in
                 measuredDockHeight = height
             }

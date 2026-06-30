@@ -43,6 +43,7 @@
 		A70000000000000000000091 /* CanvasToolCursor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000092 /* CanvasToolCursor.swift */; };
 		A70000000000000000000093 /* EraserFootprintRing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000094 /* EraserFootprintRing.swift */; };
 		A70000000000000000000095 /* EraserSizePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000096 /* EraserSizePreview.swift */; };
+		A80000000000000000000001 /* MinimapPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000011 /* MinimapPanel.swift */; };
 		A60000000000000000000003 /* CanvasInteractionLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000013 /* CanvasInteractionLayer.swift */; };
 		A60000000000000000000004 /* BrushOptionsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000014 /* BrushOptionsPanel.swift */; };
 		A60000000000000000000005 /* EraserOptionsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000015 /* EraserOptionsPanel.swift */; };
@@ -96,6 +97,7 @@
 		A70000000000000000000092 /* CanvasToolCursor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/CanvasToolCursor.swift; sourceTree = "<group>"; };
 		A70000000000000000000094 /* EraserFootprintRing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/EraserFootprintRing.swift; sourceTree = "<group>"; };
 		A70000000000000000000096 /* EraserSizePreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/EraserSizePreview.swift; sourceTree = "<group>"; };
+		A80000000000000000000011 /* MinimapPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/MinimapPanel.swift; sourceTree = "<group>"; };
 		A60000000000000000000013 /* CanvasInteractionLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/CanvasInteractionLayer.swift; sourceTree = "<group>"; };
 		A60000000000000000000014 /* BrushOptionsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/BrushOptionsPanel.swift; sourceTree = "<group>"; };
 		A60000000000000000000015 /* EraserOptionsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/EraserOptionsPanel.swift; sourceTree = "<group>"; };
@@ -158,6 +160,7 @@
 				A70000000000000000000092 /* CanvasToolCursor.swift */,
 				A70000000000000000000094 /* EraserFootprintRing.swift */,
 				A70000000000000000000096 /* EraserSizePreview.swift */,
+				A80000000000000000000011 /* MinimapPanel.swift */,
 				A60000000000000000000013 /* CanvasInteractionLayer.swift */,
 				A60000000000000000000014 /* BrushOptionsPanel.swift */,
 				A60000000000000000000015 /* EraserOptionsPanel.swift */,
@@ -311,6 +314,7 @@
 				A70000000000000000000091 /* CanvasToolCursor.swift in Sources */,
 				A70000000000000000000093 /* EraserFootprintRing.swift in Sources */,
 				A70000000000000000000095 /* EraserSizePreview.swift in Sources */,
+				A80000000000000000000001 /* MinimapPanel.swift in Sources */,
 				A60000000000000000000003 /* CanvasInteractionLayer.swift in Sources */,
 				A60000000000000000000004 /* BrushOptionsPanel.swift in Sources */,
 				A60000000000000000000005 /* EraserOptionsPanel.swift in Sources */,
