@@ -121,3 +121,39 @@ extension SpaceModelTests {
         XCTAssertEqual(state.space!.backgroundDimming, 0.0, accuracy: 0.0001)
     }
 }
+
+extension SpaceModelTests {
+    @MainActor
+    func testSetSpaceBackgroundPersistsImmediately() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(state: WorkspaceState(cards: []), storageURL: url, persistenceDelay: 0)
+        store.setSpaceBackground(.solid(hex: "#123456FF"))
+
+        let reloaded = try WorkspaceStore.load(from: url)   // synchronous immediate write
+        XCTAssertEqual(reloaded.space?.background, .solid(hex: "#123456FF"))
+    }
+
+    @MainActor
+    func testImportBackgroundImageCopiesAndReferences() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).appendingPathExtension("json")
+        let source = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).appendingPathExtension("png")
+        try Data([0x89, 0x50, 0x4E, 0x47]).write(to: source)   // dummy PNG header bytes
+        defer {
+            try? FileManager.default.removeItem(at: url)
+            try? FileManager.default.removeItem(at: source)
+        }
+
+        let store = WorkspaceStore(state: WorkspaceState(cards: []), storageURL: url, persistenceDelay: 0)
+        let fileName = try XCTUnwrap(store.importBackgroundImage(from: source))
+
+        let copied = store.backgroundsDirectoryURL().appendingPathComponent(fileName)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: copied.path))
+        XCTAssertEqual(store.state.space?.background, .image(fileName: fileName))
+        try? FileManager.default.removeItem(at: copied)
+    }
+}
