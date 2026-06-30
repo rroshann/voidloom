@@ -59,6 +59,8 @@ struct CanvasWorkspaceView: View {
     /// box. Two-finger trackpad pan is unaffected and always pans.
     @AppStorage("canvas.selectionBoxModifier") private var selectionBoxModifier: SelectionBoxModifier = .none
 
+    @Environment(\.theme) private var theme
+
     /// Minimum spacing (canvas units) between accumulated brush points, so a
     /// stroke stays compact regardless of how fast the cursor moves.
     private let minStrokePointSpacing: Double = 1.5
@@ -299,7 +301,7 @@ struct CanvasWorkspaceView: View {
         }
     }
 
-    private let connectAccent = Color(red: 0.34, green: 0.93, blue: 0.82)
+    private var connectAccent: Color { theme.accent }
 
     private func addCard(kind: CardKind, atViewPoint point: CGPoint) {
         let canvasPoint = store.state.viewport.canvasPoint(

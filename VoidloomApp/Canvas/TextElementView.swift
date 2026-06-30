@@ -17,13 +17,13 @@ struct TextElementView: View {
     @State private var draftText = ""
     @State private var isResizing = false
 
-    private let accent = Color(red: 0.34, green: 0.93, blue: 0.82)
-
     @Environment(\.theme) private var theme
+
+    private var accent: Color { theme.accent }
 
     private var isSelected: Bool { store.state.selectedTextID == element.id }
     private var isEditing: Bool { editingTextID == element.id }
-    private var textColor: Color { Color(hexString: element.colorHex) ?? .white }
+    private var textColor: Color { Color(hexString: element.colorHex) ?? theme.ink(0.92) }
 
     /// The display font for the element: a named face when one is set, otherwise
     /// the default system-rounded face. Mirrors `TextElementEditor.resolveFont`.

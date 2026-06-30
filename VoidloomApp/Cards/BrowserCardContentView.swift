@@ -122,14 +122,14 @@ struct BrowserCardContentView: View {
                     VStack(spacing: 12) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.title2).foregroundStyle(.orange)
-                        Text("Couldn't load page").font(.headline).foregroundStyle(theme.ink(0.9))
-                        Text(error).font(.caption).foregroundStyle(theme.ink(0.6))
+                        Text("Couldn't load page").font(.headline).foregroundStyle(.white.opacity(0.9))
+                        Text(error).font(.caption).foregroundStyle(.white.opacity(0.6))
                             .multilineTextAlignment(.center).lineLimit(3)
                         Button("Retry") { loadModel.reload() }
                             .buttonStyle(.plain)
                             .padding(.horizontal, 14).padding(.vertical, 7)
-                            .background(theme.surface(0.12), in: Capsule())
-                            .foregroundStyle(theme.ink(0.85))
+                            .background(.white.opacity(0.12), in: Capsule())
+                            .foregroundStyle(.white.opacity(0.85))
                     }
                     .padding(20)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
