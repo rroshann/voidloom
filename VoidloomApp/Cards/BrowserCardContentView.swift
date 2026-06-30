@@ -41,6 +41,8 @@ struct BrowserCardContentView: View {
                     } else {
                         Text(displayURL)
                             .lineLimit(1)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
                             .onTapGesture {
                                 guard isSelected else { return }
                                 // Pre-populate draft with the live URL so the user edits what they see
