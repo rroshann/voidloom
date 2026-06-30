@@ -42,6 +42,8 @@ struct CanvasRightClickCatcher: NSViewRepresentable {
 struct CanvasContextMenu: View {
     let onSelect: (CardKind) -> Void
 
+    @Environment(\.theme) private var theme
+
     private struct Item: Identifiable {
         let kind: CardKind
         let title: String
@@ -69,7 +71,7 @@ struct CanvasContextMenu: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 12, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .stroke(.white.opacity(0.12), lineWidth: 1)
+                .stroke(theme.ink(0.12), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.4), radius: 24, x: 0, y: 14)
     }
@@ -81,18 +83,19 @@ private struct MenuRow: View {
     let action: () -> Void
 
     @State private var isHovering = false
+    @Environment(\.theme) private var theme
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 10) {
                 Image(systemName: systemImage)
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.82))
+                    .foregroundStyle(theme.ink(0.82))
                     .frame(width: 20)
 
                 Text(title)
                     .font(.system(size: 13, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.9))
+                    .foregroundStyle(theme.ink(0.9))
 
                 Spacer(minLength: 0)
             }
@@ -100,7 +103,7 @@ private struct MenuRow: View {
             .padding(.vertical, 7)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(.white.opacity(isHovering ? 0.12 : 0))
+                    .fill(theme.surface(isHovering ? 0.12 : 0))
             )
             .contentShape(Rectangle())
         }

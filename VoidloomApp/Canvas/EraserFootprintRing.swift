@@ -8,10 +8,12 @@ import SwiftUI
 struct EraserFootprintRing: View {
     let diameter: CGFloat
 
+    @Environment(\.theme) private var theme
+
     var body: some View {
         ZStack {
             Circle().stroke(Color.black.opacity(0.45), lineWidth: 3)
-            Circle().stroke(Color.white.opacity(0.95), lineWidth: 1.5)
+            Circle().stroke(theme.ink(0.95), lineWidth: 1.5)
         }
         .frame(width: diameter, height: diameter)
         .allowsHitTesting(false)

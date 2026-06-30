@@ -74,6 +74,8 @@ struct ConnectionHitLayer: View {
 struct ConnectionDeleteButton: View {
     let action: () -> Void
 
+    @Environment(\.theme) private var theme
+
     var body: some View {
         Button(action: action) {
             Image(systemName: "xmark")
@@ -84,7 +86,7 @@ struct ConnectionDeleteButton: View {
                     Circle().fill(Color.red.opacity(0.92))
                 )
                 .overlay(
-                    Circle().stroke(.white.opacity(0.55), lineWidth: 1)
+                    Circle().stroke(theme.ink(0.55), lineWidth: 1)
                 )
                 .shadow(color: .black.opacity(0.3), radius: 4, x: 0, y: 2)
         }

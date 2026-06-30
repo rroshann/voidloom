@@ -19,6 +19,8 @@ struct TextElementView: View {
 
     private let accent = Color(red: 0.34, green: 0.93, blue: 0.82)
 
+    @Environment(\.theme) private var theme
+
     private var isSelected: Bool { store.state.selectedTextID == element.id }
     private var isEditing: Bool { editingTextID == element.id }
     private var textColor: Color { Color(hexString: element.colorHex) ?? .white }
@@ -136,7 +138,7 @@ struct TextElementView: View {
 
     private var selectionBackground: some View {
         RoundedRectangle(cornerRadius: 8, style: .continuous)
-            .fill(Color.white.opacity(isEditing ? 0.06 : (isSelected ? 0.03 : 0)))
+            .fill(theme.ink(isEditing ? 0.06 : (isSelected ? 0.03 : 0)))
     }
 
     private func beginEditing() {
