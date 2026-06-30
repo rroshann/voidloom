@@ -4,20 +4,18 @@ struct AtmosphereBackground: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
+        let glowScale: Double = theme.isDark ? 1.0 : 0.5
+
         ZStack {
             LinearGradient(
-                colors: [
-                    Color(red: 0.04, green: 0.05, blue: 0.07),
-                    Color(red: 0.08, green: 0.08, blue: 0.11),
-                    Color(red: 0.02, green: 0.09, blue: 0.11)
-                ],
+                colors: theme.atmosphereStops,
                 startPoint: .topLeading,
                 endPoint: .bottomTrailing
             )
 
             RadialGradient(
                 colors: [
-                    Color(red: 0.92, green: 0.42, blue: 0.18).opacity(0.28),
+                    Color(red: 0.92, green: 0.42, blue: 0.18).opacity(0.28 * glowScale),
                     .clear
                 ],
                 center: .topTrailing,
@@ -27,7 +25,7 @@ struct AtmosphereBackground: View {
 
             RadialGradient(
                 colors: [
-                    Color(red: 0.11, green: 0.68, blue: 0.67).opacity(0.24),
+                    Color(red: 0.11, green: 0.68, blue: 0.67).opacity(0.24 * glowScale),
                     .clear
                 ],
                 center: .bottomLeading,
@@ -37,7 +35,7 @@ struct AtmosphereBackground: View {
 
             if theme.showVignette {
                 RadialGradient(
-                    colors: [.clear, .black.opacity(0.35)],
+                    colors: [.clear, theme.vignetteColor.opacity(0.35)],
                     center: .center,
                     startRadius: 0,
                     endRadius: 900

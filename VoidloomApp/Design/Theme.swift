@@ -3,7 +3,8 @@ import SwiftUI
 import VoidloomCore
 
 struct Theme {
-    let colorScheme: ColorScheme?     // nil = follow system
+    let isDark: Bool
+    let colorScheme: ColorScheme?
     let accent: Color
     let primaryText: Color
     let secondaryText: Color
@@ -11,34 +12,68 @@ struct Theme {
     let border: Color
     let gridMinor: Color
     let gridMajor: Color
+    let atmosphereStops: [Color]
+    let vignetteColor: Color
     let canvasBackground: CanvasBackground
     let showVignette: Bool
     let fontScale: CGFloat
     let monospacedMetadata: Bool
+    private let reduceTransparency: Bool
 
     init(mode: AppearanceMode, accentHex: String, canvasBackground: CanvasBackground,
          backgroundContrast: Double, showVignette: Bool, textSize: TextSize,
          monospacedMetadata: Bool, reduceTransparency: Bool) {
-        switch mode {
-        case .system: colorScheme = nil
-        case .light: colorScheme = .light
-        case .dark: colorScheme = .dark
-        }
-        accent = Color(hex: accentHex)
+        let dark: Bool
+        switch mode { case .light: dark = false; case .dark, .system: dark = true }
+        self.isDark = dark
+        self.colorScheme = (mode == .system) ? nil : (mode == .light ? .light : .dark)
+        self.accent = Color(hex: accentHex)
         self.canvasBackground = canvasBackground
         self.showVignette = showVignette
-        fontScale = CGFloat(textSize.fontScale)
+        self.fontScale = CGFloat(textSize.fontScale)
         self.monospacedMetadata = monospacedMetadata
+        self.reduceTransparency = reduceTransparency
 
-        // Dark-first palette. (Light palette is a follow-on.)
         let op: (Double) -> Double = { reduceTransparency ? min(1, $0 * 1.6) : $0 }
-        primaryText = .white.opacity(op(0.92))
-        secondaryText = .white.opacity(op(0.72))
-        tertiaryText = .white.opacity(op(0.38))
-        border = .white.opacity(op(0.08))
-        let contrastK = backgroundContrast / 0.35
-        gridMinor = .white.opacity(0.035 * contrastK)
-        gridMajor = .white.opacity(0.085 * contrastK)
+        let k = backgroundContrast / 0.35
+
+        if dark {
+            primaryText   = .white.opacity(op(0.92))
+            secondaryText = .white.opacity(op(0.72))
+            tertiaryText  = .white.opacity(op(0.38))
+            border        = .white.opacity(op(0.08))
+            gridMinor     = .white.opacity(0.035 * k)
+            gridMajor     = .white.opacity(0.085 * k)
+            atmosphereStops = [
+                Color(red: 0.04, green: 0.05, blue: 0.07),
+                Color(red: 0.08, green: 0.08, blue: 0.11),
+                Color(red: 0.02, green: 0.09, blue: 0.11)
+            ]
+            vignetteColor = .black
+        } else {
+            primaryText   = Color(white: 0.08).opacity(op(0.92))
+            secondaryText = Color(white: 0.08).opacity(op(0.72))
+            tertiaryText  = Color(white: 0.08).opacity(op(0.38))
+            border        = Color.black.opacity(op(0.08))
+            gridMinor     = .black.opacity(0.05 * k)
+            gridMajor     = .black.opacity(0.10 * k)
+            atmosphereStops = [
+                Color(red: 0.96, green: 0.96, blue: 0.98),
+                Color(red: 0.93, green: 0.94, blue: 0.96),
+                Color(red: 0.90, green: 0.93, blue: 0.95)
+            ]
+            vignetteColor = .black
+        }
+    }
+
+    func ink(_ opacity: Double) -> Color {
+        let boosted = reduceTransparency ? Swift.min(1, opacity * 1.6) : opacity
+        return isDark ? Color.white.opacity(boosted) : Color(white: 0.08).opacity(boosted)
+    }
+
+    func surface(_ opacity: Double) -> Color {
+        let boosted = reduceTransparency ? Swift.min(1, opacity * 1.6) : opacity
+        return isDark ? Color.white.opacity(boosted) : Color.black.opacity(boosted)
     }
 }
 
