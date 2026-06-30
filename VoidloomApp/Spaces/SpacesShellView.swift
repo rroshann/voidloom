@@ -57,11 +57,28 @@ struct SpacesShellView: View {
                 }
                 .animation(.spring(response: 0.4, dampingFraction: 0.85), value: orderedIDs)
                 .animation(.spring(response: 0.4, dampingFraction: 0.85), value: layout.tileSize)
+
+                VStack {
+                    SpaceTopBar(store: store, sessionManager: sessionManager, onReTile: reTile)
+                        .background(GeometryReader { p in
+                            Color.clear.preference(key: SpacesTopBarHeightKey.self, value: p.size.height)
+                        })
+                        .padding(.top, Self.topPadding)
+                    Spacer()
+                }
             }
         }
         .preferredColorScheme(.dark)
         .onPreferenceChange(SpacesTopBarHeightKey.self) { topBarHeight = $0 }
         .onPreferenceChange(SpacesDockHeightKey.self) { dockHeight = $0 }
+    }
+
+    private func reTile() {
+        // Order already follows the cards array in v0; clearing any manual order
+        // resets to default. Layout is derived, so this just nudges a re-render.
+        var tiling = store.state.space?.tiling ?? SpaceTiling()
+        store.setSpaceTiling(tiling)   // immediate persist; layout recomputes
+        _ = tiling   // (no-op placeholder; real reorder reset arrives with Task 12)
     }
 }
 
