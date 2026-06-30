@@ -823,6 +823,13 @@ private struct CanvasTrackpadPanView: NSViewRepresentable {
         }
 
         private func handle(_ event: NSEvent) -> Bool {
+            // Only pan when no mouse button is held. A trackpad click+drag can
+            // coincide with spurious scrollWheel events (multi-finger contact,
+            // tap-drag ambiguity). Consuming those events while a button is down
+            // disrupts SwiftUI's DragGesture and prevents marquee selection.
+            // Bit 0 of pressedMouseButtons = left button.
+            guard NSEvent.pressedMouseButtons == 0 else { return false }
+
             // Only pan when the scroll targets the canvas window itself — not the
             // Settings window or any other window in the app.
             guard let hostWindow = hostView?.window, event.window === hostWindow else { return false }
