@@ -2324,6 +2324,44 @@ final class WorkspaceModelTests: XCTestCase {
     }
 
     @MainActor
+    func testRecoversFromBackupWhenCurrentFileIsCorruptAfterUncleanShutdown() throws {
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let libraryURL = baseDirectory.appendingPathComponent("library.json")
+        let workspacesDirectory = baseDirectory.appendingPathComponent("workspaces", isDirectory: true)
+        let legacyURL = baseDirectory.appendingPathComponent("workspace.json")
+
+        // First launch: create store, add card (persists immediately + writes backup).
+        let store = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: legacyURL
+        )
+        store.addCard(kind: .note)
+        let savedCardCount = store.state.cards.count
+        let workspaceID = store.library.selectedWorkspaceID
+
+        // Simulate crash: overwrite workspace file with invalid bytes, leave marker unclean.
+        let workspaceFileURL = WorkspaceStore.workspaceURL(for: workspaceID, in: workspacesDirectory)
+        try "{ not json".data(using: .utf8)!.write(to: workspaceFileURL)
+        // markCleanShutdown() is NOT called → marker stays false.
+
+        // Second launch should recover from the backup despite the corrupt (but present) file.
+        let recoveredStore = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: legacyURL
+        )
+
+        XCTAssertEqual(
+            recoveredStore.state.cards.count, savedCardCount,
+            "state must be recovered from the newest backup when the current file is corrupt"
+        )
+    }
+
+    @MainActor
     func testCleanShutdownMarkerRoundTrips() throws {
         let baseDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)

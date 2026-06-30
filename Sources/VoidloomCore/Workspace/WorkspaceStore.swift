@@ -643,28 +643,25 @@ public final class WorkspaceStore: ObservableObject {
             let library = try loadLibrary(from: libraryURL)
             let wsURL = workspaceURL(for: library.selectedWorkspaceID, in: workspacesDirectoryURL)
 
-            // Happy path: workspace loads cleanly.
-            if let state = try? load(from: wsURL) {
-                return LoadedLibrary(library: library, state: state)
-            }
+            // Attempt to load current workspace; nil if missing OR corrupt.
+            let loadedState = try? load(from: wsURL)
 
-            // Workspace missing or corrupt — try backup recovery if shutdown was unclean.
+            // Recover from backup when shutdown was unclean AND current file is missing or corrupt.
             let wasClean = readShutdownMarker(from: shutdownMarkerURL)
-            let currentExists = FileManager.default.fileExists(atPath: wsURL.path)
-            if shouldRecover(cleanShutdown: wasClean, currentExists: currentExists) {
+            if shouldRecover(cleanShutdown: wasClean, currentLoadable: loadedState != nil) {
                 let baseDir = shutdownMarkerURL.deletingLastPathComponent()
                 let backupDir = backupsDirectory(for: library.selectedWorkspaceID, relativeTo: baseDir)
                 if let backupFiles = try? FileManager.default.contentsOfDirectory(atPath: backupDir.path),
-                   let newestName = backupFiles.sorted().last,
+                   let newestName = backupFiles.filter({ $0.hasSuffix(".json") }).sorted().last,
                    let recovered = try? load(from: backupDir.appendingPathComponent(newestName)) {
                     return LoadedLibrary(library: library, state: recovered)
                 }
             }
 
-            // No recovery possible — create a fresh seed workspace in the existing library slot.
-            let freshState = makeSeedState()
-            try? save(freshState, to: wsURL)
-            return LoadedLibrary(library: library, state: freshState)
+            // Use successfully-loaded state or fall back to a fresh seed workspace.
+            let state = loadedState ?? makeSeedState()
+            if loadedState == nil { try? save(state, to: wsURL) }
+            return LoadedLibrary(library: library, state: state)
         } catch {
             // Library itself is unreadable — create a brand-new library.
             let workspaceID = UUID()
@@ -825,16 +822,16 @@ public final class WorkspaceStore: ObservableObject {
 
     /// Returns true when the store should attempt to load from a backup.
     /// Recovery is warranted only when the previous session did NOT shut down
-    /// cleanly AND the current workspace file no longer exists.
-    nonisolated public static func shouldRecover(cleanShutdown: Bool, currentExists: Bool) -> Bool {
-        !cleanShutdown && !currentExists
+    /// cleanly AND the current workspace file is missing or corrupt (not loadable).
+    nonisolated public static func shouldRecover(cleanShutdown: Bool, currentLoadable: Bool) -> Bool {
+        !cleanShutdown && !currentLoadable
     }
 
     // MARK: - Rolling backup helpers (pure, testable)
 
     /// Given a lexicographically-sorted list of backup filenames (oldest first),
     /// returns the names that should be deleted so only `keep` remain.
-    /// ISO8601-prefixed filenames sort chronologically when sorted lexicographically.
+    /// Fixed-width decimal timestamp (seconds since reference date) so lexicographic sort == chronological sort.
     nonisolated public static func backupsToPrune(existing: [String], keep: Int) -> [String] {
         let sorted = existing.sorted()
         let excess = sorted.count - keep
@@ -868,7 +865,7 @@ public final class WorkspaceStore: ObservableObject {
         try? save(state, to: backupURL)
 
         guard let files = try? FileManager.default.contentsOfDirectory(atPath: backupDir.path) else { return }
-        for name in backupsToPrune(existing: files, keep: keepCount) {
+        for name in backupsToPrune(existing: files.filter { $0.hasSuffix(".json") }, keep: keepCount) {
             try? FileManager.default.removeItem(at: backupDir.appendingPathComponent(name))
         }
     }
