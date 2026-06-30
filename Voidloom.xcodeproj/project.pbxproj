@@ -54,6 +54,7 @@
 		A80000000000000000000001 /* AppMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000011 /* AppMode.swift */; };
 		A80000000000000000000002 /* CanvasShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000012 /* CanvasShellView.swift */; };
 		A80000000000000000000003 /* SpacesShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000013 /* SpacesShellView.swift */; };
+		A80000000000000000000004 /* SpaceBackgroundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000014 /* SpaceBackgroundView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -106,6 +107,7 @@
 		A80000000000000000000011 /* AppMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/AppMode.swift; sourceTree = "<group>"; };
 		A80000000000000000000012 /* CanvasShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/CanvasShellView.swift; sourceTree = "<group>"; };
 		A80000000000000000000013 /* SpacesShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spaces/SpacesShellView.swift; sourceTree = "<group>"; };
+		A80000000000000000000014 /* SpaceBackgroundView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spaces/SpaceBackgroundView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -137,6 +139,7 @@
 				A80000000000000000000011 /* AppMode.swift */,
 				A80000000000000000000012 /* CanvasShellView.swift */,
 				A80000000000000000000013 /* SpacesShellView.swift */,
+				A80000000000000000000014 /* SpaceBackgroundView.swift */,
 				A100000000000000000000F1 /* CanvasKeyMonitor.swift */,
 				A20000000000000000000011 /* AtmosphereBackground.swift */,
 				A20000000000000000000018 /* WorkspaceSidebar.swift */,
@@ -311,6 +314,7 @@
 				A80000000000000000000001 /* AppMode.swift in Sources */,
 				A80000000000000000000002 /* CanvasShellView.swift in Sources */,
 				A80000000000000000000003 /* SpacesShellView.swift in Sources */,
+				A80000000000000000000004 /* SpaceBackgroundView.swift in Sources */,
 				A10000000000000000000005 /* PreviewSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

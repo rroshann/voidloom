@@ -7,7 +7,11 @@ struct SpacesShellView: View {
 
     var body: some View {
         ZStack {
-            AtmosphereBackground()
+            SpaceBackgroundView(
+                background: store.state.space?.background ?? .atmosphere,
+                dimming: store.state.space?.backgroundDimming ?? 0.35,
+                backgroundsDirectory: store.backgroundsDirectoryURL()
+            )
             Text("Spaces — coming together")
                 .font(.system(size: 17, weight: .medium, design: .rounded))
                 .foregroundStyle(.white.opacity(0.6))
