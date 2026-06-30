@@ -20,11 +20,19 @@ struct Theme {
     let monospacedMetadata: Bool
     private let reduceTransparency: Bool
 
-    init(mode: AppearanceMode, accentHex: String, canvasBackground: CanvasBackground,
+    /// `systemColorScheme` is the live macOS appearance (from `@Environment(\.colorScheme)`),
+    /// used only when `mode == .system` so "System" follows the OS light/dark setting
+    /// and updates live. It defaults to `.dark` when absent to preserve prior behavior.
+    init(mode: AppearanceMode, systemColorScheme: ColorScheme? = nil, accentHex: String,
+         canvasBackground: CanvasBackground,
          backgroundContrast: Double, showVignette: Bool, textSize: TextSize,
          monospacedMetadata: Bool, reduceTransparency: Bool) {
         let dark: Bool
-        switch mode { case .light: dark = false; case .dark, .system: dark = true }
+        switch mode {
+        case .light: dark = false
+        case .dark: dark = true
+        case .system: dark = (systemColorScheme ?? .dark) == .dark
+        }
         self.isDark = dark
         self.colorScheme = (mode == .system) ? nil : (mode == .light ? .light : .dark)
         self.accent = Color(hex: accentHex)
