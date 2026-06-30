@@ -63,3 +63,61 @@ extension SpaceModelTests {
         XCTAssertFalse(json.contains("\"space\""))
     }
 }
+
+extension SpaceModelTests {
+    private func stateWithCards(_ n: Int) -> WorkspaceState {
+        WorkspaceState(cards: (0..<n).map { i in
+            WorkspaceCard(kind: .note,
+                          position: CanvasPoint(x: Double(i), y: 0),
+                          size: CardSize(width: 240, height: 160),
+                          title: "C\(i)", content: "")
+        })
+    }
+
+    func testEnsureSpaceConfigMaterializesDefaultsOnce() {
+        var state = stateWithCards(0)
+        XCTAssertNil(state.space)
+        state.ensureSpaceConfig()
+        XCTAssertEqual(state.space, SpaceConfig())
+        state.space?.backgroundDimming = 0.9
+        state.ensureSpaceConfig()                       // must not overwrite
+        XCTAssertEqual(state.space!.backgroundDimming, 0.9, accuracy: 0.0001)
+    }
+
+    func testOrderedCardIDsFollowArrayWhenNoCardOrder() {
+        let state = stateWithCards(3)
+        XCTAssertEqual(state.orderedCardIDsForSpace, state.cards.map(\.id))
+    }
+
+    func testMoveCardReordersArray() {
+        var state = stateWithCards(3)
+        let ids = state.cards.map(\.id)
+        state.moveCard(fromIndex: 0, toIndex: 2)
+        XCTAssertEqual(state.cards.map(\.id), [ids[1], ids[2], ids[0]])
+    }
+
+    func testMoveCardIgnoresOutOfRangeIndices() {
+        var state = stateWithCards(2)
+        let ids = state.cards.map(\.id)
+        state.moveCard(fromIndex: 0, toIndex: 9)        // out of range → no-op
+        XCTAssertEqual(state.cards.map(\.id), ids)
+    }
+
+    func testSettersMaterializeAndUpdateConfig() {
+        var state = stateWithCards(1)
+        state.setSpaceBackground(.solid(hex: "#ABCDEFFF"))
+        state.setSpaceTiling(SpaceTiling(mode: .fixedColumns, columns: 4))
+        state.setBackgroundDimming(0.6)
+        XCTAssertEqual(state.space?.background, .solid(hex: "#ABCDEFFF"))
+        XCTAssertEqual(state.space?.tiling.columns, 4)
+        XCTAssertEqual(state.space!.backgroundDimming, 0.6, accuracy: 0.0001)
+    }
+
+    func testBackgroundDimmingIsClamped() {
+        var state = stateWithCards(1)
+        state.setBackgroundDimming(1.7)
+        XCTAssertEqual(state.space!.backgroundDimming, 1.0, accuracy: 0.0001)
+        state.setBackgroundDimming(-0.3)
+        XCTAssertEqual(state.space!.backgroundDimming, 0.0, accuracy: 0.0001)
+    }
+}

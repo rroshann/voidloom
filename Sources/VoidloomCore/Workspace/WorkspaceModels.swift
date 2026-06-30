@@ -722,4 +722,47 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         guard let index = cards.firstIndex(where: { $0.id == id }) else { return }
         cards[index].content = content
     }
+
+    // MARK: - Spaces
+
+    /// Card ids in tile order: the explicit `cardOrder` (filtered to live cards,
+    /// with any new cards appended), else the natural `cards` array order.
+    public var orderedCardIDsForSpace: [UUID] {
+        guard let order = space?.cardOrder else { return cards.map(\.id) }
+        let live = Set(cards.map(\.id))
+        let kept = order.filter { live.contains($0) }
+        let appended = cards.map(\.id).filter { !kept.contains($0) }
+        return kept + appended
+    }
+
+    /// Materializes a default `SpaceConfig` on first edit; never overwrites an
+    /// existing one.
+    public mutating func ensureSpaceConfig() {
+        if space == nil { space = SpaceConfig() }
+    }
+
+    /// Reorders the `cards` array (drives Spaces drag-to-reorder). No-op for
+    /// out-of-range or equal indices.
+    public mutating func moveCard(fromIndex: Int, toIndex: Int) {
+        guard cards.indices.contains(fromIndex),
+              cards.indices.contains(toIndex) else { return }
+        guard fromIndex != toIndex else { return }
+        let card = cards.remove(at: fromIndex)
+        cards.insert(card, at: toIndex)
+    }
+
+    public mutating func setSpaceBackground(_ background: SpaceBackground) {
+        ensureSpaceConfig()
+        space?.background = background
+    }
+
+    public mutating func setSpaceTiling(_ tiling: SpaceTiling) {
+        ensureSpaceConfig()
+        space?.tiling = tiling
+    }
+
+    public mutating func setBackgroundDimming(_ value: Double) {
+        ensureSpaceConfig()
+        space?.backgroundDimming = min(max(value, 0), 1)
+    }
 }
