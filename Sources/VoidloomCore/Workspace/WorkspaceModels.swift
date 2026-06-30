@@ -42,6 +42,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public var strokes: [DrawingStroke]
     public var textElements: [TextElement]
     public var selectedTextID: UUID?
+    public var space: SpaceConfig?
 
     /// Transient marquee multi-selection: the cards a drag-box currently covers.
     /// Deliberately excluded from `CodingKeys`, so it is never encoded and a
@@ -86,6 +87,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         case strokes
         case textElements
         case selectedTextID
+        case space
     }
 
     // Custom decode so workspaces persisted before annotations existed still
@@ -100,6 +102,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         strokes = try container.decodeIfPresent([DrawingStroke].self, forKey: .strokes) ?? []
         textElements = try container.decodeIfPresent([TextElement].self, forKey: .textElements) ?? []
         selectedTextID = try container.decodeIfPresent(UUID.self, forKey: .selectedTextID)
+        space = try container.decodeIfPresent(SpaceConfig.self, forKey: .space)
     }
 
     /// Normalizes two opposite corners into a top-left origin and a positive

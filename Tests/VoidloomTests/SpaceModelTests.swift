@@ -29,3 +29,37 @@ final class SpaceModelTests: XCTestCase {
         XCTAssertNil(config.cardOrder)
     }
 }
+
+extension SpaceModelTests {
+    func testWorkspaceStateDecodesLegacyJSONWithoutSpaceKey() throws {
+        // A workspace JSON written before Spaces existed: no "space" key.
+        let legacyJSON = """
+        {
+          "cards": [],
+          "connections": [],
+          "strokes": [],
+          "textElements": [],
+          "viewport": { "origin": { "x": 0, "y": 0 }, "scale": 1 }
+        }
+        """
+        let data = Data(legacyJSON.utf8)
+        let state = try JSONDecoder().decode(WorkspaceState.self, from: data)
+        XCTAssertNil(state.space)
+    }
+
+    func testWorkspaceStateRoundTripsSpaceConfig() throws {
+        var state = WorkspaceState(cards: [])
+        state.space = SpaceConfig(background: .solid(hex: "#000000FF"), backgroundDimming: 0.42)
+
+        let data = try JSONEncoder().encode(state)
+        let decoded = try JSONDecoder().decode(WorkspaceState.self, from: data)
+        XCTAssertEqual(decoded.space, state.space)
+    }
+
+    func testWorkspaceStateOmitsSpaceWhenNil() throws {
+        let state = WorkspaceState(cards: [])
+        let data = try JSONEncoder().encode(state)
+        let json = String(decoding: data, as: UTF8.self)
+        XCTAssertFalse(json.contains("\"space\""))
+    }
+}
