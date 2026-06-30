@@ -7,6 +7,8 @@ struct BrowserCardContentView: View {
     @ObservedObject var store: WorkspaceStore
     let isSelected: Bool
 
+    @Environment(\.theme) private var theme
+
     @StateObject private var loadModel = BrowserLoadModel()
     @State private var urlDraft: String
     @State private var isEditingURL = false
@@ -37,7 +39,7 @@ struct BrowserCardContentView: View {
                             .onSubmit(commitURL)
                             .onExitCommand { cancelURLEdit() }
                             .foregroundStyle(urlDraft.isEmpty || BrowserURLResolver.isValid(urlDraft)
-                                             ? .white.opacity(0.55) : .red.opacity(0.8))
+                                             ? theme.ink(0.55) : Color.red.opacity(0.8))
                     } else {
                         Text(displayURL)
                             .lineLimit(1)
@@ -52,14 +54,14 @@ struct BrowserCardContentView: View {
                             }
                     }
                 }
-                .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.55))
+                .font(.system(size: 10, weight: .semibold, design: theme.monospacedMetadata ? .monospaced : .default))
+                .foregroundStyle(theme.ink(0.55))
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 8)
                 .padding(.vertical, 4)
                 .background(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(.white.opacity(0.08))
+                        .fill(theme.surface(0.08))
                 )
 
                 // Navigation controls
@@ -84,7 +86,7 @@ struct BrowserCardContentView: View {
                     }
                 }
                 .buttonStyle(.plain)
-                .foregroundStyle(.white.opacity(0.55))
+                .foregroundStyle(theme.ink(0.55))
             }
             .allowsHitTesting(isSelected)
 
@@ -92,7 +94,7 @@ struct BrowserCardContentView: View {
             if let title = loadModel.pageTitle, !title.isEmpty {
                 Text(title)
                     .font(.system(size: 9, weight: .regular))
-                    .foregroundStyle(.white.opacity(0.4))
+                    .foregroundStyle(theme.ink(0.4))
                     .lineLimit(1)
                     .truncationMode(.tail)
                     .padding(.horizontal, 4)
@@ -109,7 +111,7 @@ struct BrowserCardContentView: View {
                     VStack {
                         ProgressView(value: loadModel.progress)
                             .progressViewStyle(.linear)
-                            .tint(.white.opacity(0.7))
+                            .tint(theme.ink(0.7))
                         Spacer()
                     }
                     .padding(8)
@@ -120,14 +122,14 @@ struct BrowserCardContentView: View {
                     VStack(spacing: 12) {
                         Image(systemName: "exclamationmark.triangle.fill")
                             .font(.title2).foregroundStyle(.orange)
-                        Text("Couldn't load page").font(.headline).foregroundStyle(.white.opacity(0.9))
-                        Text(error).font(.caption).foregroundStyle(.white.opacity(0.6))
+                        Text("Couldn't load page").font(.headline).foregroundStyle(theme.ink(0.9))
+                        Text(error).font(.caption).foregroundStyle(theme.ink(0.6))
                             .multilineTextAlignment(.center).lineLimit(3)
                         Button("Retry") { loadModel.reload() }
                             .buttonStyle(.plain)
                             .padding(.horizontal, 14).padding(.vertical, 7)
-                            .background(.white.opacity(0.12), in: Capsule())
-                            .foregroundStyle(.white.opacity(0.85))
+                            .background(theme.surface(0.12), in: Capsule())
+                            .foregroundStyle(theme.ink(0.85))
                     }
                     .padding(20)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

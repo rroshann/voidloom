@@ -12,6 +12,7 @@ struct WorkspaceCardView: View {
     @Binding var editingCardTitleID: UUID?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.theme) private var theme
 
     @State private var isHeaderHovered = false
     @State private var editingTitle = ""
@@ -26,7 +27,7 @@ struct WorkspaceCardView: View {
             header
 
             Divider()
-                .overlay(.white.opacity(0.12))
+                .overlay(theme.ink(0.12))
 
             content
                 .allowsHitTesting(isSelected)
@@ -60,7 +61,7 @@ struct WorkspaceCardView: View {
                 titleView
 
                 Text(palette.eyebrow)
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
+                    .font(.system(size: 10, weight: .bold, design: theme.monospacedMetadata ? .monospaced : .default))
                     .textCase(.uppercase)
                     .tracking(1.1)
                     .foregroundStyle(palette.accent.opacity(0.78))
@@ -84,8 +85,8 @@ struct WorkspaceCardView: View {
         if isEditingTitle {
             TextField("Title", text: $editingTitle)
                 .textFieldStyle(.plain)
-                .font(.system(size: 14, weight: .black, design: .rounded))
-                .foregroundStyle(.white.opacity(0.92))
+                .font(.system(size: 14 * theme.fontScale, weight: .black, design: .rounded))
+                .foregroundStyle(theme.ink(0.92))
                 .focused($isTitleFieldFocused)
                 .onSubmit {
                     commitTitle()
@@ -104,8 +105,8 @@ struct WorkspaceCardView: View {
                 }
         } else {
             Text(card.title)
-                .font(.system(size: 14, weight: .black, design: .rounded))
-                .foregroundStyle(.white.opacity(0.92))
+                .font(.system(size: 14 * theme.fontScale, weight: .black, design: .rounded))
+                .foregroundStyle(theme.ink(0.92))
                 .lineLimit(1)
                 .contentShape(Rectangle())
                 .onTapGesture(count: 2) {
@@ -146,10 +147,10 @@ struct WorkspaceCardView: View {
             Image(systemName: systemName)
                 .font(.system(size: 11, weight: .bold))
                 .frame(width: 24, height: 24)
-                .foregroundStyle(.white.opacity(0.84))
+                .foregroundStyle(theme.ink(0.84))
                 .background(
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(.white.opacity(0.08))
+                        .fill(theme.surface(0.08))
                 )
         }
         .buttonStyle(.plain)
@@ -210,7 +211,7 @@ struct WorkspaceCardView: View {
                 LinearGradient(
                     colors: [
                         palette.accent.opacity(isSelected ? 0.22 : 0.16),
-                        .white.opacity(0.045),
+                        theme.surface(0.045),
                         .black.opacity(0.16)
                     ],
                     startPoint: .topLeading,
@@ -228,12 +229,12 @@ struct WorkspaceCardView: View {
                         ? [
                             palette.accent.opacity(0.72),
                             palette.accent.opacity(0.42),
-                            .white.opacity(0.18)
+                            theme.ink(0.18)
                         ]
                         : [
-                            .white.opacity(0.22),
+                            theme.ink(0.22),
                             palette.accent.opacity(0.18),
-                            .white.opacity(0.06)
+                            theme.ink(0.06)
                         ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing

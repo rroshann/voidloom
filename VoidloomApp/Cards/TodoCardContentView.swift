@@ -50,6 +50,8 @@ struct TodoCardContentView: View {
     @ObservedObject var store: WorkspaceStore
     let isSelected: Bool
 
+    @Environment(\.theme) private var theme
+
     @State private var items: [TodoItem]
     @State private var newItemText = ""
     @FocusState private var isNewItemFocused: Bool
@@ -68,9 +70,9 @@ struct TodoCardContentView: View {
                 ForEach($items) { $item in
                     Toggle(isOn: $item.isComplete) {
                         Text(item.text)
-                            .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(.white.opacity(item.isComplete ? 0.45 : 0.78))
-                            .strikethrough(item.isComplete, color: .white.opacity(0.35))
+                            .font(.system(size: 13 * theme.fontScale, weight: .semibold, design: .monospaced))
+                            .foregroundStyle(theme.ink(item.isComplete ? 0.45 : 0.78))
+                            .strikethrough(item.isComplete, color: theme.ink(0.35))
                     }
                     .toggleStyle(TodoCheckboxToggleStyle())
                     .onChange(of: item.isComplete) { _, _ in
@@ -80,12 +82,12 @@ struct TodoCardContentView: View {
 
                 HStack(spacing: 8) {
                     Image(systemName: "plus.circle")
-                        .foregroundStyle(.white.opacity(0.45))
+                        .foregroundStyle(theme.ink(0.45))
 
                     TextField("New item", text: $newItemText)
                         .textFieldStyle(.plain)
-                        .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.72))
+                        .font(.system(size: 12 * theme.fontScale, weight: .semibold, design: .monospaced))
+                        .foregroundStyle(theme.ink(0.72))
                         .focused($isNewItemFocused)
                         .onSubmit(addItem)
                         // Esc ends editing and is consumed here so it never
@@ -124,6 +126,8 @@ struct TodoCardContentView: View {
 }
 
 private struct TodoCheckboxToggleStyle: ToggleStyle {
+    @Environment(\.theme) private var theme
+
     func makeBody(configuration: Configuration) -> some View {
         Button {
             configuration.isOn.toggle()
@@ -131,7 +135,7 @@ private struct TodoCheckboxToggleStyle: ToggleStyle {
             HStack(alignment: .firstTextBaseline, spacing: 10) {
                 Image(systemName: configuration.isOn ? "checkmark.square.fill" : "square")
                     .font(.system(size: 14, weight: .semibold))
-                    .foregroundStyle(configuration.isOn ? .green.opacity(0.85) : .white.opacity(0.45))
+                    .foregroundStyle(configuration.isOn ? .green.opacity(0.85) : theme.ink(0.45))
 
                 configuration.label
             }

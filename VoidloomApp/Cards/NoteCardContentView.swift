@@ -7,6 +7,8 @@ struct NoteCardContentView: View {
     @ObservedObject var store: WorkspaceStore
     let isSelected: Bool
 
+    @Environment(\.theme) private var theme
+
     @State private var draft: String
     @State private var persistTask: Task<Void, Never>?
     @FocusState private var isEditorFocused: Bool
@@ -21,8 +23,8 @@ struct NoteCardContentView: View {
 
     var body: some View {
         TextEditor(text: $draft)
-            .font(.system(size: 13, weight: .semibold, design: .rounded))
-            .foregroundStyle(.white.opacity(0.78))
+            .font(.system(size: 13 * theme.fontScale, weight: .semibold, design: .rounded))
+            .foregroundStyle(theme.ink(0.78))
             .scrollContentBackground(.hidden)
             .padding(12)
             .allowsHitTesting(isSelected)
