@@ -33,6 +33,7 @@
 		A30000000000000000000008 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000018 /* SettingsView.swift */; };
 		A40000000000000000000001 /* ConversationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000011 /* ConversationStore.swift */; };
 		A40000000000000000000002 /* AIConversationSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000012 /* AIConversationSidebar.swift */; };
+		A40000000000000000000003 /* StubResponseProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000013 /* StubResponseProvider.swift */; };
 		A50000000000000000000001 /* CommandPaletteModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000011 /* CommandPaletteModel.swift */; };
 		A50000000000000000000002 /* CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000012 /* CommandPaletteView.swift */; };
 		A50000000000000000000003 /* CanvasContextMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000013 /* CanvasContextMenu.swift */; };
@@ -42,6 +43,7 @@
 		A70000000000000000000091 /* CanvasToolCursor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000092 /* CanvasToolCursor.swift */; };
 		A70000000000000000000093 /* EraserFootprintRing.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000094 /* EraserFootprintRing.swift */; };
 		A70000000000000000000095 /* EraserSizePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000096 /* EraserSizePreview.swift */; };
+		A80000000000000000000001 /* MinimapPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000011 /* MinimapPanel.swift */; };
 		A60000000000000000000003 /* CanvasInteractionLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000013 /* CanvasInteractionLayer.swift */; };
 		A60000000000000000000004 /* BrushOptionsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000014 /* BrushOptionsPanel.swift */; };
 		A60000000000000000000005 /* EraserOptionsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A60000000000000000000015 /* EraserOptionsPanel.swift */; };
@@ -51,6 +53,9 @@
 		A70000000000000000000001 /* ConnectionHitLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000011 /* ConnectionHitLayer.swift */; };
 		A70000000000000000000002 /* TextElementEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000012 /* TextElementEditor.swift */; };
 		A70000000000000000000003 /* TextOptionsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000013 /* TextOptionsPanel.swift */; };
+		A90000000000000000000001 /* BrowserLoadModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90000000000000000000011 /* BrowserLoadModel.swift */; };
+		AB0000000000000000000002 /* Color+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000001 /* Color+Hex.swift */; };
+		AB0000000000000000000004 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000003 /* Theme.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -82,6 +87,7 @@
 		A30000000000000000000018 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/SettingsView.swift; sourceTree = "<group>"; };
 		A40000000000000000000011 /* ConversationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/ConversationStore.swift; sourceTree = "<group>"; };
 		A40000000000000000000012 /* AIConversationSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/AIConversationSidebar.swift; sourceTree = "<group>"; };
+		A40000000000000000000013 /* StubResponseProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/StubResponseProvider.swift; sourceTree = "<group>"; };
 		A50000000000000000000011 /* CommandPaletteModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPalette/CommandPaletteModel.swift; sourceTree = "<group>"; };
 		A50000000000000000000012 /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPalette/CommandPaletteView.swift; sourceTree = "<group>"; };
 		A50000000000000000000013 /* CanvasContextMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/CanvasContextMenu.swift; sourceTree = "<group>"; };
@@ -91,6 +97,7 @@
 		A70000000000000000000092 /* CanvasToolCursor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/CanvasToolCursor.swift; sourceTree = "<group>"; };
 		A70000000000000000000094 /* EraserFootprintRing.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/EraserFootprintRing.swift; sourceTree = "<group>"; };
 		A70000000000000000000096 /* EraserSizePreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/EraserSizePreview.swift; sourceTree = "<group>"; };
+		A80000000000000000000011 /* MinimapPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/MinimapPanel.swift; sourceTree = "<group>"; };
 		A60000000000000000000013 /* CanvasInteractionLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/CanvasInteractionLayer.swift; sourceTree = "<group>"; };
 		A60000000000000000000014 /* BrushOptionsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/BrushOptionsPanel.swift; sourceTree = "<group>"; };
 		A60000000000000000000015 /* EraserOptionsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/EraserOptionsPanel.swift; sourceTree = "<group>"; };
@@ -100,6 +107,9 @@
 		A70000000000000000000011 /* ConnectionHitLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/ConnectionHitLayer.swift; sourceTree = "<group>"; };
 		A70000000000000000000012 /* TextElementEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/TextElementEditor.swift; sourceTree = "<group>"; };
 		A70000000000000000000013 /* TextOptionsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/TextOptionsPanel.swift; sourceTree = "<group>"; };
+		A90000000000000000000011 /* BrowserLoadModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/BrowserLoadModel.swift; sourceTree = "<group>"; };
+		AB0000000000000000000001 /* Color+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Hex.swift"; sourceTree = "<group>"; };
+		AB0000000000000000000003 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -123,9 +133,19 @@
 			);
 			sourceTree = "<group>";
 		};
+		AB0000000000000000000005 /* Design */ = {
+			isa = PBXGroup;
+			children = (
+				AB0000000000000000000001 /* Color+Hex.swift */,
+				AB0000000000000000000003 /* Theme.swift */,
+			);
+			path = Design;
+			sourceTree = "<group>";
+		};
 		A10000000000000000000023 /* VoidloomApp */ = {
 			isa = PBXGroup;
 			children = (
+				AB0000000000000000000005 /* Design */,
 				A10000000000000000000011 /* VoidloomApp.swift */,
 				A10000000000000000000012 /* RootView.swift */,
 				A100000000000000000000F1 /* CanvasKeyMonitor.swift */,
@@ -140,6 +160,7 @@
 				A70000000000000000000092 /* CanvasToolCursor.swift */,
 				A70000000000000000000094 /* EraserFootprintRing.swift */,
 				A70000000000000000000096 /* EraserSizePreview.swift */,
+				A80000000000000000000011 /* MinimapPanel.swift */,
 				A60000000000000000000013 /* CanvasInteractionLayer.swift */,
 				A60000000000000000000014 /* BrushOptionsPanel.swift */,
 				A60000000000000000000015 /* EraserOptionsPanel.swift */,
@@ -153,6 +174,7 @@
 				A20000000000000000000014 /* CommandBar.swift */,
 				A30000000000000000000018 /* SettingsView.swift */,
 				A40000000000000000000011 /* ConversationStore.swift */,
+				A40000000000000000000013 /* StubResponseProvider.swift */,
 				A20000000000000000000019 /* CanvasZoomControls.swift */,
 				A10000000000000000000013 /* CanvasWorkspaceView.swift */,
 				A20000000000000000000015 /* DraggableWorkspaceCard.swift */,
@@ -164,6 +186,7 @@
 				A30000000000000000000014 /* TodoCardContentView.swift */,
 				A30000000000000000000015 /* BrowserWebView.swift */,
 				A30000000000000000000016 /* BrowserCardContentView.swift */,
+				A90000000000000000000011 /* BrowserLoadModel.swift */,
 				A30000000000000000000017 /* AgentTerminalView.swift */,
 				A20000000000000000000017 /* CardPalette.swift */,
 				A30000000000000000000011 /* AgentSessionManager.swift */,
@@ -281,6 +304,7 @@
 				A30000000000000000000008 /* SettingsView.swift in Sources */,
 				A40000000000000000000001 /* ConversationStore.swift in Sources */,
 				A40000000000000000000002 /* AIConversationSidebar.swift in Sources */,
+				A40000000000000000000003 /* StubResponseProvider.swift in Sources */,
 				A50000000000000000000001 /* CommandPaletteModel.swift in Sources */,
 				A50000000000000000000002 /* CommandPaletteView.swift in Sources */,
 				A50000000000000000000003 /* CanvasContextMenu.swift in Sources */,
@@ -290,6 +314,7 @@
 				A70000000000000000000091 /* CanvasToolCursor.swift in Sources */,
 				A70000000000000000000093 /* EraserFootprintRing.swift in Sources */,
 				A70000000000000000000095 /* EraserSizePreview.swift in Sources */,
+				A80000000000000000000001 /* MinimapPanel.swift in Sources */,
 				A60000000000000000000003 /* CanvasInteractionLayer.swift in Sources */,
 				A60000000000000000000004 /* BrushOptionsPanel.swift in Sources */,
 				A60000000000000000000005 /* EraserOptionsPanel.swift in Sources */,
@@ -299,7 +324,10 @@
 				A70000000000000000000001 /* ConnectionHitLayer.swift in Sources */,
 				A70000000000000000000002 /* TextElementEditor.swift in Sources */,
 				A70000000000000000000003 /* TextOptionsPanel.swift in Sources */,
+				A90000000000000000000001 /* BrowserLoadModel.swift in Sources */,
 				A10000000000000000000005 /* PreviewSupport.swift in Sources */,
+				AB0000000000000000000002 /* Color+Hex.swift in Sources */,
+				AB0000000000000000000004 /* Theme.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

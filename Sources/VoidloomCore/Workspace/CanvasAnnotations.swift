@@ -1,5 +1,35 @@
 import Foundation
 
+/// Semantic classification of a connection, derived from the `CardKind` of its
+/// two endpoints. Used by the AI context-assembly layer to weight links; purely
+/// informational at the canvas layer. Legacy JSON without a `type` field decodes
+/// to `.generic` so no migration is needed.
+public enum ConnectionType: String, Codable, Equatable, Sendable {
+    case generic
+    case noteToNote
+    case todoToNote
+    case agentToNote
+    case browserToNote
+    case agentToTodo
+    case agentToBrowser
+
+    /// Derives the connection type from two endpoint kinds, order-independent.
+    /// Canonical ordering sorts by rawValue alphabetically so (a, b) and (b, a)
+    /// produce the same result. Pairs without a named case return `.generic`.
+    public static func derive(_ a: CardKind, _ b: CardKind) -> ConnectionType {
+        let sorted = [a.rawValue, b.rawValue].sorted()
+        switch (sorted[0], sorted[1]) {
+        case ("note", "note"):      return .noteToNote
+        case ("note", "todo"):      return .todoToNote
+        case ("agent", "note"):     return .agentToNote
+        case ("browser", "note"):   return .browserToNote
+        case ("agent", "todo"):     return .agentToTodo
+        case ("agent", "browser"):  return .agentToBrowser
+        default:                    return .generic
+        }
+    }
+}
+
 /// A visual-only, non-directional (undirected) edge connecting two cards. The
 /// `from`/`to` order is incidental — the edge reads the same both ways and
 /// renders without an arrowhead. Connections carry no agent communication —
@@ -8,11 +38,29 @@ public struct CardConnection: Codable, Equatable, Identifiable, Sendable {
     public var id: UUID
     public var from: UUID
     public var to: UUID
+    /// Semantic type derived from endpoint `CardKind`s at insertion time.
+    /// Decodes to `.generic` when absent so legacy JSON round-trips cleanly.
+    public var type: ConnectionType
 
-    public init(id: UUID = UUID(), from: UUID, to: UUID) {
+    public init(id: UUID = UUID(), from: UUID, to: UUID, type: ConnectionType = .generic) {
         self.id = id
         self.from = from
         self.to = to
+        self.type = type
+    }
+
+    // Custom decode: back-compat — existing persisted connections have no `type`
+    // field and must silently default to `.generic` instead of throwing.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        from = try container.decode(UUID.self, forKey: .from)
+        to = try container.decode(UUID.self, forKey: .to)
+        type = try container.decodeIfPresent(ConnectionType.self, forKey: .type) ?? .generic
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case id, from, to, type
     }
 }
 

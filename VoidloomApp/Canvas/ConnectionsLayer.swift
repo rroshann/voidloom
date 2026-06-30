@@ -1,20 +1,25 @@
 import SwiftUI
 import VoidloomCore
 
-/// Render-only layer drawing persisted card connections. It lives INSIDE the
-/// scaled/offset canvas ZStack (beneath the cards) so edges are expressed in
-/// canvas coordinates and pan/zoom with everything else. Each edge anchors on
-/// the two cards' borders and renders as a NON-DIRECTIONAL chain: a plain line
-/// capped by a symmetric dot at BOTH endpoints, with no arrowhead. The selected
-/// edge is drawn brighter and thicker.
+/// Render-only layer drawing persisted card connections. It is hosted in SCREEN
+/// space (a sibling of the transformed card group, not inside it), drawing into
+/// a `Canvas` that fills the whole viewport so an edge between far-apart cards is
+/// never clipped by a fixed canvas frame. Each endpoint is computed in canvas
+/// coordinates (border-anchored on the two cards) and projected to the screen via
+/// `viewport.screenPoint`, so edges line up exactly with the cards. Line widths
+/// and anchor dots scale with `viewport.scale` to match the on-screen card size.
+/// Edges render as a NON-DIRECTIONAL chain: a plain line capped by a symmetric
+/// dot at BOTH endpoints, with no arrowhead. The selected edge is drawn brighter
+/// and thicker.
 struct ConnectionsLayer: View, Equatable {
     let connections: [CardConnection]
     let cards: [WorkspaceCard]
-    let canvasSize: CGSize
+    let viewport: CanvasViewport
     var selectedConnectionID: UUID? = nil
 
     var body: some View {
         Canvas { context, _ in
+            let scale = CGFloat(viewport.scale)
             for connection in connections {
                 guard let fromCard = cards.first(where: { $0.id == connection.from }),
                       let toCard = cards.first(where: { $0.id == connection.to }) else { continue }
@@ -23,14 +28,14 @@ struct ConnectionsLayer: View, Equatable {
                     from: CanvasRect(origin: fromCard.position, size: fromCard.size),
                     to: CanvasRect(origin: toCard.position, size: toCard.size)
                 )
-                let start = CGPoint(x: endpoints.start.x, y: endpoints.start.y)
-                let end = CGPoint(x: endpoints.end.x, y: endpoints.end.y)
+                let start = screenPoint(endpoints.start)
+                let end = screenPoint(endpoints.end)
                 let accent = CardPalette(kind: fromCard.kind).accent
                 let isSelected = connection.id == selectedConnectionID
-                let lineWidth: CGFloat = isSelected ? 4 : 2.5
+                let lineWidth: CGFloat = (isSelected ? 4 : 2.5) * scale
                 let lineColor = accent.opacity(isSelected ? 1 : 0.85)
                 let dotColor = accent.opacity(isSelected ? 1 : 0.95)
-                let dotRadius: CGFloat = isSelected ? 4 : 3
+                let dotRadius: CGFloat = (isSelected ? 4 : 3) * scale
 
                 var line = Path()
                 line.move(to: start)
@@ -56,7 +61,11 @@ struct ConnectionsLayer: View, Equatable {
                 }
             }
         }
-        .frame(width: canvasSize.width, height: canvasSize.height)
         .allowsHitTesting(false)
+    }
+
+    private func screenPoint(_ point: CanvasPoint) -> CGPoint {
+        let screen = viewport.screenPoint(forCanvasPoint: point)
+        return CGPoint(x: screen.x, y: screen.y)
     }
 }

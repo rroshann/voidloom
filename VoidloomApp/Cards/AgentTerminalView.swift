@@ -6,6 +6,7 @@ struct AgentTerminalView: View {
     let accent: Color
     let isSelected: Bool
 
+    @Environment(\.theme) private var theme
     @EnvironmentObject private var agentSessionManager: AgentSessionManager
     @State private var input = ""
     @FocusState private var isInputFocused: Bool
@@ -21,8 +22,8 @@ struct AgentTerminalView: View {
                     LazyVStack(alignment: .leading, spacing: 6) {
                         ForEach(Array(outputLines.enumerated()), id: \.offset) { index, line in
                             Text(line)
-                                .font(.system(size: 12, weight: .medium, design: .monospaced))
-                                .foregroundStyle(.white.opacity(index == 0 ? 0.86 : 0.66))
+                                .font(.system(size: 12 * theme.fontScale, weight: .medium, design: .monospaced))
+                                .foregroundStyle(theme.ink(index == 0 ? 0.86 : 0.66))
                                 .frame(maxWidth: .infinity, alignment: .leading)
                                 .id(index)
                         }
@@ -38,17 +39,17 @@ struct AgentTerminalView: View {
             }
 
             Divider()
-                .overlay(.white.opacity(0.12))
+                .overlay(theme.ink(0.12))
 
             HStack(spacing: 8) {
                 Text("$")
-                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    .font(.system(size: 12 * theme.fontScale, weight: .bold, design: .monospaced))
                     .foregroundStyle(accent)
 
                 TextField("Command", text: $input)
                     .textFieldStyle(.plain)
-                    .font(.system(size: 12, weight: .medium, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.86))
+                    .font(.system(size: 12 * theme.fontScale, weight: .medium, design: .monospaced))
+                    .foregroundStyle(theme.ink(0.86))
                     .focused($isInputFocused)
                     .onSubmit {
                         submitInput()

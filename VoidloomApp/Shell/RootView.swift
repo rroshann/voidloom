@@ -9,6 +9,7 @@ struct RootView: View {
     @ObservedObject var interaction: CanvasInteractionModel
 
     @AppStorage("isWorkspaceSidebarVisible") private var isWorkspaceSidebarVisible = false
+    @AppStorage("isMinimapVisible") private var isMinimapVisible = false
     @State private var isCommandBarVisible = false
     @State private var isAIConversationVisible = false
     @State private var commandText = ""
@@ -41,6 +42,16 @@ struct RootView: View {
 
     private var activeWorkspaceID: UUID {
         store.library.selectedWorkspaceID
+    }
+
+    /// Builds a context string from the selected card plus its direct neighbors
+    /// (via `WorkspaceState.linkedContext`). Returns nil when no card is selected
+    /// or the assembled string is empty — so the nil path is byte-for-byte
+    /// equivalent to the previous behavior.
+    private var selectedCardContext: String? {
+        guard let id = store.state.selectedCardID else { return nil }
+        let s = store.state.linkedContext(for: id)
+        return s.isEmpty ? nil : s
     }
 
     private var activeWorkspaceName: String {
@@ -159,9 +170,8 @@ struct RootView: View {
                 if isAIConversationVisible {
                     AIConversationSidebar(
                         messages: conversationStore.messages(for: activeWorkspaceID),
-                        onSubmit: { text in
-                            conversationStore.submit(workspaceID: activeWorkspaceID, text: text)
-                        },
+                        onSubmit: { conversationStore.submit(workspaceID: activeWorkspaceID, text: $0, context: selectedCardContext) },
+                        onRetry: { conversationStore.retry(workspaceID: activeWorkspaceID, messageID: $0) },
                         onClose: {
                             withAnimation(.easeInOut(duration: 0.24)) {
                                 isAIConversationVisible = false
@@ -228,6 +238,8 @@ struct RootView: View {
                             errorMessage: store.lastPersistenceError,
                             isAIHintActive: isCommandBarVisible || isAIConversationVisible,
                             onToggleAIHint: toggleAISurface,
+                            isMinimapVisible: isMinimapVisible,
+                            onToggleMinimap: { isMinimapVisible.toggle() },
                             zoomScale: store.state.viewport.scale,
                             onZoomIn: {
                                 let anchor = ScreenPoint(
@@ -325,12 +337,24 @@ struct RootView: View {
                 )
                 .zIndex(3)
 
+                // Minimap overview panel: pinned flush to the bottom-right corner.
+                // The dock is centered, so the corner is clear — no need to lift it
+                // above the dock height.
+                if isMinimapVisible {
+                    MinimapPanel(store: store, viewportSize: geometry.size)
+                        .padding(.trailing, Self.bottomChromePadding)
+                        .padding(.bottom, Self.bottomChromePadding)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                        .transition(.opacity)
+                        .zIndex(3.5)
+                }
+
                 if isCommandPaletteVisible {
                     CommandPaletteView(
                         query: $paletteQuery,
                         commands: paletteCommands(in: geometry.size),
                         onAskAI: { text in
-                            conversationStore.submit(workspaceID: activeWorkspaceID, text: text)
+                            conversationStore.submit(workspaceID: activeWorkspaceID, text: text, context: selectedCardContext)
                             withAnimation(.easeInOut(duration: 0.24)) {
                                 isAIConversationVisible = true
                             }
@@ -363,7 +387,7 @@ struct RootView: View {
             .animation(.easeInOut(duration: 0.15), value: isCommandPaletteVisible)
             .animation(.easeInOut(duration: 0.24), value: isWorkspaceSidebarVisible)
             .animation(.easeInOut(duration: 0.24), value: isAIConversationVisible)
-            .preferredColorScheme(.dark)
+            .animation(.easeInOut(duration: 0.22), value: isMinimapVisible)
             .onPreferenceChange(DockHeightPreferenceKey.self) { height in
                 measuredDockHeight = height
             }
@@ -417,7 +441,7 @@ struct RootView: View {
         let trimmed = commandText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        conversationStore.submit(workspaceID: activeWorkspaceID, text: trimmed)
+        conversationStore.submit(workspaceID: activeWorkspaceID, text: trimmed, context: selectedCardContext)
         commandText = ""
 
         withAnimation(.easeInOut(duration: 0.24)) {

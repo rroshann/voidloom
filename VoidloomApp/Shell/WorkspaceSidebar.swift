@@ -25,6 +25,7 @@ struct WorkspaceSidebar: View {
     @State private var workspaceRowFrames: [UUID: CGRect] = [:]
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.theme) private var theme
 
     private var canDeleteWorkspaces: Bool {
         library.workspaces.count > 1
@@ -104,7 +105,7 @@ struct WorkspaceSidebar: View {
                 if hasSingleWorkspace {
                     Text("Add another workspace to organize separate canvases and ideas.")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.38))
+                        .foregroundStyle(theme.ink(0.38))
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 4)
                 }
@@ -114,11 +115,11 @@ struct WorkspaceSidebar: View {
                 Button(action: onCreateWorkspace) {
                     Label("New Workspace", systemImage: "plus")
                         .font(.system(size: 12, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.72))
+                        .foregroundStyle(theme.ink(0.72))
                         .padding(.horizontal, 12)
                         .padding(.vertical, 10)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                        .background(theme.surface(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
                 }
                 .buttonStyle(.plain)
                 .pointerCursor()
@@ -131,7 +132,7 @@ struct WorkspaceSidebar: View {
             .background(.ultraThinMaterial)
             .overlay(alignment: .trailing) {
                 Rectangle()
-                    .fill(.white.opacity(0.1))
+                    .fill(theme.ink(0.1))
                     .frame(width: 1)
             }
             .shadow(color: .black.opacity(0.34), radius: 32, x: 18, y: 0)
@@ -165,7 +166,7 @@ struct WorkspaceSidebar: View {
                 .font(.system(size: 11, weight: .bold, design: .monospaced))
                 .tracking(1.4)
                 .textCase(.uppercase)
-                .foregroundStyle(.white.opacity(0.48))
+                .foregroundStyle(theme.ink(0.48))
                 .frame(maxWidth: .infinity)
 
             HStack {
@@ -174,15 +175,15 @@ struct WorkspaceSidebar: View {
                 Button(action: onCloseSidebar) {
                     Image(systemName: "sidebar.left")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(.white.opacity(0.62))
+                        .foregroundStyle(theme.ink(0.62))
                         .frame(width: 28, height: 28)
                         .background(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .fill(.white.opacity(0.06))
+                                .fill(theme.surface(0.06))
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 8, style: .continuous)
-                                .stroke(.white.opacity(0.08), lineWidth: 1)
+                                .stroke(theme.ink(0.08), lineWidth: 1)
                         )
                 }
                 .buttonStyle(.plain)
@@ -318,6 +319,7 @@ struct WorkspaceSidebarRow: View {
     @FocusState private var isRenameFieldFocused: Bool
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.theme) private var theme
 
     private var rowAnimation: Animation? {
         reduceMotion ? nil : .easeOut(duration: 0.1)
@@ -327,7 +329,7 @@ struct WorkspaceSidebarRow: View {
         HStack(spacing: 10) {
             Image(systemName: "line.3.horizontal")
                 .font(.system(size: 11, weight: .bold))
-                .foregroundStyle(.white.opacity(isDropTarget ? 0.62 : 0.42))
+                .foregroundStyle(theme.ink(isDropTarget ? 0.62 : 0.42))
                 .frame(width: 14)
                 .contentShape(Rectangle())
                 .help("Drag to reorder")
@@ -346,7 +348,7 @@ struct WorkspaceSidebarRow: View {
                     TextField("Workspace name", text: $renameText)
                         .textFieldStyle(.plain)
                         .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.9))
+                        .foregroundStyle(theme.ink(0.9))
                         .focused($isRenameFieldFocused)
                         .onSubmit(onCommitRename)
                         .onExitCommand(perform: onCancelRename)
@@ -356,11 +358,11 @@ struct WorkspaceSidebarRow: View {
                 } else {
                     Text(title)
                         .font(.system(size: 13, weight: .bold, design: .rounded))
-                        .foregroundStyle(.white.opacity(isSelected ? 0.9 : 0.62))
+                        .foregroundStyle(theme.ink(isSelected ? 0.9 : 0.62))
 
                     Text(subtitle)
                         .font(.system(size: 11, weight: .semibold, design: .rounded))
-                        .foregroundStyle(.white.opacity(isSelected ? 0.52 : 0.38))
+                        .foregroundStyle(theme.ink(isSelected ? 0.52 : 0.38))
                 }
             }
 
@@ -369,12 +371,12 @@ struct WorkspaceSidebarRow: View {
         .padding(10)
         .background(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .fill(.white.opacity(isSelected ? 0.1 : isDropTarget ? 0.08 : 0.04))
+                .fill(theme.surface(isSelected ? 0.1 : isDropTarget ? 0.08 : 0.04))
         )
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(
-                    isDropTarget ? Color.teal.opacity(0.45) : .white.opacity(isSelected ? 0.12 : 0.06),
+                    isDropTarget ? theme.accent.opacity(0.45) : theme.ink(isSelected ? 0.12 : 0.06),
                     lineWidth: isDropTarget ? 1.5 : 1
                 )
         )

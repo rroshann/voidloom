@@ -1,4 +1,5 @@
 import SwiftUI
+import VoidloomCore
 
 /// Right-side AI conversation drawer. Mirrors `WorkspaceSidebar` styling but
 /// pins to the trailing edge. Displays the active workspace's message thread
@@ -6,10 +7,12 @@ import SwiftUI
 struct AIConversationSidebar: View {
     let messages: [ChatMessage]
     let onSubmit: (String) -> Void
+    let onRetry: (UUID) -> Void
     let onClose: () -> Void
 
     @State private var input = ""
     @FocusState private var isInputFocused: Bool
+    @Environment(\.theme) private var theme
 
     var body: some View {
         HStack(spacing: 0) {
@@ -33,7 +36,7 @@ struct AIConversationSidebar: View {
             .background(.ultraThinMaterial)
             .overlay(alignment: .leading) {
                 Rectangle()
-                    .fill(.white.opacity(0.1))
+                    .fill(theme.ink(0.1))
                     .frame(width: 1)
             }
             .shadow(color: .black.opacity(0.34), radius: 32, x: -18, y: 0)
@@ -45,13 +48,13 @@ struct AIConversationSidebar: View {
         HStack(spacing: 10) {
             Image(systemName: "sparkles")
                 .font(.system(size: 13, weight: .bold))
-                .foregroundStyle(.teal)
+                .foregroundStyle(theme.accent)
 
             Text("Assistant")
                 .font(.system(size: 11, weight: .bold, design: .monospaced))
                 .tracking(1.4)
                 .textCase(.uppercase)
-                .foregroundStyle(.white.opacity(0.48))
+                .foregroundStyle(theme.ink(0.48))
 
             Spacer(minLength: 0)
 
@@ -59,8 +62,8 @@ struct AIConversationSidebar: View {
                 Image(systemName: "xmark")
                     .font(.system(size: 11, weight: .bold))
                     .frame(width: 24, height: 24)
-                    .foregroundStyle(.white.opacity(0.7))
-                    .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                    .foregroundStyle(theme.ink(0.7))
+                    .background(theme.surface(0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
             }
             .buttonStyle(.plain)
             .pointerCursor()
@@ -74,11 +77,11 @@ struct AIConversationSidebar: View {
 
             Text("No conversation yet")
                 .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(theme.ink(0.6))
 
             Text("Ask the assistant to add cards, reset the canvas, or organize this workspace.")
                 .font(.system(size: 12, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.38))
+                .foregroundStyle(theme.ink(0.38))
                 .fixedSize(horizontal: false, vertical: true)
 
             Spacer()
@@ -91,7 +94,8 @@ struct AIConversationSidebar: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 12) {
                     ForEach(messages) { message in
-                        MessageBubble(message: message)
+                        MessageBubble(message: message,
+                                      onRetry: { onRetry(message.id) })
                             .id(message.id)
                     }
                 }
@@ -99,6 +103,12 @@ struct AIConversationSidebar: View {
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .onChange(of: messages.count) { _, _ in
+                guard let last = messages.last else { return }
+                withAnimation(.easeOut(duration: 0.15)) {
+                    proxy.scrollTo(last.id, anchor: .bottom)
+                }
+            }
+            .onChange(of: messages.last?.text) { _, _ in
                 guard let last = messages.last else { return }
                 withAnimation(.easeOut(duration: 0.15)) {
                     proxy.scrollTo(last.id, anchor: .bottom)
@@ -112,14 +122,14 @@ struct AIConversationSidebar: View {
             TextField("Message the assistant…", text: $input)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.86))
+                .foregroundStyle(theme.ink(0.86))
                 .focused($isInputFocused)
                 .onSubmit(submit)
 
             Button(action: submit) {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: 22, weight: .semibold))
-                    .foregroundStyle(canSubmit ? .teal : .white.opacity(0.22))
+                    .foregroundStyle(canSubmit ? theme.accent : theme.ink(0.22))
             }
             .buttonStyle(.plain)
             .pointerCursor()
@@ -127,10 +137,10 @@ struct AIConversationSidebar: View {
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
-        .background(.white.opacity(0.06), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
+        .background(theme.surface(0.06), in: RoundedRectangle(cornerRadius: 16, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(.white.opacity(0.1), lineWidth: 1)
+                .stroke(theme.ink(0.1), lineWidth: 1)
         )
         .onAppear { isInputFocused = true }
     }
@@ -146,33 +156,130 @@ struct AIConversationSidebar: View {
     }
 }
 
+// MARK: - Message Bubble
+
 private struct MessageBubble: View {
     let message: ChatMessage
+    let onRetry: () -> Void
 
     private var isUser: Bool { message.role == .user }
+    @Environment(\.theme) private var theme
 
     var body: some View {
         HStack {
             if isUser { Spacer(minLength: 32) }
 
+            bubbleContent
+                .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
+
+            if !isUser { Spacer(minLength: 32) }
+        }
+    }
+
+    @ViewBuilder
+    private var bubbleContent: some View {
+        switch message.status {
+        case .pending:
+            PulsingDots()
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+                .background(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .fill(theme.surface(0.06))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .stroke(theme.ink(0.08), lineWidth: 1)
+                )
+
+        case .streaming(_):
+            TimelineView(.periodic(from: .now, by: 0.5)) { tl in
+                let caret = Int(tl.date.timeIntervalSince1970 * 2) % 2 == 0
+                Text((message.streamingText ?? "") + (caret ? "▋" : " "))
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(theme.ink(0.78))
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 9)
+                    .background(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .fill(theme.surface(0.06))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 14, style: .continuous)
+                            .stroke(theme.ink(0.08), lineWidth: 1)
+                    )
+            }
+
+        case .failed(_):
+            VStack(alignment: .leading, spacing: 6) {
+                Text(message.text.isEmpty ? "Response failed." : message.text)
+                    .font(.system(size: 13, weight: .medium, design: .rounded))
+                    .foregroundStyle(.orange.opacity(0.9))
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                Button(action: onRetry) {
+                    Label("Retry", systemImage: "arrow.clockwise")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundStyle(.orange)
+                }
+                .buttonStyle(.plain)
+                .pointerCursor()
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+            .background(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .fill(.orange.opacity(0.08))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 14, style: .continuous)
+                    .stroke(.orange.opacity(0.3), lineWidth: 1)
+            )
+
+        case .sent, .complete:
             Text(message.text)
                 .font(.system(size: 13, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(isUser ? 0.92 : 0.78))
+                .foregroundStyle(theme.ink(isUser ? 0.92 : 0.78))
                 .multilineTextAlignment(.leading)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 9)
                 .background(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .fill(isUser ? Color.teal.opacity(0.22) : .white.opacity(0.06))
+                        .fill(isUser ? theme.accent.opacity(0.22) : theme.surface(0.06))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .stroke(isUser ? Color.teal.opacity(0.3) : .white.opacity(0.08), lineWidth: 1)
+                        .stroke(isUser ? theme.accent.opacity(0.3) : theme.ink(0.08), lineWidth: 1)
                 )
-                .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
+        }
+    }
+}
 
-            if !isUser { Spacer(minLength: 32) }
+// MARK: - Pulsing Dots
+
+private struct PulsingDots: View {
+    @State private var phase = [false, false, false]
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        HStack(spacing: 5) {
+            ForEach(0..<3, id: \.self) { i in
+                Circle()
+                    .frame(width: 6, height: 6)
+                    .foregroundStyle(theme.ink(phase[i] ? 0.8 : 0.25))
+                    .animation(
+                        .easeInOut(duration: 0.55)
+                            .repeatForever(autoreverses: true)
+                            .delay(Double(i) * 0.2),
+                        value: phase[i]
+                    )
+            }
+        }
+        .onAppear {
+            phase = [true, true, true]
         }
     }
 }
@@ -181,9 +288,10 @@ private struct MessageBubble: View {
     AIConversationSidebar(
         messages: [
             ChatMessage(role: .user, text: "add an agent card"),
-            ChatMessage(role: .assistant, text: "✨ AI backend isn't connected yet — this is where responses will appear.")
+            ChatMessage(role: .assistant, text: "✨ AI backend isn't connected yet — this is where responses will appear.", status: .complete)
         ],
         onSubmit: { _ in },
+        onRetry: { _ in },
         onClose: {}
     )
     .frame(width: 340, height: 760)

@@ -11,6 +11,7 @@ struct CommandPaletteView: View {
 
     @FocusState private var isSearchFocused: Bool
     @State private var selectedIndex = 0
+    @Environment(\.theme) private var theme
 
     private var filtered: [PaletteCommand] {
         CommandPaletteFilter.filter(commands, query: query)
@@ -28,7 +29,7 @@ struct CommandPaletteView: View {
 
     var body: some View {
         ZStack {
-            Color.black.opacity(0.32)
+            Color.black.opacity(0.22)
                 .ignoresSafeArea()
                 .contentShape(Rectangle())
                 .onTapGesture(perform: onClose)
@@ -36,7 +37,7 @@ struct CommandPaletteView: View {
             VStack(spacing: 0) {
                 searchField
 
-                Divider().overlay(.white.opacity(0.1))
+                Divider().overlay(theme.ink(0.1))
 
                 resultsList
 
@@ -46,7 +47,7 @@ struct CommandPaletteView: View {
             .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
             .overlay(
                 RoundedRectangle(cornerRadius: 18, style: .continuous)
-                    .stroke(.white.opacity(0.12), lineWidth: 1)
+                    .stroke(theme.ink(0.12), lineWidth: 1)
             )
             .shadow(color: .black.opacity(0.4), radius: 40, x: 0, y: 24)
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -65,12 +66,12 @@ struct CommandPaletteView: View {
         HStack(spacing: 12) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(.white.opacity(0.5))
+                .foregroundStyle(theme.ink(0.5))
 
             TextField("Search commands or ask the assistant…", text: $query)
                 .textFieldStyle(.plain)
                 .font(.system(size: 16, weight: .regular, design: .rounded))
-                .foregroundStyle(.white.opacity(0.92))
+                .foregroundStyle(theme.ink(0.92))
                 .focused($isSearchFocused)
                 .onSubmit(runSelected)
                 .onExitCommand(perform: onClose)
@@ -134,9 +135,9 @@ struct CommandPaletteView: View {
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 9)
-        .background(.white.opacity(0.03))
+        .background(theme.surface(0.03))
         .overlay(alignment: .top) {
-            Divider().overlay(.white.opacity(0.08))
+            Divider().overlay(theme.ink(0.08))
         }
     }
 
@@ -145,7 +146,7 @@ struct CommandPaletteView: View {
             .font(.system(size: 10, weight: .bold, design: .monospaced))
             .tracking(1.1)
             .textCase(.uppercase)
-            .foregroundStyle(.white.opacity(0.38))
+            .foregroundStyle(theme.ink(0.38))
             .padding(.horizontal, 12)
             .padding(.top, 8)
             .padding(.bottom, 2)
@@ -155,14 +156,14 @@ struct CommandPaletteView: View {
         HStack(spacing: 5) {
             Text(key)
                 .font(.system(size: 10, weight: .bold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(theme.ink(0.6))
                 .padding(.horizontal, 5)
                 .padding(.vertical, 1)
-                .background(.white.opacity(0.08), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
+                .background(theme.surface(0.08), in: RoundedRectangle(cornerRadius: 5, style: .continuous))
 
             Text(label)
                 .font(.system(size: 11, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.4))
+                .foregroundStyle(theme.ink(0.4))
         }
     }
 
@@ -198,17 +199,18 @@ private struct CommandRow: View {
     let title: String
     let systemImage: String
     let isSelected: Bool
+    @Environment(\.theme) private var theme
 
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: systemImage)
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.82))
+                .foregroundStyle(theme.ink(0.82))
                 .frame(width: 22)
 
             Text(title)
                 .font(.system(size: 14, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.9))
+                .foregroundStyle(theme.ink(0.9))
 
             Spacer(minLength: 0)
         }
@@ -216,7 +218,7 @@ private struct CommandRow: View {
         .padding(.vertical, 9)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(.white.opacity(isSelected ? 0.12 : 0))
+                .fill(theme.surface(isSelected ? 0.12 : 0))
         )
         .contentShape(Rectangle())
     }
@@ -225,20 +227,21 @@ private struct CommandRow: View {
 private struct AskAssistantRow: View {
     let query: String
     let isSelected: Bool
+    @Environment(\.theme) private var theme
 
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "sparkles")
                 .font(.system(size: 14, weight: .semibold))
-                .foregroundStyle(.teal)
+                .foregroundStyle(theme.accent)
                 .frame(width: 22)
 
             Text("Ask Assistant: ")
                 .font(.system(size: 14, weight: .medium, design: .rounded))
-                .foregroundStyle(.white.opacity(0.6))
+                .foregroundStyle(theme.ink(0.6))
             + Text("“\(query)”")
                 .font(.system(size: 14, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.92))
+                .foregroundStyle(theme.ink(0.92))
 
             Spacer(minLength: 0)
         }
@@ -246,7 +249,7 @@ private struct AskAssistantRow: View {
         .padding(.vertical, 9)
         .background(
             RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(.white.opacity(isSelected ? 0.12 : 0))
+                .fill(theme.surface(isSelected ? 0.12 : 0))
         )
         .contentShape(Rectangle())
     }

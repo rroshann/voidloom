@@ -12,6 +12,7 @@ struct CanvasZoomControls: View {
     /// When embedded inside the tool dock, render only the controls and let the
     /// dock supply the shared capsule background.
     var embedded: Bool = false
+    @Environment(\.theme) private var theme
 
     private var zoomPercentage: Int {
         Int((scale * 100).rounded())
@@ -35,7 +36,7 @@ struct CanvasZoomControls: View {
                 .background(.ultraThinMaterial, in: Capsule())
                 .overlay(
                     Capsule()
-                        .stroke(.white.opacity(0.12), lineWidth: 1)
+                        .stroke(theme.ink(0.12), lineWidth: 1)
                 )
                 .shadow(color: .black.opacity(0.22), radius: 18, x: 0, y: 12)
         }
@@ -54,7 +55,7 @@ struct CanvasZoomControls: View {
 
             Text("\(zoomPercentage)%")
                 .font(.system(size: 11, weight: .bold, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.72))
+                .foregroundStyle(theme.ink(0.72))
                 .frame(minWidth: 44)
 
             CanvasZoomButton(
@@ -68,7 +69,7 @@ struct CanvasZoomControls: View {
 
             Divider()
                 .frame(height: dividerHeight)
-                .overlay(.white.opacity(0.16))
+                .overlay(theme.ink(0.16))
 
             CanvasZoomButton(
                 systemName: isCardFocused
@@ -96,6 +97,7 @@ private struct CanvasZoomButton: View {
     var iconSize: CGFloat = 12
     var cornerRadius: CGFloat = 10
     var isEnabled: Bool = true
+    @Environment(\.theme) private var theme
     let action: () -> Void
 
     var body: some View {
@@ -103,14 +105,14 @@ private struct CanvasZoomButton: View {
             Image(systemName: systemName)
                 .font(.system(size: iconSize, weight: .bold))
                 .frame(width: side, height: side)
-                .foregroundStyle(.white.opacity(isEnabled ? 0.84 : 0.22))
+                .foregroundStyle(theme.ink(isEnabled ? 0.84 : 0.22))
                 .background(
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .fill(.white.opacity(isEnabled ? 0.08 : 0.03))
+                        .fill(theme.surface(isEnabled ? 0.08 : 0.03))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
-                        .stroke(.white.opacity(isEnabled ? 0.1 : 0.04), lineWidth: 1)
+                        .stroke(theme.ink(isEnabled ? 0.1 : 0.04), lineWidth: 1)
                 )
         }
         .buttonStyle(.plain)

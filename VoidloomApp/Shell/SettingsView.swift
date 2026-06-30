@@ -114,31 +114,8 @@ private struct GeneralSettingsTab: View {
 // MARK: - Appearance
 
 private struct AppearanceSettingsTab: View {
-    enum AppearanceMode: String, CaseIterable, Identifiable {
-        case system = "System"
-        case light = "Light"
-        case dark = "Dark"
-        var id: String { rawValue }
-    }
-
-    enum CanvasBackground: String, CaseIterable, Identifiable {
-        case dots = "Dots"
-        case grid = "Grid"
-        case lines = "Lines"
-        case solid = "Solid"
-        case blueprint = "Blueprint"
-        var id: String { rawValue }
-    }
-
-    enum TextSize: String, CaseIterable, Identifiable {
-        case small = "Small"
-        case medium = "Medium"
-        case large = "Large"
-        var id: String { rawValue }
-    }
-
-    @AppStorage("appearance.mode") private var appearanceMode: AppearanceMode = .system
-    @State private var accentColor: Color = .accentColor
+    @AppStorage("appearance.mode") private var appearanceMode: AppearanceMode = .dark
+    @AppStorage("appearance.accentHex") private var accentHex = "#5EE6D3"
     @AppStorage("appearance.reduceTransparency") private var reduceTransparency = false
     @AppStorage("appearance.canvasBackground") private var canvasBackground: CanvasBackground = .dots
     @AppStorage("appearance.backgroundContrast") private var backgroundContrast = 0.35
@@ -150,18 +127,21 @@ private struct AppearanceSettingsTab: View {
         Form {
             Section("Theme") {
                 Picker("Appearance", selection: $appearanceMode) {
-                    ForEach(AppearanceMode.allCases) { Text($0.rawValue).tag($0) }
+                    ForEach(AppearanceMode.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) }
                 }
                 .pickerStyle(.segmented)
 
-                ColorPicker("Accent color", selection: $accentColor, supportsOpacity: false)
+                ColorPicker("Accent color", selection: Binding(
+                    get: { Color(hex: accentHex) },
+                    set: { accentHex = $0.toHex() }
+                ), supportsOpacity: false)
 
                 Toggle("Reduce transparency in panels", isOn: $reduceTransparency)
             }
 
             Section("Canvas") {
                 Picker("Background style", selection: $canvasBackground) {
-                    ForEach(CanvasBackground.allCases) { Text($0.rawValue).tag($0) }
+                    ForEach(CanvasBackground.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) }
                 }
                 .pickerStyle(.menu)
 
@@ -181,7 +161,7 @@ private struct AppearanceSettingsTab: View {
 
             Section("Interface Text") {
                 Picker("Interface text size", selection: $textSize) {
-                    ForEach(TextSize.allCases) { Text($0.rawValue).tag($0) }
+                    ForEach(TextSize.allCases, id: \.self) { Text($0.rawValue.capitalized).tag($0) }
                 }
                 .pickerStyle(.menu)
 
@@ -199,9 +179,6 @@ private struct CanvasSettingsTab: View {
     @AppStorage("canvas.invertPan") private var invertPan = false
     @AppStorage("canvas.zoomSensitivity") private var zoomSensitivity = 1.0
     @AppStorage("canvas.zoomTowardCursor") private var zoomTowardCursor = true
-    @AppStorage("canvas.snapToGrid") private var snapToGrid = false
-    @AppStorage("canvas.gridSize") private var gridSize = 16
-    @AppStorage("canvas.showAlignmentGuides") private var showAlignmentGuides = true
     @AppStorage("canvas.defaultZoom") private var defaultZoom = 100
     @AppStorage("canvas.momentumPanning") private var momentumPanning = true
     @AppStorage("canvas.selectionBoxModifier") private var selectionBoxModifier: SelectionBoxModifier = .none
@@ -233,17 +210,6 @@ private struct CanvasSettingsTab: View {
                 Text("None: a plain mouse drag draws a selection box. Pick a modifier to keep plain drag as pan and require that key for the selection box. Two-finger trackpad always pans.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
-            }
-
-            Section("Grid & Snapping") {
-                Toggle("Snap cards to grid", isOn: $snapToGrid)
-
-                Stepper(value: $gridSize, in: 8...64, step: 4) {
-                    LabeledContent("Grid size", value: "\(gridSize) pt")
-                }
-                .disabled(!snapToGrid)
-
-                Toggle("Show alignment guides", isOn: $showAlignmentGuides)
             }
 
             Section("View") {

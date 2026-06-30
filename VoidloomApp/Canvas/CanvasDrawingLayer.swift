@@ -2,31 +2,34 @@ import SwiftUI
 import VoidloomCore
 
 /// Render-only layer drawing persisted brush strokes plus the in-progress live
-/// stroke. It lives INSIDE the scaled/offset canvas ZStack (right after the
-/// grid and beneath the cards), so strokes are expressed in canvas coordinates,
-/// pan/zoom with everything else, and — by render order alone — always sit
-/// BENEATH the cards. Never hit-tested.
+/// stroke. It is hosted in SCREEN space (a sibling of the transformed card group,
+/// not inside it), drawing into a `Canvas` that fills the whole viewport so a
+/// stroke is never clipped by a fixed canvas frame. Each stroke point is stored
+/// in canvas coordinates and projected to the screen via `viewport.screenPoint`,
+/// and the thickness scales with `viewport.scale`, so strokes pan/zoom in lockstep
+/// with the cards. By render order alone they always sit BENEATH the cards.
+/// Never hit-tested.
 struct CanvasDrawingLayer: View, Equatable {
     let strokes: [DrawingStroke]
     let liveStroke: DrawingStroke?
-    let canvasSize: CGSize
+    let viewport: CanvasViewport
 
     var body: some View {
         Canvas { context, _ in
             for stroke in strokes {
-                Self.draw(stroke, in: &context)
+                Self.draw(stroke, viewport: viewport, in: &context)
             }
             if let liveStroke {
-                Self.draw(liveStroke, in: &context)
+                Self.draw(liveStroke, viewport: viewport, in: &context)
             }
         }
-        .frame(width: canvasSize.width, height: canvasSize.height)
         .allowsHitTesting(false)
     }
 
-    private static func draw(_ stroke: DrawingStroke, in context: inout GraphicsContext) {
-        guard let first = stroke.points.first else { return }
+    private static func draw(_ stroke: DrawingStroke, viewport: CanvasViewport, in context: inout GraphicsContext) {
+        guard !stroke.points.isEmpty else { return }
 
+        let scale = CGFloat(viewport.scale)
         let color = Color(
             .sRGB,
             red: stroke.color.red,
@@ -35,42 +38,47 @@ struct CanvasDrawingLayer: View, Equatable {
             opacity: stroke.color.opacity
         )
 
+        let screenPoints = stroke.points.map { point -> CGPoint in
+            let screen = viewport.screenPoint(forCanvasPoint: point)
+            return CGPoint(x: screen.x, y: screen.y)
+        }
+
         // A single point has no line geometry — render it as a round dot so the
         // brush shows feedback the instant the press lands.
-        guard stroke.points.count > 1 else {
-            let radius = stroke.thickness / 2
+        guard screenPoints.count > 1 else {
+            let radius = (CGFloat(stroke.thickness) * scale) / 2
+            let first = screenPoints[0]
             let dot = Path(
                 ellipseIn: CGRect(
                     x: first.x - radius,
                     y: first.y - radius,
-                    width: stroke.thickness,
-                    height: stroke.thickness
+                    width: radius * 2,
+                    height: radius * 2
                 )
             )
             context.fill(dot, with: .color(color))
             return
         }
 
-        let path = smoothPath(through: stroke.points)
+        let path = smoothPath(through: screenPoints)
 
         context.stroke(
             path,
             with: .color(color),
             style: StrokeStyle(
-                lineWidth: max(0.5, stroke.thickness),
+                lineWidth: max(0.5, CGFloat(stroke.thickness) * scale),
                 lineCap: .round,
                 lineJoin: .round
             )
         )
     }
 
-    /// Builds a smooth curve through the sampled points using a Catmull-Rom
-    /// spline (converted to cubic Béziers). Fast drags sample the pointer
-    /// sparsely; joining those samples with straight lines makes the stroke look
-    /// polygonal, so the curve follows the intended path instead. Assumes at
-    /// least two points (callers guard the single-point case as a dot).
-    private static func smoothPath(through points: [CanvasPoint]) -> Path {
-        let pts = points.map { CGPoint(x: $0.x, y: $0.y) }
+    /// Builds a smooth curve through the (screen-space) sampled points using a
+    /// Catmull-Rom spline (converted to cubic Béziers). Fast drags sample the
+    /// pointer sparsely; joining those samples with straight lines makes the
+    /// stroke look polygonal, so the curve follows the intended path instead.
+    /// Assumes at least two points (callers guard the single-point case as a dot).
+    private static func smoothPath(through pts: [CGPoint]) -> Path {
         var path = Path()
         path.move(to: pts[0])
 

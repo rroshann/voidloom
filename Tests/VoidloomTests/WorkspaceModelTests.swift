@@ -2065,4 +2065,409 @@ final class WorkspaceModelTests: XCTestCase {
         let loaded = try WorkspaceStore.load(from: url)
         XCTAssertEqual(loaded.cards.map(\.id), [c])
     }
+
+    // MARK: - BrowserURLResolver (Core)
+
+    func testBrowserResolverPrependsHTTPSForSchemelessHost() {
+        XCTAssertEqual(BrowserURLResolver.normalized(from: "google.com")?.absoluteString, "https://google.com")
+    }
+
+    func testBrowserResolverKeepsExplicitScheme() {
+        XCTAssertEqual(BrowserURLResolver.normalized(from: "http://example.com")?.scheme, "http")
+    }
+
+    func testBrowserResolverRejectsEmpty() {
+        XCTAssertNil(BrowserURLResolver.normalized(from: "   "))
+        XCTAssertFalse(BrowserURLResolver.isValid(""))
+    }
+
+    func testBrowserResolverLenientResolveAlwaysReturnsURL() {
+        XCTAssertNotNil(BrowserURLResolver.resolve(from: ""))   // fallback, never nil
+    }
+
+    // MARK: - C1: Chat models + reducer
+
+    func testReducerAppendsUserThenPendingAssistant() {
+        let assistantID = UUID()
+        let thread = ConversationReducer.appendingUserAndPendingAssistant([], userText: "hi", assistantID: assistantID)
+        XCTAssertEqual(thread.count, 2)
+        XCTAssertEqual(thread[0].role, .user)
+        XCTAssertEqual(thread[0].text, "hi")
+        XCTAssertEqual(thread[1].role, .assistant)
+        XCTAssertEqual(thread[1].id, assistantID)
+        XCTAssertTrue(thread[1].isPending)
+    }
+
+    func testReducerAccumulatesStreamChunks() {
+        let id = UUID()
+        var t = ConversationReducer.appendingUserAndPendingAssistant([], userText: "x", assistantID: id)
+        t = ConversationReducer.appendingStreamChunk(t, messageID: id, chunk: "Hel")
+        t = ConversationReducer.appendingStreamChunk(t, messageID: id, chunk: "lo")
+        XCTAssertEqual(t[1].streamingText, "Hello")
+        XCTAssertTrue(t[1].isStreaming)
+    }
+
+    func testReducerCompletesAndFails() {
+        let id = UUID()
+        let t = ConversationReducer.appendingUserAndPendingAssistant([], userText: "x", assistantID: id)
+        let done = ConversationReducer.completing(t, messageID: id, text: "final")
+        XCTAssertEqual(done[1].text, "final")
+        XCTAssertEqual(done[1].status, .complete)
+        let failed = ConversationReducer.failing(t, messageID: id, error: "boom")
+        XCTAssertEqual(failed[1].status, .failed("boom"))
+    }
+
+    func testReducerFindsUserTextBeforeAssistantForRetry() {
+        let id = UUID()
+        let t = ConversationReducer.appendingUserAndPendingAssistant([], userText: "question", assistantID: id)
+        XCTAssertEqual(ConversationReducer.userText(before: id, in: t), "question")
+    }
+
+    func testReducerResettingToPendingClearssStreamingStateAndText() {
+        let id = UUID()
+        var t = ConversationReducer.appendingUserAndPendingAssistant([], userText: "hi", assistantID: id)
+        t = ConversationReducer.appendingStreamChunk(t, messageID: id, chunk: "partial response")
+        XCTAssertTrue(t[1].isStreaming)
+
+        t = ConversationReducer.resettingToPending(t, messageID: id)
+
+        XCTAssertTrue(t[1].isPending)
+        XCTAssertFalse(t[1].isStreaming)
+        XCTAssertEqual(t[1].text, "")
+    }
+
+    // MARK: - Appearance enums (Task D1)
+
+    func testTextSizeFontScale() {
+        XCTAssertEqual(TextSize.small.fontScale, 0.9, accuracy: 0.0001)
+        XCTAssertEqual(TextSize.medium.fontScale, 1.0, accuracy: 0.0001)
+        XCTAssertEqual(TextSize.large.fontScale, 1.1, accuracy: 0.0001)
+    }
+
+    func testAppearanceModeRoundTripsRawValue() {
+        XCTAssertEqual(AppearanceMode(rawValue: "dark"), .dark)
+    }
+
+    // MARK: - M1: Content bounding box
+
+    func testContentBoundingBoxUnionsAllCards() throws {
+        let state = WorkspaceState(cards: [
+            WorkspaceCard(
+                kind: .note,
+                position: CanvasPoint(x: 100, y: 100),
+                size: CardSize(width: 200, height: 150),
+                title: "A",
+                content: ""
+            ),
+            WorkspaceCard(
+                kind: .note,
+                position: CanvasPoint(x: 500, y: 400),
+                size: CardSize(width: 300, height: 200),
+                title: "B",
+                content: ""
+            )
+        ])
+        let box = try XCTUnwrap(state.contentBoundingBox())
+        XCTAssertEqual(box.origin.x, 100, accuracy: 0.0001)
+        XCTAssertEqual(box.origin.y, 100, accuracy: 0.0001)
+        XCTAssertEqual(box.size.width, 700, accuracy: 0.0001)    // 800 - 100
+        XCTAssertEqual(box.size.height, 500, accuracy: 0.0001)   // 600 - 100
+    }
+
+    func testContentBoundingBoxIsNilWhenNoCards() {
+        let state = WorkspaceState(cards: [])
+        XCTAssertNil(state.contentBoundingBox())
+    }
+
+    // MARK: - TC1: Typed connections + chain traversal
+
+    func testLinkedCardIDsReturnsUndirectedNeighbors() throws {
+        let a = try XCTUnwrap(UUID(uuidString: "EC100000-0000-0000-0000-000000000001"))
+        let b = try XCTUnwrap(UUID(uuidString: "EC100000-0000-0000-0000-000000000002"))
+        let c = try XCTUnwrap(UUID(uuidString: "EC100000-0000-0000-0000-000000000003"))
+        var state = WorkspaceState(cards: [
+            WorkspaceCard(id: a, kind: .note, position: .zero, size: CardSize(width: 300, height: 200), title: "A", content: "alpha"),
+            WorkspaceCard(id: b, kind: .note, position: CanvasPoint(x: 400, y: 0), size: CardSize(width: 300, height: 200), title: "B", content: "beta"),
+            WorkspaceCard(id: c, kind: .todo, position: CanvasPoint(x: 800, y: 0), size: CardSize(width: 300, height: 200), title: "C", content: "gamma")
+        ])
+
+        state.addConnection(from: a, to: b)
+
+        XCTAssertEqual(state.linkedCardIDs(to: a), Set([b]))
+        XCTAssertEqual(state.linkedCardIDs(to: b), Set([a]))
+        XCTAssertEqual(state.linkedCardIDs(to: c), Set())
+    }
+
+    func testLinkedContextIncludesCardAndNeighborsContent() throws {
+        let a = try XCTUnwrap(UUID(uuidString: "EC100000-0000-0000-0000-000000000011"))
+        let b = try XCTUnwrap(UUID(uuidString: "EC100000-0000-0000-0000-000000000012"))
+        var state = WorkspaceState(cards: [
+            WorkspaceCard(id: a, kind: .todo, position: .zero, size: CardSize(width: 300, height: 200), title: "TODO list", content: "buy milk"),
+            WorkspaceCard(id: b, kind: .note, position: CanvasPoint(x: 400, y: 0), size: CardSize(width: 300, height: 200), title: "Notes", content: "context")
+        ])
+
+        state.addConnection(from: a, to: b)
+
+        let context = state.linkedContext(for: a)
+        // Focus card (A) appears before neighbor (B).
+        XCTAssertTrue(context.contains("TODO list"))
+        XCTAssertTrue(context.contains("buy milk"))
+        XCTAssertTrue(context.contains("Notes"))
+        XCTAssertTrue(context.contains("context"))
+        let rangeA = context.range(of: "TODO list")!
+        let rangeB = context.range(of: "Notes")!
+        XCTAssertLessThan(rangeA.lowerBound, rangeB.lowerBound, "focus card must appear before neighbor")
+    }
+
+    func testLinkedContextIsEmptyForBlankUnlinkedCard() throws {
+        let id = try XCTUnwrap(UUID(uuidString: "EC200000-0000-0000-0000-000000000001"))
+        let state = WorkspaceState(cards: [
+            WorkspaceCard(
+                id: id,
+                kind: .note,
+                position: .zero,
+                size: CardSize(width: 300, height: 200),
+                title: "",
+                content: ""
+            )
+        ])
+
+        let context = state.linkedContext(for: id)
+
+        XCTAssertEqual(context, "", "blank unlinked card must produce an empty context string, not a bare newline")
+    }
+
+    func testConnectionTypeDefaultsToGenericForLegacyJSON() throws {
+        let legacyJSON = """
+        {"id":"DEADBEEF-0000-0000-0000-000000000001","from":"DEADBEEF-0000-0000-0000-000000000002","to":"DEADBEEF-0000-0000-0000-000000000003"}
+        """
+        let data = try XCTUnwrap(legacyJSON.data(using: .utf8))
+        let connection = try JSONDecoder().decode(CardConnection.self, from: data)
+
+        XCTAssertEqual(connection.type, .generic)
+    }
+
+    func testAddConnectionDerivesTypeFromEndpointKinds() throws {
+        let a = try XCTUnwrap(UUID(uuidString: "EC100000-0000-0000-0000-000000000021"))
+        let b = try XCTUnwrap(UUID(uuidString: "EC100000-0000-0000-0000-000000000022"))
+        let c = try XCTUnwrap(UUID(uuidString: "EC100000-0000-0000-0000-000000000023"))
+        var state = WorkspaceState(cards: [
+            WorkspaceCard(id: a, kind: .note, position: .zero, size: CardSize(width: 300, height: 200), title: "Note", content: ""),
+            WorkspaceCard(id: b, kind: .note, position: CanvasPoint(x: 400, y: 0), size: CardSize(width: 300, height: 200), title: "Note2", content: ""),
+            WorkspaceCard(id: c, kind: .todo, position: CanvasPoint(x: 800, y: 0), size: CardSize(width: 300, height: 200), title: "Todo", content: "")
+        ])
+
+        state.addConnection(from: a, to: b)
+        XCTAssertEqual(state.connections.first?.type, .noteToNote, "note+note should derive .noteToNote")
+
+        state.addConnection(from: a, to: c)
+        let noteTodo = state.connections.first(where: {
+            ($0.from == a && $0.to == c) || ($0.from == c && $0.to == a)
+        })
+        XCTAssertEqual(noteTodo?.type, .todoToNote, "note+todo should derive .todoToNote")
+    }
+
+    // MARK: - BK: cleanShutdown flag + rolling backup recovery
+
+    @MainActor
+    func testRollingBackupKeepsLastNAndRotates() throws {
+        // Pure helper: given 5 filenames and keep=3, oldest 2 are pruned.
+        let names = ["backup-01.json", "backup-02.json", "backup-03.json",
+                     "backup-04.json", "backup-05.json"]
+        let pruned = WorkspaceStore.backupsToPrune(existing: names, keep: 3)
+        XCTAssertEqual(Set(pruned), Set(["backup-01.json", "backup-02.json"]))
+
+        // On-disk: N+2 (5) saves produce exactly N (3) backup files.
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let storageURL = baseDirectory.appendingPathComponent("workspace.json")
+        let store = WorkspaceStore(
+            state: WorkspaceState(),
+            storageURL: storageURL,
+            persistenceDelay: 60
+        )
+        let workspaceID = store.library.selectedWorkspaceID
+
+        for _ in 0..<5 {
+            store.persist()
+            // Small sleep so timestamps differ in the filename.
+            Thread.sleep(forTimeInterval: 0.002)
+        }
+
+        let backupsDir = baseDirectory
+            .appendingPathComponent("backups")
+            .appendingPathComponent(workspaceID.uuidString)
+        let files = try FileManager.default.contentsOfDirectory(atPath: backupsDir.path)
+        XCTAssertEqual(files.count, 3, "exactly 3 backups should remain after 5 saves")
+    }
+
+    @MainActor
+    func testRecoversFromNewestBackupWhenCurrentMissingAfterUncleanShutdown() throws {
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let libraryURL = baseDirectory.appendingPathComponent("library.json")
+        let workspacesDirectory = baseDirectory.appendingPathComponent("workspaces", isDirectory: true)
+        let legacyURL = baseDirectory.appendingPathComponent("workspace.json")
+
+        // First launch: create store, add card (persists immediately + writes backup).
+        let store = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: legacyURL
+        )
+        store.addCard(kind: .note)
+        let savedCardCount = store.state.cards.count
+        let workspaceID = store.library.selectedWorkspaceID
+
+        // Simulate crash: delete the current workspace file without marking clean.
+        let workspaceFileURL = WorkspaceStore.workspaceURL(for: workspaceID, in: workspacesDirectory)
+        try FileManager.default.removeItem(at: workspaceFileURL)
+        // markCleanShutdown() is NOT called → marker stays false.
+
+        // Second launch should recover from the backup.
+        let recoveredStore = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: legacyURL
+        )
+
+        XCTAssertEqual(
+            recoveredStore.state.cards.count, savedCardCount,
+            "state must be recovered from the newest backup"
+        )
+    }
+
+    @MainActor
+    func testRecoversFromBackupWhenCurrentFileIsCorruptAfterUncleanShutdown() throws {
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let libraryURL = baseDirectory.appendingPathComponent("library.json")
+        let workspacesDirectory = baseDirectory.appendingPathComponent("workspaces", isDirectory: true)
+        let legacyURL = baseDirectory.appendingPathComponent("workspace.json")
+
+        // First launch: create store, add card (persists immediately + writes backup).
+        let store = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: legacyURL
+        )
+        store.addCard(kind: .note)
+        let savedCardCount = store.state.cards.count
+        let workspaceID = store.library.selectedWorkspaceID
+
+        // Simulate crash: overwrite workspace file with invalid bytes, leave marker unclean.
+        let workspaceFileURL = WorkspaceStore.workspaceURL(for: workspaceID, in: workspacesDirectory)
+        try "{ not json".data(using: .utf8)!.write(to: workspaceFileURL)
+        // markCleanShutdown() is NOT called → marker stays false.
+
+        // Second launch should recover from the backup despite the corrupt (but present) file.
+        let recoveredStore = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: legacyURL
+        )
+
+        XCTAssertEqual(
+            recoveredStore.state.cards.count, savedCardCount,
+            "state must be recovered from the newest backup when the current file is corrupt"
+        )
+    }
+
+    @MainActor
+    func testRecoversFromBackupOnCorruptFileEvenAfterCleanShutdown() throws {
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let libraryURL = baseDirectory.appendingPathComponent("library.json")
+        let workspacesDirectory = baseDirectory.appendingPathComponent("workspaces", isDirectory: true)
+        let legacyURL = baseDirectory.appendingPathComponent("workspace.json")
+
+        // First launch: create store, add card (persists immediately + writes backup).
+        let store = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: legacyURL
+        )
+        store.addCard(kind: .note)
+        let savedCardCount = store.state.cards.count
+        let workspaceID = store.library.selectedWorkspaceID
+
+        // Graceful (clean) shutdown — the bug case: shutdown was clean but the file
+        // gets corrupted afterwards (disk error, external tool, etc.).
+        store.markCleanShutdown()
+
+        // Corrupt the current workspace file after the clean shutdown.
+        let workspaceFileURL = WorkspaceStore.workspaceURL(for: workspaceID, in: workspacesDirectory)
+        try "{ not json".data(using: .utf8)!.write(to: workspaceFileURL)
+
+        // Second launch must still recover from backup even though shutdown was clean.
+        let recoveredStore = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: legacyURL
+        )
+
+        XCTAssertEqual(
+            recoveredStore.state.cards.count, savedCardCount,
+            "state must be recovered from backup even after a clean shutdown when the current file is corrupt"
+        )
+    }
+
+    @MainActor
+    func testCleanShutdownMarkerRoundTrips() throws {
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let libraryURL = baseDirectory.appendingPathComponent("library.json")
+        let workspacesDirectory = baseDirectory.appendingPathComponent("workspaces", isDirectory: true)
+        let legacyURL = baseDirectory.appendingPathComponent("workspace.json")
+        let markerURL = baseDirectory.appendingPathComponent("shutdown.json")
+
+        // Launch → marker is written false (running, potentially unclean).
+        let store = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: legacyURL
+        )
+        XCTAssertFalse(
+            WorkspaceStore.readShutdownMarker(from: markerURL),
+            "marker should be false immediately after launch"
+        )
+
+        // Graceful shutdown → marker flips to true.
+        store.markCleanShutdown()
+        XCTAssertTrue(
+            WorkspaceStore.readShutdownMarker(from: markerURL),
+            "marker should be true after markCleanShutdown()"
+        )
+
+        // Fresh launch → marker reset to false again.
+        _ = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: legacyURL
+        )
+        XCTAssertFalse(
+            WorkspaceStore.readShutdownMarker(from: markerURL),
+            "marker should be false again after a fresh store launch"
+        )
+    }
+
+    func testCanvasRectUnionCoversBoth() {
+        let a = CanvasRect(origin: CanvasPoint(x: 0, y: 0), size: CardSize(width: 100, height: 100))
+        let b = CanvasRect(origin: CanvasPoint(x: 200, y: 50), size: CardSize(width: 100, height: 100))
+        let u = a.union(b)
+        XCTAssertEqual(u.origin.x, 0, accuracy: 0.0001)
+        XCTAssertEqual(u.origin.y, 0, accuracy: 0.0001)
+        XCTAssertEqual(u.size.width, 300, accuracy: 0.0001)   // 300 - 0
+        XCTAssertEqual(u.size.height, 150, accuracy: 0.0001)  // 150 - 0
+    }
 }
