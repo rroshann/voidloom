@@ -71,6 +71,7 @@ public protocol ResponseProvider: AnyObject, Sendable {
     @MainActor func generateResponse(
         workspaceID: UUID,
         userMessage: String,
+        context: String?,
         onStreamChunk: @escaping (String) -> Void,
         onComplete: @escaping (String) -> Void,
         onError: @escaping (String) -> Void

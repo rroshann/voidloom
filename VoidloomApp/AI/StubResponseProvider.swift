@@ -22,7 +22,7 @@ final class StubResponseProvider: ResponseProvider {
         self.failEvery = failEvery
     }
 
-    func generateResponse(workspaceID: UUID, userMessage: String,
+    func generateResponse(workspaceID: UUID, userMessage: String, context: String?,
                           onStreamChunk: @escaping (String) -> Void,
                           onComplete: @escaping (String) -> Void,
                           onError: @escaping (String) -> Void) {
@@ -34,14 +34,16 @@ final class StubResponseProvider: ResponseProvider {
             }
             return
         }
+        let contextSuffix = context.flatMap { $0.isEmpty ? nil : " (received \($0.count) chars of card context)" } ?? ""
+        let fullReply = reply + contextSuffix
         Task { @MainActor in
             try? await Task.sleep(nanoseconds: 600_000_000)   // pending state visible
-            guard simulateStreaming else { onComplete(reply); return }
-            for word in reply.split(separator: " ") {
+            guard simulateStreaming else { onComplete(fullReply); return }
+            for word in fullReply.split(separator: " ") {
                 try? await Task.sleep(nanoseconds: 60_000_000)
                 onStreamChunk(String(word) + " ")
             }
-            onComplete(reply)
+            onComplete(fullReply)
         }
     }
 }

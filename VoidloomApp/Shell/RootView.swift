@@ -44,6 +44,16 @@ struct RootView: View {
         store.library.selectedWorkspaceID
     }
 
+    /// Builds a context string from the selected card plus its direct neighbors
+    /// (via `WorkspaceState.linkedContext`). Returns nil when no card is selected
+    /// or the assembled string is empty — so the nil path is byte-for-byte
+    /// equivalent to the previous behavior.
+    private var selectedCardContext: String? {
+        guard let id = store.state.selectedCardID else { return nil }
+        let s = store.state.linkedContext(for: id)
+        return s.isEmpty ? nil : s
+    }
+
     private var activeWorkspaceName: String {
         store.library.workspaces
             .first(where: { $0.id == store.library.selectedWorkspaceID })?
@@ -160,7 +170,7 @@ struct RootView: View {
                 if isAIConversationVisible {
                     AIConversationSidebar(
                         messages: conversationStore.messages(for: activeWorkspaceID),
-                        onSubmit: { conversationStore.submit(workspaceID: activeWorkspaceID, text: $0) },
+                        onSubmit: { conversationStore.submit(workspaceID: activeWorkspaceID, text: $0, context: selectedCardContext) },
                         onRetry: { conversationStore.retry(workspaceID: activeWorkspaceID, messageID: $0) },
                         onClose: {
                             withAnimation(.easeInOut(duration: 0.24)) {
@@ -342,7 +352,7 @@ struct RootView: View {
                         query: $paletteQuery,
                         commands: paletteCommands(in: geometry.size),
                         onAskAI: { text in
-                            conversationStore.submit(workspaceID: activeWorkspaceID, text: text)
+                            conversationStore.submit(workspaceID: activeWorkspaceID, text: text, context: selectedCardContext)
                             withAnimation(.easeInOut(duration: 0.24)) {
                                 isAIConversationVisible = true
                             }
@@ -429,7 +439,7 @@ struct RootView: View {
         let trimmed = commandText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        conversationStore.submit(workspaceID: activeWorkspaceID, text: trimmed)
+        conversationStore.submit(workspaceID: activeWorkspaceID, text: trimmed, context: selectedCardContext)
         commandText = ""
 
         withAnimation(.easeInOut(duration: 0.24)) {
