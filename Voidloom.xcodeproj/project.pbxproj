@@ -51,6 +51,9 @@
 		A70000000000000000000001 /* ConnectionHitLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000011 /* ConnectionHitLayer.swift */; };
 		A70000000000000000000002 /* TextElementEditor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000012 /* TextElementEditor.swift */; };
 		A70000000000000000000003 /* TextOptionsPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A70000000000000000000013 /* TextOptionsPanel.swift */; };
+		A80000000000000000000001 /* AppMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000011 /* AppMode.swift */; };
+		A80000000000000000000002 /* CanvasShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000012 /* CanvasShellView.swift */; };
+		A80000000000000000000003 /* SpacesShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000013 /* SpacesShellView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -100,6 +103,9 @@
 		A70000000000000000000011 /* ConnectionHitLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/ConnectionHitLayer.swift; sourceTree = "<group>"; };
 		A70000000000000000000012 /* TextElementEditor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/TextElementEditor.swift; sourceTree = "<group>"; };
 		A70000000000000000000013 /* TextOptionsPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/TextOptionsPanel.swift; sourceTree = "<group>"; };
+		A80000000000000000000011 /* AppMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/AppMode.swift; sourceTree = "<group>"; };
+		A80000000000000000000012 /* CanvasShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/CanvasShellView.swift; sourceTree = "<group>"; };
+		A80000000000000000000013 /* SpacesShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spaces/SpacesShellView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -128,6 +134,9 @@
 			children = (
 				A10000000000000000000011 /* VoidloomApp.swift */,
 				A10000000000000000000012 /* RootView.swift */,
+				A80000000000000000000011 /* AppMode.swift */,
+				A80000000000000000000012 /* CanvasShellView.swift */,
+				A80000000000000000000013 /* SpacesShellView.swift */,
 				A100000000000000000000F1 /* CanvasKeyMonitor.swift */,
 				A20000000000000000000011 /* AtmosphereBackground.swift */,
 				A20000000000000000000018 /* WorkspaceSidebar.swift */,
@@ -299,6 +308,9 @@
 				A70000000000000000000001 /* ConnectionHitLayer.swift in Sources */,
 				A70000000000000000000002 /* TextElementEditor.swift in Sources */,
 				A70000000000000000000003 /* TextOptionsPanel.swift in Sources */,
+				A80000000000000000000001 /* AppMode.swift in Sources */,
+				A80000000000000000000002 /* CanvasShellView.swift in Sources */,
+				A80000000000000000000003 /* SpacesShellView.swift in Sources */,
 				A10000000000000000000005 /* PreviewSupport.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

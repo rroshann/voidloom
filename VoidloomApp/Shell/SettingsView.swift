@@ -19,6 +19,9 @@ struct SettingsView: View {
             CanvasSettingsTab()
                 .tabItem { Label("Canvas", systemImage: "square.grid.3x3") }
 
+            SpacesSettingsTab()
+                .tabItem { Label("Spaces", systemImage: "rectangle.grid.2x2") }
+
             CardsSettingsTab()
                 .tabItem { Label("Cards", systemImage: "rectangle.on.rectangle") }
 
@@ -255,6 +258,37 @@ private struct CanvasSettingsTab: View {
 
                 KeyboardShortcutRow(title: "Reset view", keys: ["⌘", "0"])
                 KeyboardShortcutRow(title: "Zoom to fit", keys: ["⇧", "⌘", "0"])
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+// MARK: - Spaces
+
+private struct SpacesSettingsTab: View {
+    @AppStorage("app.mode") private var appMode: AppMode = .canvas
+    @AppStorage("spaces.defaultColumns") private var defaultColumns = 0   // 0 = auto
+
+    var body: some View {
+        Form {
+            Section("Mode") {
+                Picker("Workspace mode", selection: $appMode) {
+                    ForEach(AppMode.allCases) { Text($0.label).tag($0) }
+                }
+                .pickerStyle(.segmented)
+
+                Text("Canvas is the free pan/zoom board. Spaces tiles your cards full-screen over a background and is driven by the top space bar.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Spaces Layout") {
+                Picker("Columns", selection: $defaultColumns) {
+                    Text("Auto").tag(0)
+                    ForEach(1...5, id: \.self) { Text("\($0)").tag($0) }
+                }
+                .pickerStyle(.menu)
             }
         }
         .formStyle(.grouped)
