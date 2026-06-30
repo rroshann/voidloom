@@ -25,7 +25,11 @@ struct SpaceTopBar: View {
                         sessionManager.terminateAllSessions()
                         store.switchWorkspace(id: ws.id)
                     } label: {
-                        Label(ws.name, systemImage: ws.id == store.library.selectedWorkspaceID ? "checkmark" : "")
+                        if ws.id == store.library.selectedWorkspaceID {
+                            Label(ws.name, systemImage: "checkmark")
+                        } else {
+                            Text(ws.name)
+                        }
                     }
                 }
                 Divider()

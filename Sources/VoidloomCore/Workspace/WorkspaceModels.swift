@@ -741,14 +741,25 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         if space == nil { space = SpaceConfig() }
     }
 
-    /// Reorders the `cards` array (drives Spaces drag-to-reorder). No-op for
-    /// out-of-range or equal indices.
-    public mutating func moveCard(fromIndex: Int, toIndex: Int) {
-        guard cards.indices.contains(fromIndex),
-              cards.indices.contains(toIndex) else { return }
-        guard fromIndex != toIndex else { return }
-        let card = cards.remove(at: fromIndex)
-        cards.insert(card, at: toIndex)
+    /// Reorders a Spaces tile by moving the displayed item from `fromIndex` to
+    /// `toIndex`, writing the result to `space.cardOrder` so the canonical `cards`
+    /// array (and Canvas z-order) is untouched. Operates on the current displayed
+    /// order (`orderedCardIDsForSpace`). No-op for out-of-range/equal indices.
+    public mutating func reorderSpaceCard(fromIndex: Int, toIndex: Int) {
+        var order = orderedCardIDsForSpace
+        guard order.indices.contains(fromIndex) else { return }
+        let clampedTo = min(max(toIndex, 0), order.count - 1)
+        guard fromIndex != clampedTo else { return }
+        let id = order.remove(at: fromIndex)
+        order.insert(id, at: clampedTo)
+        ensureSpaceConfig()
+        space?.cardOrder = order
+    }
+
+    /// Resets Spaces order to the canonical `cards` array order.
+    public mutating func resetSpaceCardOrder() {
+        ensureSpaceConfig()
+        space?.cardOrder = nil
     }
 
     public mutating func setSpaceBackground(_ background: SpaceBackground) {

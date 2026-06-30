@@ -384,7 +384,12 @@ public final class WorkspaceStore: ObservableObject {
     }
 
     public func moveSpaceCard(fromIndex: Int, toIndex: Int) {
-        state.moveCard(fromIndex: fromIndex, toIndex: toIndex)
+        state.reorderSpaceCard(fromIndex: fromIndex, toIndex: toIndex)
+        persist()
+    }
+
+    public func resetSpaceCardOrder() {
+        state.resetSpaceCardOrder()
         persist()
     }
 

@@ -9,6 +9,7 @@ struct CanvasShellView: View {
     @ObservedObject var interaction: CanvasInteractionModel
 
     @AppStorage("isWorkspaceSidebarVisible") private var isWorkspaceSidebarVisible = false
+    @AppStorage("app.mode") private var appMode: AppMode = .canvas
     @State private var isCommandBarVisible = false
     @State private var isAIConversationVisible = false
     @State private var commandText = ""
@@ -540,6 +541,9 @@ struct CanvasShellView: View {
             withAnimation(.easeInOut(duration: 0.24)) {
                 isAIConversationVisible = true
             }
+        })
+        commands.append(PaletteCommand(id: "switch-to-spaces", title: "Switch to Spaces Mode", section: .app, systemImage: "rectangle.grid.2x2", keywords: ["spaces", "mode", "grid"]) {
+            appMode = .spaces
         })
 
         return commands

@@ -89,18 +89,48 @@ extension SpaceModelTests {
         XCTAssertEqual(state.orderedCardIDsForSpace, state.cards.map(\.id))
     }
 
-    func testMoveCardReordersArray() {
+    func testReorderSpaceCardWritesCardOrderLeavingCardsUntouched() {
         var state = stateWithCards(3)
-        let ids = state.cards.map(\.id)
-        state.moveCard(fromIndex: 0, toIndex: 2)
-        XCTAssertEqual(state.cards.map(\.id), [ids[1], ids[2], ids[0]])
+        let originalCardsOrder = state.cards.map(\.id)
+        state.reorderSpaceCard(fromIndex: 0, toIndex: 2)
+        // The canonical cards array is never mutated.
+        XCTAssertEqual(state.cards.map(\.id), originalCardsOrder)
+        // cardOrder is written so orderedCardIDsForSpace reflects the new order.
+        XCTAssertNotNil(state.space?.cardOrder)
+        XCTAssertEqual(
+            state.orderedCardIDsForSpace,
+            [originalCardsOrder[1], originalCardsOrder[2], originalCardsOrder[0]]
+        )
     }
 
-    func testMoveCardIgnoresOutOfRangeIndices() {
-        var state = stateWithCards(2)
+    func testReorderSpaceCardOutOfRangeFromIndexIsNoOp() {
+        var state = stateWithCards(3)
+        let originalCardsOrder = state.cards.map(\.id)
+        state.reorderSpaceCard(fromIndex: 5, toIndex: 0)   // fromIndex out of range → no-op
+        XCTAssertNil(state.space?.cardOrder)
+        XCTAssertEqual(state.orderedCardIDsForSpace, originalCardsOrder)
+    }
+
+    func testReorderSpaceCardEqualIndicesIsNoOp() {
+        var state = stateWithCards(3)
+        state.reorderSpaceCard(fromIndex: 1, toIndex: 1)
+        XCTAssertNil(state.space?.cardOrder)
+    }
+
+    func testResetSpaceCardOrderClearsCardOrder() {
+        var state = stateWithCards(3)
+        state.reorderSpaceCard(fromIndex: 0, toIndex: 2)
+        XCTAssertNotNil(state.space?.cardOrder)
+        state.resetSpaceCardOrder()
+        XCTAssertNil(state.space?.cardOrder)
+        XCTAssertEqual(state.orderedCardIDsForSpace, state.cards.map(\.id))
+    }
+
+    func testOrderedCardIDsReflectsNewCardOrder() {
+        var state = stateWithCards(4)
         let ids = state.cards.map(\.id)
-        state.moveCard(fromIndex: 0, toIndex: 9)        // out of range → no-op
-        XCTAssertEqual(state.cards.map(\.id), ids)
+        state.reorderSpaceCard(fromIndex: 3, toIndex: 0)
+        XCTAssertEqual(state.orderedCardIDsForSpace, [ids[3], ids[0], ids[1], ids[2]])
     }
 
     func testSettersMaterializeAndUpdateConfig() {

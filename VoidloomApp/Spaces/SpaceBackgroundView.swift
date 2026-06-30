@@ -2,12 +2,16 @@ import SwiftUI
 import VoidloomCore
 
 /// Full-bleed Space background: the existing gradient, a solid color, or an
-/// imported image, with a dimming scrim so glassy cards stay legible. Honors
-/// Reduce Transparency by leaning on the scrim.
+/// imported image, with a dimming scrim so glassy cards stay legible. When
+/// Reduce Transparency is enabled the dimming scrim is applied to ALL background
+/// cases (including `.atmosphere`) so cards retain a legibility floor regardless
+/// of the active background.
 struct SpaceBackgroundView: View {
     let background: SpaceBackground
     let dimming: Double
     let backgroundsDirectory: URL
+
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
 
     var body: some View {
         ZStack {
@@ -27,6 +31,9 @@ struct SpaceBackgroundView: View {
     }
 
     private var shouldDim: Bool {
+        // When Reduce Transparency is on, apply the scrim to every background
+        // (including .atmosphere) so cards always have a legibility floor.
+        if reduceTransparency { return dimming > 0 }
         if case .atmosphere = background { return false }   // gradient already dark
         return dimming > 0
     }

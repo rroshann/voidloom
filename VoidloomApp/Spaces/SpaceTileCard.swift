@@ -5,7 +5,6 @@ import VoidloomCore
 /// with no resize handles and no free dragging (the grid owns position in v0).
 struct SpaceTileCard: View {
     let card: WorkspaceCard
-    let index: Int
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var sessionManager: AgentSessionManager
     let onDragChanged: (CGSize) -> Void

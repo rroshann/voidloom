@@ -10,6 +10,8 @@ struct SpacesShellView: View {
     /// interaction-driven controls are hidden, so this object stays effectively idle.
     @StateObject private var dockInteraction = CanvasInteractionModel()
 
+    @AppStorage("spaces.defaultColumns") private var defaultColumns = 0
+
     @State private var topBarHeight: CGFloat = 0
     @State private var dockHeight: CGFloat = 0
 
@@ -25,7 +27,10 @@ struct SpacesShellView: View {
 
     var body: some View {
         GeometryReader { geo in
-            let tiling = store.state.space?.tiling ?? SpaceTiling()
+            let tiling = store.state.space?.tiling ?? SpaceTiling(
+                mode: defaultColumns == 0 ? .auto : .fixedColumns,
+                columns: defaultColumns == 0 ? 2 : defaultColumns
+            )
             let orderedIDs = store.state.orderedCardIDsForSpace
             let cardsByID = Dictionary(uniqueKeysWithValues: store.state.cards.map { ($0.id, $0) })
             let layout = SpaceGrid.layout(
@@ -57,7 +62,6 @@ struct SpacesShellView: View {
                         let origin = layout.tileOrigins[index]
                         SpaceTileCard(
                             card: card,
-                            index: index,
                             store: store,
                             sessionManager: sessionManager,
                             onDragChanged: { _ in
@@ -130,11 +134,8 @@ struct SpacesShellView: View {
     }
 
     private func reTile() {
-        // Order follows the cards array (drag-to-reorder mutates that array via
-        // store.moveSpaceCard). Layout is derived, so persisting the current tiling
-        // nudges a re-render without discarding any reordered positions.
-        let tiling = store.state.space?.tiling ?? SpaceTiling()
-        store.setSpaceTiling(tiling)   // immediate persist; layout recomputes
+        // Resets Spaces order to the canonical cards array order and persists.
+        store.resetSpaceCardOrder()
         draggingIndex = nil
     }
 
