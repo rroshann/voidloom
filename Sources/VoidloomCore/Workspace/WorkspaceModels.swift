@@ -719,4 +719,19 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         guard let index = cards.firstIndex(where: { $0.id == id }) else { return }
         cards[index].content = content
     }
+
+    /// The axis-aligned bounding box that tightly wraps every card frame
+    /// (position + size) in canvas space. Returns nil when there are no cards.
+    /// Used by the minimap to scale and position the content overview.
+    public func contentBoundingBox() -> CanvasRect? {
+        guard !cards.isEmpty else { return nil }
+        let minX = cards.map { $0.position.x }.min()!
+        let minY = cards.map { $0.position.y }.min()!
+        let maxX = cards.map { $0.position.x + $0.size.width }.max()!
+        let maxY = cards.map { $0.position.y + $0.size.height }.max()!
+        return CanvasRect(
+            origin: CanvasPoint(x: minX, y: minY),
+            size: CardSize(width: maxX - minX, height: maxY - minY)
+        )
+    }
 }

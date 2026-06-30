@@ -2147,4 +2147,35 @@ final class WorkspaceModelTests: XCTestCase {
     func testAppearanceModeRoundTripsRawValue() {
         XCTAssertEqual(AppearanceMode(rawValue: "dark"), .dark)
     }
+
+    // MARK: - M1: Content bounding box
+
+    func testContentBoundingBoxUnionsAllCards() throws {
+        let state = WorkspaceState(cards: [
+            WorkspaceCard(
+                kind: .note,
+                position: CanvasPoint(x: 100, y: 100),
+                size: CardSize(width: 200, height: 150),
+                title: "A",
+                content: ""
+            ),
+            WorkspaceCard(
+                kind: .note,
+                position: CanvasPoint(x: 500, y: 400),
+                size: CardSize(width: 300, height: 200),
+                title: "B",
+                content: ""
+            )
+        ])
+        let box = try XCTUnwrap(state.contentBoundingBox())
+        XCTAssertEqual(box.origin.x, 100, accuracy: 0.0001)
+        XCTAssertEqual(box.origin.y, 100, accuracy: 0.0001)
+        XCTAssertEqual(box.size.width, 700, accuracy: 0.0001)    // 800 - 100
+        XCTAssertEqual(box.size.height, 500, accuracy: 0.0001)   // 600 - 100
+    }
+
+    func testContentBoundingBoxIsNilWhenNoCards() {
+        let state = WorkspaceState(cards: [])
+        XCTAssertNil(state.contentBoundingBox())
+    }
 }
