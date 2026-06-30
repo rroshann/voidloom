@@ -6,6 +6,7 @@ import VoidloomCore
 /// rectangle for `placingCard`/`placingText`; later stages extend the switch
 /// with the connect follow-arrow and text marquee.
 struct CanvasInteractionLayer: View {
+    @Environment(\.theme) private var theme
     @ObservedObject var interaction: CanvasInteractionModel
     /// Rubber-band drag corners in screen (view) coordinates, or nil when idle.
     var rubberStart: CGPoint?
@@ -126,7 +127,7 @@ struct CanvasInteractionLayer: View {
             return CardPalette(kind: kind).accent
         }
         // placingText
-        return Color(red: 0.34, green: 0.93, blue: 0.82)
+        return theme.accent
     }
 }
 

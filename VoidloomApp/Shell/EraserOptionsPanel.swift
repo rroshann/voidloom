@@ -6,6 +6,7 @@ import VoidloomCore
 /// actual stroke erasing; the controls themselves are live.
 struct EraserOptionsPanel: View {
     @ObservedObject var interaction: CanvasInteractionModel
+    @Environment(\.theme) private var theme
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -15,7 +16,7 @@ struct EraserOptionsPanel: View {
                     .foregroundStyle(.pink)
                 Text("Eraser")
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.9))
+                    .foregroundStyle(theme.ink(0.9))
                 Spacer(minLength: 0)
             }
 
@@ -23,11 +24,11 @@ struct EraserOptionsPanel: View {
                 HStack {
                     Text("Thickness")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.6))
+                        .foregroundStyle(theme.ink(0.6))
                     Spacer()
                     Text("\(Int(interaction.eraserThickness)) pt")
                         .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.75))
+                        .foregroundStyle(theme.ink(0.75))
                 }
                 Slider(value: $interaction.eraserThickness, in: 8...120)
                     .tint(.pink)
@@ -36,7 +37,7 @@ struct EraserOptionsPanel: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text("Mode")
                     .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(theme.ink(0.6))
                 Picker("", selection: $interaction.eraserMode) {
                     Text("Whole stroke").tag(EraseMode.wholeStroke)
                     Text("Erase pixel").tag(EraseMode.segment)
@@ -50,7 +51,7 @@ struct EraserOptionsPanel: View {
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(.white.opacity(0.13), lineWidth: 1)
+                .stroke(theme.ink(0.13), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.3), radius: 24, x: 0, y: 16)
     }

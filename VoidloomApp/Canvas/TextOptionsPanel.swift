@@ -8,6 +8,7 @@ import VoidloomCore
 struct TextOptionsPanel: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var interaction: CanvasInteractionModel
+    @Environment(\.theme) private var theme
 
     /// Curated font set. A nil name means the default system-rounded face.
     private let fonts: [(label: String, name: String?)] = [
@@ -52,10 +53,10 @@ struct TextOptionsPanel: View {
             HStack(spacing: 8) {
                 Image(systemName: "textformat")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.teal)
+                    .foregroundStyle(theme.accent)
                 Text(selectedElement == nil ? "Text Defaults" : "Text")
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.9))
+                    .foregroundStyle(theme.ink(0.9))
                 Spacer(minLength: 0)
                 preview
             }
@@ -72,7 +73,7 @@ struct TextOptionsPanel: View {
                         Circle()
                             .fill(swatch)
                             .frame(width: 20, height: 20)
-                            .overlay(Circle().stroke(.white.opacity(0.5), lineWidth: 1))
+                            .overlay(Circle().stroke(theme.ink(0.5), lineWidth: 1))
                     }
                     .buttonStyle(.plain)
                     .pointerCursor()
@@ -82,7 +83,7 @@ struct TextOptionsPanel: View {
             VStack(alignment: .leading, spacing: 5) {
                 Text("Font")
                     .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(theme.ink(0.6))
                 Picker("", selection: fontBinding) {
                     ForEach(fonts, id: \.label) { font in
                         Text(font.label).tag(font.name)
@@ -96,14 +97,14 @@ struct TextOptionsPanel: View {
                 HStack {
                     Text("Size")
                         .font(.system(size: 11, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.6))
+                        .foregroundStyle(theme.ink(0.6))
                     Spacer()
                     Text("\(Int(fontSize)) pt")
                         .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                        .foregroundStyle(.white.opacity(0.75))
+                        .foregroundStyle(theme.ink(0.75))
                 }
                 Slider(value: fontSizeBinding, in: 8...96)
-                    .tint(.teal)
+                    .tint(theme.accent)
             }
         }
         .padding(16)
@@ -111,7 +112,7 @@ struct TextOptionsPanel: View {
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(.white.opacity(0.13), lineWidth: 1)
+                .stroke(theme.ink(0.13), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.3), radius: 24, x: 0, y: 16)
     }

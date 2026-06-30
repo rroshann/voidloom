@@ -6,6 +6,7 @@ import VoidloomCore
 /// these values into actual stroke drawing; the controls themselves are live.
 struct BrushOptionsPanel: View {
     @ObservedObject var interaction: CanvasInteractionModel
+    @Environment(\.theme) private var theme
 
     private let presets: [Color] = [
         Color(red: 0.34, green: 0.93, blue: 0.82),
@@ -21,10 +22,10 @@ struct BrushOptionsPanel: View {
             HStack(spacing: 8) {
                 Image(systemName: "paintbrush.pointed.fill")
                     .font(.system(size: 13, weight: .semibold))
-                    .foregroundStyle(.teal)
+                    .foregroundStyle(theme.accent)
                 Text("Brush")
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.9))
+                    .foregroundStyle(theme.ink(0.9))
                 Spacer(minLength: 0)
                 strokePreview
             }
@@ -42,7 +43,7 @@ struct BrushOptionsPanel: View {
                             .fill(color)
                             .frame(width: 20, height: 20)
                             .overlay(
-                                Circle().stroke(.white.opacity(0.5), lineWidth: 1)
+                                Circle().stroke(theme.ink(0.5), lineWidth: 1)
                             )
                     }
                     .buttonStyle(.plain)
@@ -69,7 +70,7 @@ struct BrushOptionsPanel: View {
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 18, style: .continuous)
-                .stroke(.white.opacity(0.13), lineWidth: 1)
+                .stroke(theme.ink(0.13), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.3), radius: 24, x: 0, y: 16)
     }
@@ -90,14 +91,14 @@ struct BrushOptionsPanel: View {
             HStack {
                 Text(title)
                     .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(theme.ink(0.6))
                 Spacer()
                 Text(valueText)
                     .font(.system(size: 11, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.white.opacity(0.75))
+                    .foregroundStyle(theme.ink(0.75))
             }
             Slider(value: value, in: range)
-                .tint(.teal)
+                .tint(theme.accent)
         }
     }
 }

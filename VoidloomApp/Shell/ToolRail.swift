@@ -23,6 +23,8 @@ struct ToolDock: View {
     /// Double-click on the Text tool: instant text element at the visible center.
     let onAddText: () -> Void
 
+    @Environment(\.theme) private var theme
+
     var body: some View {
         HStack(spacing: 7) {
             DockWorkspaceSegment(
@@ -140,7 +142,7 @@ struct ToolDock: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(.white.opacity(0.12), lineWidth: 1)
+                .stroke(theme.ink(0.12), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.32), radius: 28, x: 0, y: 18)
         .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
@@ -154,12 +156,13 @@ private struct DockWorkspaceSegment: View {
     let onToggle: () -> Void
 
     @State private var isHovering = false
+    @Environment(\.theme) private var theme
 
     private var restingFill: Color {
         if isWorkspaceSidebarVisible {
-            return .white.opacity(isHovering ? 0.16 : 0.12)
+            return theme.surface(isHovering ? 0.16 : 0.12)
         }
-        return .white.opacity(isHovering ? 0.06 : 0.0)
+        return theme.surface(isHovering ? 0.06 : 0.0)
     }
 
     var body: some View {
@@ -167,13 +170,13 @@ private struct DockWorkspaceSegment: View {
             VStack(alignment: .center, spacing: 1) {
                 Text(workspaceName)
                     .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.92))
+                    .foregroundStyle(theme.ink(0.92))
                     .lineLimit(1)
                     .truncationMode(.tail)
 
                 Text("\(cardCount) \(cardCount == 1 ? "card" : "cards")")
                     .font(.system(size: 10.5, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.5))
+                    .foregroundStyle(theme.ink(0.5))
                     .monospacedDigit()
                     .lineLimit(1)
             }
@@ -188,7 +191,7 @@ private struct DockWorkspaceSegment: View {
             .overlay(
                 RoundedRectangle(cornerRadius: 15, style: .continuous)
                     .stroke(
-                        isWorkspaceSidebarVisible ? .white.opacity(0.14) : .clear,
+                        isWorkspaceSidebarVisible ? theme.ink(0.14) : .clear,
                         lineWidth: 1
                     )
             )
@@ -217,22 +220,22 @@ private struct DockButton: View {
     var isActive: Bool = false
     let action: () -> Void
 
-    private let accent = Color.teal
+    @Environment(\.theme) private var theme
 
     var body: some View {
         Button(action: action) {
             Image(systemName: systemName)
                 .font(.system(size: 16, weight: .semibold))
                 .frame(width: 40, height: 40)
-                .foregroundStyle(isActive ? accent : .white.opacity(0.86))
+                .foregroundStyle(isActive ? theme.accent : theme.ink(0.86))
                 .background(
                     RoundedRectangle(cornerRadius: 11, style: .continuous)
-                        .fill(.white.opacity(isActive ? 0.14 : 0.08))
+                        .fill(theme.surface(isActive ? 0.14 : 0.08))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 11, style: .continuous)
                         .stroke(
-                            isActive ? accent.opacity(0.55) : .white.opacity(0.06),
+                            isActive ? theme.accent.opacity(0.55) : theme.ink(0.06),
                             lineWidth: isActive ? 1.5 : 1
                         )
                 )
@@ -254,21 +257,21 @@ private struct DockToolButton: View {
     var onSingle: () -> Void
     var onDouble: (() -> Void)? = nil
 
-    private let accent = Color.teal
+    @Environment(\.theme) private var theme
 
     var body: some View {
         Image(systemName: systemName)
             .font(.system(size: 16, weight: .semibold))
-            .foregroundStyle(isArmed ? accent : .white.opacity(0.86))
+            .foregroundStyle(isArmed ? theme.accent : theme.ink(0.86))
             .frame(width: 40, height: 40)
             .background(
                 RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .fill(.white.opacity(isArmed ? 0.14 : 0.08))
+                    .fill(theme.surface(isArmed ? 0.14 : 0.08))
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 11, style: .continuous)
                     .stroke(
-                        isArmed ? accent.opacity(0.55) : .white.opacity(0.06),
+                        isArmed ? theme.accent.opacity(0.55) : theme.ink(0.06),
                         lineWidth: isArmed ? 1.5 : 1
                     )
             )
@@ -308,9 +311,11 @@ private struct DockToolGesture: ViewModifier {
 }
 
 private struct DockDivider: View {
+    @Environment(\.theme) private var theme
+
     var body: some View {
         RoundedRectangle(cornerRadius: 1)
-            .fill(.white.opacity(0.14))
+            .fill(theme.ink(0.14))
             .frame(width: 1, height: 34)
             .padding(.horizontal, 6)
     }
@@ -320,6 +325,8 @@ private struct DockAIHint: View {
     let errorMessage: String?
     let isActive: Bool
     let action: () -> Void
+
+    @Environment(\.theme) private var theme
 
     private var message: String {
         if isActive {
@@ -336,7 +343,7 @@ private struct DockAIHint: View {
     }
 
     private var accentColor: Color {
-        errorMessage == nil ? .teal : .orange
+        errorMessage == nil ? theme.accent : .orange
     }
 
     var body: some View {
@@ -347,12 +354,12 @@ private struct DockAIHint: View {
                 .frame(width: 40, height: 40)
                 .background(
                     RoundedRectangle(cornerRadius: 11, style: .continuous)
-                        .fill(.white.opacity(isActive ? 0.14 : 0.08))
+                        .fill(theme.surface(isActive ? 0.14 : 0.08))
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 11, style: .continuous)
                         .stroke(
-                            isActive ? accentColor.opacity(0.55) : .white.opacity(0.06),
+                            isActive ? accentColor.opacity(0.55) : theme.ink(0.06),
                             lineWidth: isActive ? 1.5 : 1
                         )
                 )

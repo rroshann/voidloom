@@ -7,6 +7,7 @@ struct CommandBar: View {
     let onSubmit: () -> Void
 
     @FocusState private var isFocused: Bool
+    @Environment(\.theme) private var theme
 
     private var canSubmit: Bool {
         !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
@@ -15,19 +16,19 @@ struct CommandBar: View {
     var body: some View {
         HStack(spacing: 12) {
             Image(systemName: "sparkles")
-                .foregroundStyle(.teal)
+                .foregroundStyle(theme.accent)
 
             TextField("Try: add agent, add note, reset canvas", text: $text)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13, weight: .semibold, design: .monospaced))
-                .foregroundStyle(.white.opacity(0.86))
+                .foregroundStyle(theme.ink(0.86))
                 .focused($isFocused)
                 .onSubmit(submit)
 
             Button(action: submit) {
                 Image(systemName: "arrow.up.circle.fill")
                     .font(.system(size: 20, weight: .semibold))
-                    .foregroundStyle(canSubmit ? .teal : .white.opacity(0.22))
+                    .foregroundStyle(canSubmit ? theme.accent : theme.ink(0.22))
             }
             .buttonStyle(.plain)
             .disabled(!canSubmit)
@@ -38,7 +39,7 @@ struct CommandBar: View {
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 22, style: .continuous)
-                .stroke(.white.opacity(0.13), lineWidth: 1)
+                .stroke(theme.ink(0.13), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.3), radius: 24, x: 0, y: 16)
         .onAppear { isFocused = true }
@@ -52,6 +53,7 @@ struct CommandBar: View {
 
 struct PersistenceErrorBanner: View {
     let message: String
+    @Environment(\.theme) private var theme
 
     var body: some View {
         HStack(spacing: 10) {
@@ -61,7 +63,7 @@ struct PersistenceErrorBanner: View {
 
             Text(message)
                 .font(.system(size: 12, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.9))
+                .foregroundStyle(theme.ink(0.9))
                 .lineLimit(2)
 
             Spacer(minLength: 0)

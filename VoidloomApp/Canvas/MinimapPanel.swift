@@ -10,6 +10,8 @@ struct MinimapPanel: View {
     /// The on-screen viewport size (geometry.size from RootView).
     let viewportSize: CGSize
 
+    @Environment(\.theme) private var theme
+
     private let panelWidth: CGFloat  = 200
     private let panelHeight: CGFloat = 150
 
@@ -58,8 +60,8 @@ struct MinimapPanel: View {
                         roundedRect: CGRect(x: cx, y: cy, width: cw, height: ch),
                         cornerRadius: 3
                     )
-                    ctx.fill(cardPath, with: .color(.white.opacity(0.22)))
-                    ctx.stroke(cardPath, with: .color(.white.opacity(0.32)), lineWidth: 0.5)
+                    ctx.fill(cardPath, with: .color(theme.ink(0.22)))
+                    ctx.stroke(cardPath, with: .color(theme.ink(0.32)), lineWidth: 0.5)
                 }
 
                 // --- Viewport "you are here" rect ---
@@ -74,20 +76,25 @@ struct MinimapPanel: View {
                         roundedRect: CGRect(x: vx, y: vy, width: vw, height: vh),
                         cornerRadius: 2
                     )
-                    ctx.fill(vpPath, with: .color(Color.teal.opacity(0.10)))
+                    ctx.fill(vpPath, with: .color(theme.accent.opacity(0.10)))
                     ctx.stroke(
                         vpPath,
-                        with: .color(Color.teal.opacity(0.85)),
+                        with: .color(theme.accent.opacity(0.85)),
                         style: StrokeStyle(lineWidth: 1.5)
                     )
                 }
+            }
+            if store.state.cards.isEmpty {
+                Text("No cards yet")
+                    .font(.system(size: 11, weight: .medium, design: .rounded))
+                    .foregroundStyle(theme.ink(0.35))
             }
         }
         .frame(width: panelWidth, height: panelHeight)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .stroke(.white.opacity(0.12), lineWidth: 1)
+                .stroke(theme.ink(0.12), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.28), radius: 16, x: 0, y: 8)
         .allowsHitTesting(false)
