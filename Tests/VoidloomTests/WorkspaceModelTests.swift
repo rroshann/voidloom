@@ -2178,4 +2178,74 @@ final class WorkspaceModelTests: XCTestCase {
         let state = WorkspaceState(cards: [])
         XCTAssertNil(state.contentBoundingBox())
     }
+
+    // MARK: - TC1: Typed connections + chain traversal
+
+    func testLinkedCardIDsReturnsUndirectedNeighbors() throws {
+        let a = try XCTUnwrap(UUID(uuidString: "EC100000-0000-0000-0000-000000000001"))
+        let b = try XCTUnwrap(UUID(uuidString: "EC100000-0000-0000-0000-000000000002"))
+        let c = try XCTUnwrap(UUID(uuidString: "EC100000-0000-0000-0000-000000000003"))
+        var state = WorkspaceState(cards: [
+            WorkspaceCard(id: a, kind: .note, position: .zero, size: CardSize(width: 300, height: 200), title: "A", content: "alpha"),
+            WorkspaceCard(id: b, kind: .note, position: CanvasPoint(x: 400, y: 0), size: CardSize(width: 300, height: 200), title: "B", content: "beta"),
+            WorkspaceCard(id: c, kind: .todo, position: CanvasPoint(x: 800, y: 0), size: CardSize(width: 300, height: 200), title: "C", content: "gamma")
+        ])
+
+        state.addConnection(from: a, to: b)
+
+        XCTAssertEqual(state.linkedCardIDs(to: a), Set([b]))
+        XCTAssertEqual(state.linkedCardIDs(to: b), Set([a]))
+        XCTAssertEqual(state.linkedCardIDs(to: c), Set())
+    }
+
+    func testLinkedContextIncludesCardAndNeighborsContent() throws {
+        let a = try XCTUnwrap(UUID(uuidString: "EC100000-0000-0000-0000-000000000011"))
+        let b = try XCTUnwrap(UUID(uuidString: "EC100000-0000-0000-0000-000000000012"))
+        var state = WorkspaceState(cards: [
+            WorkspaceCard(id: a, kind: .todo, position: .zero, size: CardSize(width: 300, height: 200), title: "TODO list", content: "buy milk"),
+            WorkspaceCard(id: b, kind: .note, position: CanvasPoint(x: 400, y: 0), size: CardSize(width: 300, height: 200), title: "Notes", content: "context")
+        ])
+
+        state.addConnection(from: a, to: b)
+
+        let context = state.linkedContext(for: a)
+        // Focus card (A) appears before neighbor (B).
+        XCTAssertTrue(context.contains("TODO list"))
+        XCTAssertTrue(context.contains("buy milk"))
+        XCTAssertTrue(context.contains("Notes"))
+        XCTAssertTrue(context.contains("context"))
+        let rangeA = context.range(of: "TODO list")!
+        let rangeB = context.range(of: "Notes")!
+        XCTAssertLessThan(rangeA.lowerBound, rangeB.lowerBound, "focus card must appear before neighbor")
+    }
+
+    func testConnectionTypeDefaultsToGenericForLegacyJSON() throws {
+        let legacyJSON = """
+        {"id":"DEADBEEF-0000-0000-0000-000000000001","from":"DEADBEEF-0000-0000-0000-000000000002","to":"DEADBEEF-0000-0000-0000-000000000003"}
+        """
+        let data = try XCTUnwrap(legacyJSON.data(using: .utf8))
+        let connection = try JSONDecoder().decode(CardConnection.self, from: data)
+
+        XCTAssertEqual(connection.type, .generic)
+    }
+
+    func testAddConnectionDerivesTypeFromEndpointKinds() throws {
+        let a = try XCTUnwrap(UUID(uuidString: "EC100000-0000-0000-0000-000000000021"))
+        let b = try XCTUnwrap(UUID(uuidString: "EC100000-0000-0000-0000-000000000022"))
+        let c = try XCTUnwrap(UUID(uuidString: "EC100000-0000-0000-0000-000000000023"))
+        var state = WorkspaceState(cards: [
+            WorkspaceCard(id: a, kind: .note, position: .zero, size: CardSize(width: 300, height: 200), title: "Note", content: ""),
+            WorkspaceCard(id: b, kind: .note, position: CanvasPoint(x: 400, y: 0), size: CardSize(width: 300, height: 200), title: "Note2", content: ""),
+            WorkspaceCard(id: c, kind: .todo, position: CanvasPoint(x: 800, y: 0), size: CardSize(width: 300, height: 200), title: "Todo", content: "")
+        ])
+
+        state.addConnection(from: a, to: b)
+        XCTAssertEqual(state.connections.first?.type, .noteToNote, "note+note should derive .noteToNote")
+
+        state.addConnection(from: a, to: c)
+        let noteTodo = state.connections.first(where: {
+            ($0.from == a && $0.to == c) || ($0.from == c && $0.to == a)
+        })
+        XCTAssertEqual(noteTodo?.type, .todoToNote, "note+todo should derive .todoToNote")
+    }
 }

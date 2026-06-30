@@ -450,14 +450,43 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     /// Adds a visual edge between two distinct, existing cards, rejecting
     /// self-loops, missing endpoints, and duplicate pairs. Connections are
     /// non-directional, so an existing (a, b) edge also rejects a (b, a) insert.
+    /// The `type` is derived automatically from the endpoint `CardKind`s.
     public mutating func addConnection(from: UUID, to: UUID) {
         guard from != to else { return }
-        guard cards.contains(where: { $0.id == from }) else { return }
-        guard cards.contains(where: { $0.id == to }) else { return }
+        guard let fromCard = cards.first(where: { $0.id == from }) else { return }
+        guard let toCard = cards.first(where: { $0.id == to }) else { return }
         guard !connections.contains(where: {
             ($0.from == from && $0.to == to) || ($0.from == to && $0.to == from)
         }) else { return }
-        connections.append(CardConnection(from: from, to: to))
+        let derivedType = ConnectionType.derive(fromCard.kind, toCard.kind)
+        connections.append(CardConnection(from: from, to: to, type: derivedType))
+    }
+
+    // MARK: - Linked-card traversal
+
+    /// All directly-connected neighbors of `id` (undirected). For each
+    /// connection where one endpoint matches `id`, the other endpoint is
+    /// returned. Unknown or isolated cards return an empty set.
+    public func linkedCardIDs(to id: UUID) -> Set<UUID> {
+        var result = Set<UUID>()
+        for connection in connections {
+            if connection.from == id { result.insert(connection.to) }
+            else if connection.to == id { result.insert(connection.from) }
+        }
+        return result
+    }
+
+    /// Assembles a single context string from the focus card plus every directly
+    /// linked neighbor. The focus card's title + content comes first; neighbors
+    /// follow in `cards` array order. Pure — no mutations, no I/O.
+    public func linkedContext(for id: UUID) -> String {
+        guard let focus = cards.first(where: { $0.id == id }) else { return "" }
+        var parts: [String] = ["\(focus.title)\n\(focus.content)"]
+        let neighborIDs = linkedCardIDs(to: id)
+        for card in cards where neighborIDs.contains(card.id) {
+            parts.append("\(card.title)\n\(card.content)")
+        }
+        return parts.joined(separator: "\n\n")
     }
 
     public mutating func removeConnection(id: UUID) {
