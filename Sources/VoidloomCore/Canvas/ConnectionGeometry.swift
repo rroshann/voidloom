@@ -19,6 +19,18 @@ public struct CanvasRect: Equatable, Sendable {
         )
     }
 
+    /// Returns the smallest `CanvasRect` that contains both `self` and `other`.
+    public func union(_ other: CanvasRect) -> CanvasRect {
+        let minX = Swift.min(origin.x, other.origin.x)
+        let minY = Swift.min(origin.y, other.origin.y)
+        let maxX = Swift.max(origin.x + size.width,  other.origin.x + other.size.width)
+        let maxY = Swift.max(origin.y + size.height, other.origin.y + other.size.height)
+        return CanvasRect(
+            origin: CanvasPoint(x: minX, y: minY),
+            size: CardSize(width: maxX - minX, height: maxY - minY)
+        )
+    }
+
     /// The point on this rect's border that lies on the ray from the rect's
     /// center towards `target`. Returns the center for a degenerate target.
     public func borderIntersection(towards target: CanvasPoint) -> CanvasPoint {

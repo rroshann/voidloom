@@ -15,70 +15,72 @@ struct MinimapPanel: View {
 
     var body: some View {
         ZStack {
-            if let bbox = store.state.contentBoundingBox() {
-                Canvas { ctx, size in
-                    // Fit the entire bounding box inside the panel with 8% margin.
-                    // Clamp each dimension to at least 1 so a single card (which
-                    // may have zero-width bbox) never produces a NaN fitScale.
-                    let bboxW = max(bbox.size.width,  1.0)
-                    let bboxH = max(bbox.size.height, 1.0)
-                    let fitScale = min(Double(size.width) / bboxW,
-                                      Double(size.height) / bboxH) * 0.92
-
-                    // Center the drawn content in the panel.
-                    let drawW   = bboxW * fitScale
-                    let drawH   = bboxH * fitScale
-                    let offsetX = (Double(size.width)  - drawW) / 2
-                    let offsetY = (Double(size.height) - drawH) / 2
-
-                    // --- Cards: faint rounded rects ---
-                    for card in store.state.cards {
-                        let cx = (card.position.x - bbox.origin.x) * fitScale + offsetX
-                        let cy = (card.position.y - bbox.origin.y) * fitScale + offsetY
-                        let cw = max(card.size.width  * fitScale, 1.0)
-                        let ch = max(card.size.height * fitScale, 1.0)
-                        let cardPath = Path(
-                            roundedRect: CGRect(x: cx, y: cy, width: cw, height: ch),
-                            cornerRadius: 3
-                        )
-                        ctx.fill(cardPath, with: .color(.white.opacity(0.22)))
-                        ctx.stroke(cardPath, with: .color(.white.opacity(0.32)), lineWidth: 0.5)
-                    }
-
-                    // --- Viewport "you are here" rect ---
-                    // The visible region in canvas coords spans from the canvas
-                    // point at screen (0, 0) to the point at (viewportW, viewportH).
-                    // This is robust to any origin/scale convention: it uses the
-                    // same canvasPoint(forScreenPoint:) transform the canvas itself uses.
-                    let vp = store.state.viewport
-                    let tl = vp.canvasPoint(forScreenPoint: ScreenPoint(x: 0, y: 0))
-                    let br = vp.canvasPoint(
-                        forScreenPoint: ScreenPoint(
-                            x: Double(viewportSize.width),
-                            y: Double(viewportSize.height)
-                        )
+            Canvas { ctx, size in
+                // Build the current viewport region in canvas space.
+                let vp = store.state.viewport
+                let vpTL = vp.canvasPoint(forScreenPoint: ScreenPoint(x: 0, y: 0))
+                let vpBR = vp.canvasPoint(
+                    forScreenPoint: ScreenPoint(
+                        x: Double(viewportSize.width),
+                        y: Double(viewportSize.height)
                     )
-                    let vx = (tl.x - bbox.origin.x) * fitScale + offsetX
-                    let vy = (tl.y - bbox.origin.y) * fitScale + offsetY
-                    let vw = (br.x - tl.x) * fitScale
-                    let vh = (br.y - tl.y) * fitScale
-                    if vw > 0, vh > 0 {
-                        let vpPath = Path(
-                            roundedRect: CGRect(x: vx, y: vy, width: vw, height: vh),
-                            cornerRadius: 2
-                        )
-                        ctx.fill(vpPath, with: .color(Color.teal.opacity(0.10)))
-                        ctx.stroke(
-                            vpPath,
-                            with: .color(Color.teal.opacity(0.85)),
-                            style: StrokeStyle(lineWidth: 1.5)
-                        )
-                    }
+                )
+                let vpRect = CanvasRect(
+                    origin: vpTL,
+                    size: CardSize(width: vpBR.x - vpTL.x, height: vpBR.y - vpTL.y)
+                )
+
+                // displayBbox = union of cards bbox (if any) and viewport region,
+                // so the "you are here" rect is always within the scaled bbox and
+                // never flies off the panel when panning into empty space.
+                let displayBbox = store.state.contentBoundingBox().map { $0.union(vpRect) } ?? vpRect
+
+                // Fit the entire display bbox inside the panel with ~10% margin.
+                // Clamp each dimension to at least 1 to guard against NaN fitScale.
+                let bboxW = max(displayBbox.size.width,  1.0)
+                let bboxH = max(displayBbox.size.height, 1.0)
+                let fitScale = min(Double(size.width) / bboxW,
+                                   Double(size.height) / bboxH) * 0.90
+
+                // Center the drawn content in the panel.
+                let drawW   = bboxW * fitScale
+                let drawH   = bboxH * fitScale
+                let offsetX = (Double(size.width)  - drawW) / 2
+                let offsetY = (Double(size.height) - drawH) / 2
+
+                // --- Cards: faint rounded rects ---
+                for card in store.state.cards {
+                    let cx = (card.position.x - displayBbox.origin.x) * fitScale + offsetX
+                    let cy = (card.position.y - displayBbox.origin.y) * fitScale + offsetY
+                    let cw = max(card.size.width  * fitScale, 1.0)
+                    let ch = max(card.size.height * fitScale, 1.0)
+                    let cardPath = Path(
+                        roundedRect: CGRect(x: cx, y: cy, width: cw, height: ch),
+                        cornerRadius: 3
+                    )
+                    ctx.fill(cardPath, with: .color(.white.opacity(0.22)))
+                    ctx.stroke(cardPath, with: .color(.white.opacity(0.32)), lineWidth: 0.5)
                 }
-            } else {
-                Text("No cards yet")
-                    .font(.system(size: 11, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.35))
+
+                // --- Viewport "you are here" rect ---
+                // Because displayBbox already includes vpRect, vx/vy/vw/vh are
+                // guaranteed to land inside the panel bounds.
+                let vx = (vpTL.x - displayBbox.origin.x) * fitScale + offsetX
+                let vy = (vpTL.y - displayBbox.origin.y) * fitScale + offsetY
+                let vw = (vpBR.x - vpTL.x) * fitScale
+                let vh = (vpBR.y - vpTL.y) * fitScale
+                if vw > 0, vh > 0 {
+                    let vpPath = Path(
+                        roundedRect: CGRect(x: vx, y: vy, width: vw, height: vh),
+                        cornerRadius: 2
+                    )
+                    ctx.fill(vpPath, with: .color(Color.teal.opacity(0.10)))
+                    ctx.stroke(
+                        vpPath,
+                        with: .color(Color.teal.opacity(0.85)),
+                        style: StrokeStyle(lineWidth: 1.5)
+                    )
+                }
             }
         }
         .frame(width: panelWidth, height: panelHeight)

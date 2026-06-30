@@ -2460,4 +2460,14 @@ final class WorkspaceModelTests: XCTestCase {
             "marker should be false again after a fresh store launch"
         )
     }
+
+    func testCanvasRectUnionCoversBoth() {
+        let a = CanvasRect(origin: CanvasPoint(x: 0, y: 0), size: CardSize(width: 100, height: 100))
+        let b = CanvasRect(origin: CanvasPoint(x: 200, y: 50), size: CardSize(width: 100, height: 100))
+        let u = a.union(b)
+        XCTAssertEqual(u.origin.x, 0, accuracy: 0.0001)
+        XCTAssertEqual(u.origin.y, 0, accuracy: 0.0001)
+        XCTAssertEqual(u.size.width, 300, accuracy: 0.0001)   // 300 - 0
+        XCTAssertEqual(u.size.height, 150, accuracy: 0.0001)  // 150 - 0
+    }
 }
