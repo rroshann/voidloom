@@ -32,10 +32,29 @@ struct MinimapPanel: View {
                     size: CardSize(width: vpBR.x - vpTL.x, height: vpBR.y - vpTL.y)
                 )
 
-                // displayBbox = union of cards bbox (if any) and viewport region,
-                // so the "you are here" rect is always within the scaled bbox and
-                // never flies off the panel when panning into empty space.
-                let displayBbox = store.state.contentBoundingBox().map { $0.union(vpRect) } ?? vpRect
+                // Scale basis: the cards' bounding box unioned with the current
+                // viewport CENTER (a point, not the full rect). Using the center
+                // keeps the map scale STABLE while zooming — zoom changes the
+                // viewport's size, not its center — so the map no longer zooms with
+                // the canvas. Panning still shifts the basis, so the map follows you
+                // into empty space. Falls back to the viewport rect when no cards.
+                let vpCenter = vp.canvasPoint(
+                    forScreenPoint: ScreenPoint(
+                        x: Double(viewportSize.width) / 2,
+                        y: Double(viewportSize.height) / 2
+                    )
+                )
+                let displayBbox: CanvasRect = {
+                    guard let cards = store.state.contentBoundingBox() else { return vpRect }
+                    let minX = Swift.min(cards.origin.x, vpCenter.x)
+                    let minY = Swift.min(cards.origin.y, vpCenter.y)
+                    let maxX = Swift.max(cards.origin.x + cards.size.width, vpCenter.x)
+                    let maxY = Swift.max(cards.origin.y + cards.size.height, vpCenter.y)
+                    return CanvasRect(
+                        origin: CanvasPoint(x: minX, y: minY),
+                        size: CardSize(width: maxX - minX, height: maxY - minY)
+                    )
+                }()
 
                 // Fit the entire display bbox inside the panel with ~10% margin.
                 // Clamp each dimension to at least 1 to guard against NaN fitScale.
@@ -65,15 +84,20 @@ struct MinimapPanel: View {
                 }
 
                 // --- Viewport "you are here" rect ---
-                // Because displayBbox already includes vpRect, vx/vy/vw/vh are
-                // guaranteed to land inside the panel bounds.
+                // Drawn at its true (zoom-dependent) size so it grows/shrinks LIVE
+                // with zoom, then clamped to the panel so it stays visible (and never
+                // overflows) when zoomed far out past the cards' scale basis.
                 let vx = (vpTL.x - displayBbox.origin.x) * fitScale + offsetX
                 let vy = (vpTL.y - displayBbox.origin.y) * fitScale + offsetY
                 let vw = (vpBR.x - vpTL.x) * fitScale
                 let vh = (vpBR.y - vpTL.y) * fitScale
-                if vw > 0, vh > 0 {
+                let left   = Swift.max(0, vx)
+                let top    = Swift.max(0, vy)
+                let right  = Swift.min(Double(size.width),  vx + vw)
+                let bottom = Swift.min(Double(size.height), vy + vh)
+                if right > left, bottom > top {
                     let vpPath = Path(
-                        roundedRect: CGRect(x: vx, y: vy, width: vw, height: vh),
+                        roundedRect: CGRect(x: left, y: top, width: right - left, height: bottom - top),
                         cornerRadius: 2
                     )
                     ctx.fill(vpPath, with: .color(theme.accent.opacity(0.10)))
