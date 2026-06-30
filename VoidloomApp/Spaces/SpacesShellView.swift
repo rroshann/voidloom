@@ -5,6 +5,11 @@ struct SpacesShellView: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var sessionManager: AgentSessionManager
 
+    /// Dedicated interaction model for the Spaces dock. The dock requires a
+    /// CanvasInteractionModel to satisfy its initializer, but in .spaces mode all
+    /// interaction-driven controls are hidden, so this object stays effectively idle.
+    @StateObject private var dockInteraction = CanvasInteractionModel()
+
     @State private var topBarHeight: CGFloat = 0
     @State private var dockHeight: CGFloat = 0
 
@@ -65,6 +70,33 @@ struct SpacesShellView: View {
                         })
                         .padding(.top, Self.topPadding)
                     Spacer()
+                }
+
+                VStack {
+                    Spacer()
+                    ToolDock(
+                        store: store,
+                        interaction: dockInteraction,
+                        errorMessage: store.lastPersistenceError,
+                        isAIHintActive: false,
+                        onToggleAIHint: {},
+                        zoomScale: 1,
+                        onZoomIn: {},
+                        onZoomOut: {},
+                        isCardFocused: false,
+                        isCardSelected: store.state.selectedCardID != nil,
+                        onToggleCardFocus: nil,
+                        workspaceName: "",
+                        isWorkspaceSidebarVisible: false,
+                        onToggleWorkspaceSidebar: {},
+                        onAddCard: { kind in store.addCard(kind: kind) },
+                        onAddText: {},
+                        variant: .spaces
+                    )
+                    .background(GeometryReader { p in
+                        Color.clear.preference(key: SpacesDockHeightKey.self, value: p.size.height)
+                    })
+                    .padding(.bottom, Self.bottomPadding)
                 }
             }
         }

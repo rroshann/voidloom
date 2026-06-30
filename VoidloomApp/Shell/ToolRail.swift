@@ -1,6 +1,8 @@
 import SwiftUI
 import VoidloomCore
 
+enum ToolDockVariant { case canvas, spaces }
+
 struct ToolDock: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var interaction: CanvasInteractionModel
@@ -20,88 +22,96 @@ struct ToolDock: View {
     let onAddCard: (CardKind) -> Void
     /// Double-click on the Text tool: instant text element at the visible center.
     let onAddText: () -> Void
+    /// In `.spaces` the workspace segment, canvas-mode tools, reset, and zoom are hidden.
+    var variant: ToolDockVariant = .canvas
 
     var body: some View {
         HStack(spacing: 7) {
-            DockWorkspaceSegment(
-                workspaceName: workspaceName,
-                cardCount: store.state.cards.count,
-                isWorkspaceSidebarVisible: isWorkspaceSidebarVisible,
-                onToggle: onToggleWorkspaceSidebar
-            )
+            if variant == .canvas {
+                DockWorkspaceSegment(
+                    workspaceName: workspaceName,
+                    cardCount: store.state.cards.count,
+                    isWorkspaceSidebarVisible: isWorkspaceSidebarVisible,
+                    onToggle: onToggleWorkspaceSidebar
+                )
+                DockDivider()
+            }
 
-            DockDivider()
-
+            // Card-creation buttons — always visible.
+            // In .canvas: single-click arms place-mode; double-click creates instantly.
+            // In .spaces: both clicks create instantly (no place-mode in grid layout).
             DockToolButton(
                 systemName: "terminal",
                 label: "Terminal — click to place, double-click to add",
-                isArmed: interaction.isArmed(.placingCard(.agent)),
-                onSingle: { interaction.armPlacingCard(.agent) },
+                isArmed: variant == .canvas && interaction.isArmed(.placingCard(.agent)),
+                onSingle: variant == .canvas ? { interaction.armPlacingCard(.agent) } : { onAddCard(.agent) },
                 onDouble: { onAddCard(.agent) }
             )
 
             DockToolButton(
                 systemName: "note.text",
                 label: "Note — click to place, double-click to add",
-                isArmed: interaction.isArmed(.placingCard(.note)),
-                onSingle: { interaction.armPlacingCard(.note) },
+                isArmed: variant == .canvas && interaction.isArmed(.placingCard(.note)),
+                onSingle: variant == .canvas ? { interaction.armPlacingCard(.note) } : { onAddCard(.note) },
                 onDouble: { onAddCard(.note) }
             )
 
             DockToolButton(
                 systemName: "checklist",
                 label: "Todo — click to place, double-click to add",
-                isArmed: interaction.isArmed(.placingCard(.todo)),
-                onSingle: { interaction.armPlacingCard(.todo) },
+                isArmed: variant == .canvas && interaction.isArmed(.placingCard(.todo)),
+                onSingle: variant == .canvas ? { interaction.armPlacingCard(.todo) } : { onAddCard(.todo) },
                 onDouble: { onAddCard(.todo) }
             )
 
             DockToolButton(
                 systemName: "safari",
                 label: "Preview — click to place, double-click to add",
-                isArmed: interaction.isArmed(.placingCard(.browser)),
-                onSingle: { interaction.armPlacingCard(.browser) },
+                isArmed: variant == .canvas && interaction.isArmed(.placingCard(.browser)),
+                onSingle: variant == .canvas ? { interaction.armPlacingCard(.browser) } : { onAddCard(.browser) },
                 onDouble: { onAddCard(.browser) }
             )
 
-            DockDivider()
+            if variant == .canvas {
+                DockDivider()
 
-            DockToolButton(
-                systemName: "arrow.up.right",
-                label: "Connect — link two cards",
-                isArmed: interaction.isArmed(.connecting(source: nil)),
-                onSingle: { interaction.armConnect(preselectedSource: store.state.selectedCardID) }
-            )
+                DockToolButton(
+                    systemName: "arrow.up.right",
+                    label: "Connect — link two cards",
+                    isArmed: interaction.isArmed(.connecting(source: nil)),
+                    onSingle: { interaction.armConnect(preselectedSource: store.state.selectedCardID) }
+                )
 
-            DockToolButton(
-                systemName: "paintbrush.pointed.fill",
-                label: "Brush — draw on the canvas",
-                isArmed: interaction.isArmed(.drawing),
-                onSingle: { interaction.armBrush() }
-            )
+                DockToolButton(
+                    systemName: "paintbrush.pointed.fill",
+                    label: "Brush — draw on the canvas",
+                    isArmed: interaction.isArmed(.drawing),
+                    onSingle: { interaction.armBrush() }
+                )
 
-            DockToolButton(
-                systemName: "textformat",
-                label: "Text — click to place, double-click to add",
-                isArmed: interaction.isArmed(.placingText),
-                onSingle: { interaction.armText() },
-                onDouble: { onAddText() }
-            )
+                DockToolButton(
+                    systemName: "textformat",
+                    label: "Text — click to place, double-click to add",
+                    isArmed: interaction.isArmed(.placingText),
+                    onSingle: { interaction.armText() },
+                    onDouble: { onAddText() }
+                )
 
-            DockToolButton(
-                systemName: "eraser.fill",
-                label: "Eraser — erase brush strokes",
-                isArmed: interaction.isArmed(.erasing),
-                onSingle: { interaction.armEraser() }
-            )
+                DockToolButton(
+                    systemName: "eraser.fill",
+                    label: "Eraser — erase brush strokes",
+                    isArmed: interaction.isArmed(.erasing),
+                    onSingle: { interaction.armEraser() }
+                )
 
-            DockDivider()
+                DockDivider()
 
-            DockButton(systemName: "scope", label: "Reset") {
-                store.resetViewport()
+                DockButton(systemName: "scope", label: "Reset") {
+                    store.resetViewport()
+                }
+
+                DockDivider()
             }
-
-            DockDivider()
 
             DockAIHint(
                 errorMessage: errorMessage,
@@ -109,17 +119,19 @@ struct ToolDock: View {
                 action: onToggleAIHint
             )
 
-            DockDivider()
+            if variant == .canvas {
+                DockDivider()
 
-            CanvasZoomControls(
-                scale: zoomScale,
-                onZoomIn: onZoomIn,
-                onZoomOut: onZoomOut,
-                isCardFocused: isCardFocused,
-                onToggleCardFocus: onToggleCardFocus,
-                isFocusEnabled: isCardSelected,
-                embedded: true
-            )
+                CanvasZoomControls(
+                    scale: zoomScale,
+                    onZoomIn: onZoomIn,
+                    onZoomOut: onZoomOut,
+                    isCardFocused: isCardFocused,
+                    onToggleCardFocus: onToggleCardFocus,
+                    isFocusEnabled: isCardSelected,
+                    embedded: true
+                )
+            }
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 11)
