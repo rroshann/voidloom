@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UniformTypeIdentifiers
 import VoidloomCore
 
 /// Top-center space controls: space switcher, re-tile, and settings. Styled like
@@ -8,6 +9,8 @@ struct SpaceTopBar: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var sessionManager: AgentSessionManager
     let onReTile: () -> Void
+
+    @State private var showBackgroundPopover = false
 
     private var activeName: String {
         store.library.workspaces.first { $0.id == store.library.selectedWorkspaceID }?.name ?? "Space"
@@ -43,6 +46,10 @@ struct SpaceTopBar: View {
 
             barDivider
             barButton("rectangle.grid.2x2", help: "Re-tile", action: onReTile)
+            barButton("photo", help: "Background") { showBackgroundPopover = true }
+                .popover(isPresented: $showBackgroundPopover, arrowEdge: .bottom) {
+                    backgroundPopover.padding(16).frame(width: 260)
+                }
             barButton("gearshape", help: "Settings") {
                 NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
             }
@@ -64,5 +71,31 @@ struct SpaceTopBar: View {
                 .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.08)))
         }
         .buttonStyle(.plain).help(help)
+    }
+
+    @ViewBuilder private var backgroundPopover: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("Background").font(.headline)
+            Button("Atmosphere (default)") { store.setSpaceBackground(.atmosphere) }
+            Button("Solid dark") { store.setSpaceBackground(.solid(hex: "#0A0E14FF")) }
+            Button("Choose image…") { chooseImage() }
+
+            Divider()
+            Text("Dimming").font(.subheadline)
+            Slider(value: Binding(
+                get: { store.state.space?.backgroundDimming ?? 0.35 },
+                set: { store.setBackgroundDimming($0) }
+            ), in: 0...0.85)
+        }
+    }
+
+    private func chooseImage() {
+        let panel = NSOpenPanel()
+        panel.allowedContentTypes = [.png, .jpeg, .heic, .image]
+        panel.allowsMultipleSelection = false
+        panel.canChooseDirectories = false
+        if panel.runModal() == .OK, let url = panel.url {
+            _ = store.importBackgroundImage(from: url)
+        }
     }
 }
