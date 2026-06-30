@@ -337,11 +337,13 @@ struct RootView: View {
                 )
                 .zIndex(3)
 
-                // Minimap overview panel: bottom-right, above the dock chrome.
+                // Minimap overview panel: pinned flush to the bottom-right corner.
+                // The dock is centered, so the corner is clear — no need to lift it
+                // above the dock height.
                 if isMinimapVisible {
                     MinimapPanel(store: store, viewportSize: geometry.size)
-                        .padding(.trailing, 24)
-                        .padding(.bottom, measuredDockHeight + Self.bottomChromePadding + 12)
+                        .padding(.trailing, Self.bottomChromePadding)
+                        .padding(.bottom, Self.bottomChromePadding)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                         .transition(.opacity)
                         .zIndex(3.5)
