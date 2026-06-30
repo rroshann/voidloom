@@ -2,8 +2,8 @@ import SwiftUI
 import VoidloomCore
 
 /// A thick, invisible hit region tracing a connection edge, used so a thin
-/// rendered line is comfortably clickable. Expressed in canvas coordinates
-/// (the layer lives inside the scaled/offset canvas ZStack).
+/// rendered line is comfortably clickable. Expressed in SCREEN coordinates
+/// (the layer is hosted in screen space alongside the rendered edges).
 struct EdgeHitShape: Shape {
     let start: CGPoint
     let end: CGPoint
@@ -17,18 +17,19 @@ struct EdgeHitShape: Shape {
     }
 }
 
-/// Transparent hit-testing layer for connection edges. Lives INSIDE the
-/// scaled/offset canvas ZStack, AFTER `ConnectionsLayer` and BEFORE the cards,
-/// so cards win hit priority. Tapping an edge selects it (revealing its
-/// screen-space delete control); the visible highlight is drawn by
-/// `ConnectionsLayer`. Uses `onTapGesture` (not a drag) and a modest hit width
-/// so a left-drag marquee starting over an edge falls through to the canvas.
-/// Inert unless the canvas is idle.
+/// Transparent hit-testing layer for connection edges. Hosted in SCREEN space,
+/// AFTER `ConnectionsLayer` and BEFORE the cards, so cards win hit priority.
+/// Endpoints are projected through `viewport.screenPoint` and the hit width
+/// scales with zoom so the clickable band tracks the rendered line thickness.
+/// Tapping an edge selects it (revealing its screen-space delete control); the
+/// visible highlight is drawn by `ConnectionsLayer`. Uses `onTapGesture` (not a
+/// drag) and a modest hit width so a left-drag marquee starting over an edge
+/// falls through to the canvas. Inert unless the canvas is idle.
 struct ConnectionHitLayer: View {
     @ObservedObject var interaction: CanvasInteractionModel
     let connections: [CardConnection]
     let cards: [WorkspaceCard]
-    let canvasSize: CGSize
+    let viewport: CanvasViewport
     let onSelect: (UUID) -> Void
 
     var body: some View {
@@ -37,13 +38,16 @@ struct ConnectionHitLayer: View {
                 if let endpoints = endpoints(for: connection) {
                     Color.clear
                         .contentShape(
-                            EdgeHitShape(start: endpoints.start, end: endpoints.end)
+                            EdgeHitShape(
+                                start: endpoints.start,
+                                end: endpoints.end,
+                                hitWidth: 16 * CGFloat(viewport.scale)
+                            )
                         )
                         .onTapGesture { onSelect(connection.id) }
                 }
             }
         }
-        .frame(width: canvasSize.width, height: canvasSize.height, alignment: .topLeading)
         .allowsHitTesting(interaction.mode == .idle)
     }
 
@@ -55,10 +59,12 @@ struct ConnectionHitLayer: View {
             from: CanvasRect(origin: fromCard.position, size: fromCard.size),
             to: CanvasRect(origin: toCard.position, size: toCard.size)
         )
-        return (
-            CGPoint(x: resolved.start.x, y: resolved.start.y),
-            CGPoint(x: resolved.end.x, y: resolved.end.y)
-        )
+        return (screenPoint(resolved.start), screenPoint(resolved.end))
+    }
+
+    private func screenPoint(_ point: CanvasPoint) -> CGPoint {
+        let screen = viewport.screenPoint(forCanvasPoint: point)
+        return CGPoint(x: screen.x, y: screen.y)
     }
 }
 

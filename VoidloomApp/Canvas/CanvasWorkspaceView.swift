@@ -113,8 +113,16 @@ struct CanvasWorkspaceView: View {
                 }
                 .frame(width: geometry.size.width, height: geometry.size.height)
 
+                // Screen-space layers: grid, strokes, connections, and the edge
+                // hit region. Each bakes the viewport transform into every point
+                // via `viewport.screenPoint`, so they are NOT inside the
+                // transformed card group — they draw into the full viewport and
+                // therefore never clip past a fixed canvas frame (the infinite
+                // canvas). They share the SAME live pinch `scaleEffect` as the
+                // card group so everything zooms together during a gesture, and
+                // sit BELOW the card group so cards keep hit priority.
                 ZStack(alignment: .topLeading) {
-                    CanvasGrid()
+                    CanvasGrid(viewport: store.state.viewport, size: geometry.size)
 
                     // Persisted strokes and the in-progress live stroke render in
                     // two adjacent layers. The persisted layer is `.equatable()`,
@@ -124,21 +132,21 @@ struct CanvasWorkspaceView: View {
                     CanvasDrawingLayer(
                         strokes: store.state.strokes,
                         liveStroke: nil,
-                        canvasSize: canvasSize
+                        viewport: store.state.viewport
                     )
                     .equatable()
 
                     CanvasDrawingLayer(
                         strokes: [],
                         liveStroke: liveStroke,
-                        canvasSize: canvasSize
+                        viewport: store.state.viewport
                     )
                     .equatable()
 
                     ConnectionsLayer(
                         connections: store.state.connections,
                         cards: store.state.cards,
-                        canvasSize: canvasSize,
+                        viewport: store.state.viewport,
                         selectedConnectionID: interaction.selectedConnectionID
                     )
                     .equatable()
@@ -149,13 +157,22 @@ struct CanvasWorkspaceView: View {
                         interaction: interaction,
                         connections: store.state.connections,
                         cards: store.state.cards,
-                        canvasSize: canvasSize,
+                        viewport: store.state.viewport,
                         onSelect: { id in
                             store.clearSelection()
                             interaction.selectedConnectionID = id
                         }
                     )
+                }
+                .frame(width: geometry.size.width, height: geometry.size.height, alignment: .topLeading)
+                .scaleEffect(liveZoom, anchor: liveZoomAnchor)
 
+                // Cards and text elements stay in a single transformed group: a
+                // fixed canvas frame scaled by `viewport.scale` and offset by
+                // `viewport.origin`. The group's on-screen output for canvas point
+                // p equals `viewport.screenPoint(p)`, so cards align exactly with
+                // the screen-space layers above.
+                ZStack(alignment: .topLeading) {
                     ForEach(store.state.cards) { card in
                         DraggableWorkspaceCard(
                             card: card,
