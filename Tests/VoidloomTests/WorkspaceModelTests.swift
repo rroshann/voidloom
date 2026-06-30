@@ -2280,7 +2280,7 @@ final class WorkspaceModelTests: XCTestCase {
 
     func testReducerCompletesAndFails() {
         let id = UUID()
-        var t = ConversationReducer.appendingUserAndPendingAssistant([], userText: "x", assistantID: id)
+        let t = ConversationReducer.appendingUserAndPendingAssistant([], userText: "x", assistantID: id)
         let done = ConversationReducer.completing(t, messageID: id, text: "final")
         XCTAssertEqual(done[1].text, "final")
         XCTAssertEqual(done[1].status, .complete)
