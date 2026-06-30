@@ -2112,6 +2112,76 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertTrue(result.guides.isEmpty)
     }
 
+    func testAlignCenterXSnapEmitsVerticalGuideAtCenterCoordinate() {
+        // Moving: origin (200, 50), size (300, 200). movingXs = [200, 350, 500].
+        // Other: origin (253, 500), size (200, 200). otherXs = [253, 353, 453].
+        // Closest pair: moving.centerX (350) vs other.centerX (353) — gap 3 ≤ threshold 8.
+        // delta = 353 - 350 = 3 → new origin.x = 203. Guide .vertical at 353.
+        let other = CanvasRect(origin: CanvasPoint(x: 253, y: 500),
+                               size: CardSize(width: 200, height: 200))
+        let result = CanvasSnapping.align(
+            movingOrigin: CanvasPoint(x: 200, y: 50),
+            size: CardSize(width: 300, height: 200),
+            others: [other],
+            threshold: 8
+        )
+        XCTAssertEqual(result.origin.x, 203, accuracy: 0.0001)
+        XCTAssertEqual(result.origin.y, 50, accuracy: 0.0001)
+        XCTAssertTrue(result.guides.contains(AlignmentGuide(axis: .vertical, canvasCoordinate: 353)))
+    }
+
+    func testAlignRightEdgeSnapEmitsVerticalGuideAtRightCoordinate() {
+        // Moving: origin (170, 50), size (334, 200). movingXs = [170, 337, 504].
+        // Other: origin (200, 500), size (300, 200). otherXs = [200, 350, 500].
+        // Closest pair: moving.right (504) vs other.right (500) — gap 4 ≤ threshold 8.
+        // delta = 500 - 504 = -4 → new origin.x = 166. Guide .vertical at 500.
+        let other = CanvasRect(origin: CanvasPoint(x: 200, y: 500),
+                               size: CardSize(width: 300, height: 200))
+        let result = CanvasSnapping.align(
+            movingOrigin: CanvasPoint(x: 170, y: 50),
+            size: CardSize(width: 334, height: 200),
+            others: [other],
+            threshold: 8
+        )
+        XCTAssertEqual(result.origin.x, 166, accuracy: 0.0001)
+        XCTAssertEqual(result.origin.y, 50, accuracy: 0.0001)
+        XCTAssertTrue(result.guides.contains(AlignmentGuide(axis: .vertical, canvasCoordinate: 500)))
+    }
+
+    func testAlignDualAxisSimultaneouslyProducesTwoGuides() {
+        // Moving: origin (200, 100), size (300, 200).
+        //   movingXs = [200, 350, 500], movingYs = [100, 200, 300].
+        // Other: origin (203, 97), size (300, 200).
+        //   otherXs = [203, 353, 503], otherYs = [97, 197, 297].
+        // X: moving.left (200) vs other.left (203) — gap 3 → delta +3, guide .vertical at 203.
+        // Y: moving.top (100) vs other.top (97) — gap 3 → delta -3, guide .horizontal at 97.
+        // Both axes snap → origin = (203, 97) and TWO guides returned.
+        let other = CanvasRect(origin: CanvasPoint(x: 203, y: 97),
+                               size: CardSize(width: 300, height: 200))
+        let result = CanvasSnapping.align(
+            movingOrigin: CanvasPoint(x: 200, y: 100),
+            size: CardSize(width: 300, height: 200),
+            others: [other],
+            threshold: 8
+        )
+        XCTAssertEqual(result.origin.x, 203, accuracy: 0.0001)
+        XCTAssertEqual(result.origin.y, 97, accuracy: 0.0001)
+        XCTAssertEqual(result.guides.count, 2)
+        XCTAssertTrue(result.guides.contains(AlignmentGuide(axis: .vertical, canvasCoordinate: 203)))
+        XCTAssertTrue(result.guides.contains(AlignmentGuide(axis: .horizontal, canvasCoordinate: 97)))
+    }
+
+    func testAlignWithEmptyOthersReturnsOriginUnchangedAndNoGuides() {
+        let result = CanvasSnapping.align(
+            movingOrigin: CanvasPoint(x: 100, y: 200),
+            size: CardSize(width: 300, height: 200),
+            others: [],
+            threshold: 8
+        )
+        XCTAssertEqual(result.origin, CanvasPoint(x: 100, y: 200))
+        XCTAssertTrue(result.guides.isEmpty)
+    }
+
     // MARK: - Absolute card-position setters (A3)
 
     func testSetCardPositionMovesToAbsolutePoint() {
@@ -2142,6 +2212,26 @@ final class WorkspaceModelTests: XCTestCase {
         let ids = Set(store.state.cards.prefix(2).map(\.id))
         let map = Dictionary(uniqueKeysWithValues: ids.map { ($0, CanvasPoint(x: 10, y: 10)) })
         store.setCardPositions(map)
+
+        // Debounced: not written synchronously.
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
+
+    @MainActor
+    func testStoreSetCardPositionIsDebounced() {
+        let a = UUID(); let b = UUID()
+        let state = WorkspaceState(cards: [
+            makePositionedCard(a, x: 0, y: 0),
+            makePositionedCard(b, x: 200, y: 0)
+        ])
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(state: state, storageURL: url, persistenceDelay: 60)
+
+        store.setCardPosition(id: a, to: CanvasPoint(x: 10, y: 10))
 
         // Debounced: not written synchronously.
         XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
@@ -2202,6 +2292,19 @@ final class WorkspaceModelTests: XCTestCase {
         let id = UUID()
         let t = ConversationReducer.appendingUserAndPendingAssistant([], userText: "question", assistantID: id)
         XCTAssertEqual(ConversationReducer.userText(before: id, in: t), "question")
+    }
+
+    func testReducerResettingToPendingClearssStreamingStateAndText() {
+        let id = UUID()
+        var t = ConversationReducer.appendingUserAndPendingAssistant([], userText: "hi", assistantID: id)
+        t = ConversationReducer.appendingStreamChunk(t, messageID: id, chunk: "partial response")
+        XCTAssertTrue(t[1].isStreaming)
+
+        t = ConversationReducer.resettingToPending(t, messageID: id)
+
+        XCTAssertTrue(t[1].isPending)
+        XCTAssertFalse(t[1].isStreaming)
+        XCTAssertEqual(t[1].text, "")
     }
 
     // MARK: - Appearance enums (Task D1)
