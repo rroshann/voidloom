@@ -2248,4 +2248,119 @@ final class WorkspaceModelTests: XCTestCase {
         })
         XCTAssertEqual(noteTodo?.type, .todoToNote, "note+todo should derive .todoToNote")
     }
+
+    // MARK: - BK: cleanShutdown flag + rolling backup recovery
+
+    @MainActor
+    func testRollingBackupKeepsLastNAndRotates() throws {
+        // Pure helper: given 5 filenames and keep=3, oldest 2 are pruned.
+        let names = ["backup-01.json", "backup-02.json", "backup-03.json",
+                     "backup-04.json", "backup-05.json"]
+        let pruned = WorkspaceStore.backupsToPrune(existing: names, keep: 3)
+        XCTAssertEqual(Set(pruned), Set(["backup-01.json", "backup-02.json"]))
+
+        // On-disk: N+2 (5) saves produce exactly N (3) backup files.
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let storageURL = baseDirectory.appendingPathComponent("workspace.json")
+        let store = WorkspaceStore(
+            state: WorkspaceState(),
+            storageURL: storageURL,
+            persistenceDelay: 60
+        )
+        let workspaceID = store.library.selectedWorkspaceID
+
+        for _ in 0..<5 {
+            store.persist()
+            // Small sleep so timestamps differ in the filename.
+            Thread.sleep(forTimeInterval: 0.002)
+        }
+
+        let backupsDir = baseDirectory
+            .appendingPathComponent("backups")
+            .appendingPathComponent(workspaceID.uuidString)
+        let files = try FileManager.default.contentsOfDirectory(atPath: backupsDir.path)
+        XCTAssertEqual(files.count, 3, "exactly 3 backups should remain after 5 saves")
+    }
+
+    @MainActor
+    func testRecoversFromNewestBackupWhenCurrentMissingAfterUncleanShutdown() throws {
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let libraryURL = baseDirectory.appendingPathComponent("library.json")
+        let workspacesDirectory = baseDirectory.appendingPathComponent("workspaces", isDirectory: true)
+        let legacyURL = baseDirectory.appendingPathComponent("workspace.json")
+
+        // First launch: create store, add card (persists immediately + writes backup).
+        let store = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: legacyURL
+        )
+        store.addCard(kind: .note)
+        let savedCardCount = store.state.cards.count
+        let workspaceID = store.library.selectedWorkspaceID
+
+        // Simulate crash: delete the current workspace file without marking clean.
+        let workspaceFileURL = WorkspaceStore.workspaceURL(for: workspaceID, in: workspacesDirectory)
+        try FileManager.default.removeItem(at: workspaceFileURL)
+        // markCleanShutdown() is NOT called → marker stays false.
+
+        // Second launch should recover from the backup.
+        let recoveredStore = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: legacyURL
+        )
+
+        XCTAssertEqual(
+            recoveredStore.state.cards.count, savedCardCount,
+            "state must be recovered from the newest backup"
+        )
+    }
+
+    @MainActor
+    func testCleanShutdownMarkerRoundTrips() throws {
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let libraryURL = baseDirectory.appendingPathComponent("library.json")
+        let workspacesDirectory = baseDirectory.appendingPathComponent("workspaces", isDirectory: true)
+        let legacyURL = baseDirectory.appendingPathComponent("workspace.json")
+        let markerURL = baseDirectory.appendingPathComponent("shutdown.json")
+
+        // Launch → marker is written false (running, potentially unclean).
+        let store = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: legacyURL
+        )
+        XCTAssertFalse(
+            WorkspaceStore.readShutdownMarker(from: markerURL),
+            "marker should be false immediately after launch"
+        )
+
+        // Graceful shutdown → marker flips to true.
+        store.markCleanShutdown()
+        XCTAssertTrue(
+            WorkspaceStore.readShutdownMarker(from: markerURL),
+            "marker should be true after markCleanShutdown()"
+        )
+
+        // Fresh launch → marker reset to false again.
+        _ = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: legacyURL
+        )
+        XCTAssertFalse(
+            WorkspaceStore.readShutdownMarker(from: markerURL),
+            "marker should be false again after a fresh store launch"
+        )
+    }
 }

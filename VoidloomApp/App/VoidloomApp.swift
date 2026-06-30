@@ -48,6 +48,7 @@ struct VoidloomApp: App {
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
                     agentSessionManager.terminateAllSessions()
                     store.flushPendingPersistence()
+                    store.markCleanShutdown()
                 }
         }
         .windowStyle(.hiddenTitleBar)

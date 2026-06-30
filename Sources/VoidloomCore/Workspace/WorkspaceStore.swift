@@ -12,6 +12,7 @@ public final class WorkspaceStore: ObservableObject {
     private let storageURL: URL
     private let persistenceDelay: TimeInterval
     private var pendingPersistenceTask: Task<Void, Never>?
+    private let shutdownMarkerURL: URL
 
     private var isLibraryMode: Bool { libraryURL != nil }
 
@@ -25,10 +26,15 @@ public final class WorkspaceStore: ObservableObject {
         self.workspacesDirectoryURL = workspacesDirectoryURL
         self.persistenceDelay = persistenceDelay
 
+        let markerURL = libraryURL.deletingLastPathComponent()
+            .appendingPathComponent("shutdown.json")
+        self.shutdownMarkerURL = markerURL
+
         let loaded = Self.loadOrCreateLibrary(
             libraryURL: libraryURL,
             workspacesDirectoryURL: workspacesDirectoryURL,
-            legacyStorageURL: legacyStorageURL
+            legacyStorageURL: legacyStorageURL,
+            shutdownMarkerURL: markerURL
         )
 
         self.library = loaded.library
@@ -37,6 +43,9 @@ public final class WorkspaceStore: ObservableObject {
             in: workspacesDirectoryURL
         )
         self.state = loaded.state
+
+        // Mark ourselves as running; stays false until markCleanShutdown() is called.
+        Self.writeShutdownMarker(false, to: markerURL)
     }
 
     public init(
@@ -48,6 +57,8 @@ public final class WorkspaceStore: ObservableObject {
         self.workspacesDirectoryURL = nil
         self.storageURL = storageURL
         self.persistenceDelay = persistenceDelay
+        self.shutdownMarkerURL = storageURL.deletingLastPathComponent()
+            .appendingPathComponent("shutdown.json")
         let workspaceID = UUID()
         self.library = WorkspaceLibrary(
             selectedWorkspaceID: workspaceID,
@@ -60,6 +71,7 @@ public final class WorkspaceStore: ObservableObject {
             ]
         )
         self.state = state
+        Self.writeShutdownMarker(false, to: shutdownMarkerURL)
     }
 
     public func pan(by translation: CanvasVector) {
@@ -532,6 +544,12 @@ public final class WorkspaceStore: ObservableObject {
         writeCurrentState()
     }
 
+    /// Call after a graceful flush/terminate so the next launch knows the
+    /// previous session ended cleanly (no backup recovery needed).
+    public func markCleanShutdown() {
+        Self.writeShutdownMarker(true, to: shutdownMarkerURL)
+    }
+
     private func schedulePersistence() {
         pendingPersistenceTask?.cancel()
 
@@ -555,6 +573,8 @@ public final class WorkspaceStore: ObservableObject {
     private func writeCurrentState() {
         do {
             try Self.save(state, to: currentWorkspaceStorageURL())
+            let baseDir = shutdownMarkerURL.deletingLastPathComponent()
+            Self.writeBackup(state, workspaceID: library.selectedWorkspaceID, baseDir: baseDir)
             syncActiveSummary()
             if isLibraryMode, let libraryURL {
                 try Self.saveLibrary(library, to: libraryURL)
@@ -589,12 +609,14 @@ public final class WorkspaceStore: ObservableObject {
     nonisolated private static func loadOrCreateLibrary(
         libraryURL: URL,
         workspacesDirectoryURL: URL,
-        legacyStorageURL: URL
+        legacyStorageURL: URL,
+        shutdownMarkerURL: URL
     ) -> LoadedLibrary {
         if FileManager.default.fileExists(atPath: libraryURL.path) {
             return loadExistingLibrary(
                 libraryURL: libraryURL,
-                workspacesDirectoryURL: workspacesDirectoryURL
+                workspacesDirectoryURL: workspacesDirectoryURL,
+                shutdownMarkerURL: shutdownMarkerURL
             )
         }
 
@@ -614,14 +636,37 @@ public final class WorkspaceStore: ObservableObject {
 
     nonisolated private static func loadExistingLibrary(
         libraryURL: URL,
-        workspacesDirectoryURL: URL
+        workspacesDirectoryURL: URL,
+        shutdownMarkerURL: URL
     ) -> LoadedLibrary {
         do {
             let library = try loadLibrary(from: libraryURL)
-            let workspaceURL = workspaceURL(for: library.selectedWorkspaceID, in: workspacesDirectoryURL)
-            let state = try load(from: workspaceURL)
-            return LoadedLibrary(library: library, state: state)
+            let wsURL = workspaceURL(for: library.selectedWorkspaceID, in: workspacesDirectoryURL)
+
+            // Happy path: workspace loads cleanly.
+            if let state = try? load(from: wsURL) {
+                return LoadedLibrary(library: library, state: state)
+            }
+
+            // Workspace missing or corrupt — try backup recovery if shutdown was unclean.
+            let wasClean = readShutdownMarker(from: shutdownMarkerURL)
+            let currentExists = FileManager.default.fileExists(atPath: wsURL.path)
+            if shouldRecover(cleanShutdown: wasClean, currentExists: currentExists) {
+                let baseDir = shutdownMarkerURL.deletingLastPathComponent()
+                let backupDir = backupsDirectory(for: library.selectedWorkspaceID, relativeTo: baseDir)
+                if let backupFiles = try? FileManager.default.contentsOfDirectory(atPath: backupDir.path),
+                   let newestName = backupFiles.sorted().last,
+                   let recovered = try? load(from: backupDir.appendingPathComponent(newestName)) {
+                    return LoadedLibrary(library: library, state: recovered)
+                }
+            }
+
+            // No recovery possible — create a fresh seed workspace in the existing library slot.
+            let freshState = makeSeedState()
+            try? save(freshState, to: wsURL)
+            return LoadedLibrary(library: library, state: freshState)
         } catch {
+            // Library itself is unreadable — create a brand-new library.
             let workspaceID = UUID()
             let now = Date()
             let library = WorkspaceLibrary(
@@ -753,6 +798,79 @@ public final class WorkspaceStore: ObservableObject {
         return baseURL
             .appendingPathComponent("Voidloom", isDirectory: true)
             .appendingPathComponent("workspace.json")
+    }
+
+    // MARK: - Shutdown marker
+
+    /// Pure helper: returns true iff the last session called markCleanShutdown().
+    /// Returns false when the file is absent (first launch) or corrupt.
+    nonisolated public static func readShutdownMarker(from url: URL) -> Bool {
+        struct Marker: Codable { var cleanShutdown: Bool }
+        guard let data = try? Data(contentsOf: url),
+              let marker = try? JSONDecoder().decode(Marker.self, from: data) else {
+            return false
+        }
+        return marker.cleanShutdown
+    }
+
+    nonisolated private static func writeShutdownMarker(_ clean: Bool, to url: URL) {
+        struct Marker: Codable { var cleanShutdown: Bool }
+        guard let data = try? JSONEncoder().encode(Marker(cleanShutdown: clean)) else { return }
+        let dir = url.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        try? data.write(to: url, options: [.atomic])
+    }
+
+    // MARK: - Recovery decision (pure, testable)
+
+    /// Returns true when the store should attempt to load from a backup.
+    /// Recovery is warranted only when the previous session did NOT shut down
+    /// cleanly AND the current workspace file no longer exists.
+    nonisolated public static func shouldRecover(cleanShutdown: Bool, currentExists: Bool) -> Bool {
+        !cleanShutdown && !currentExists
+    }
+
+    // MARK: - Rolling backup helpers (pure, testable)
+
+    /// Given a lexicographically-sorted list of backup filenames (oldest first),
+    /// returns the names that should be deleted so only `keep` remain.
+    /// ISO8601-prefixed filenames sort chronologically when sorted lexicographically.
+    nonisolated public static func backupsToPrune(existing: [String], keep: Int) -> [String] {
+        let sorted = existing.sorted()
+        let excess = sorted.count - keep
+        guard excess > 0 else { return [] }
+        return Array(sorted.prefix(excess))
+    }
+
+    nonisolated private static func backupsDirectory(
+        for workspaceID: UUID,
+        relativeTo baseDir: URL
+    ) -> URL {
+        baseDir
+            .appendingPathComponent("backups", isDirectory: true)
+            .appendingPathComponent(workspaceID.uuidString, isDirectory: true)
+    }
+
+    /// Writes a timestamped backup of `state` and prunes old backups so that
+    /// only `keepCount` remain per workspace. Failures are silently ignored —
+    /// backups are best-effort and must never block the main save path.
+    nonisolated private static func writeBackup(
+        _ state: WorkspaceState,
+        workspaceID: UUID,
+        baseDir: URL,
+        keepCount: Int = 3
+    ) {
+        let backupDir = backupsDirectory(for: workspaceID, relativeTo: baseDir)
+        // Fixed-width decimal timestamp ensures lexicographic order == chronological order.
+        let ts = String(format: "%020.6f", Date().timeIntervalSinceReferenceDate)
+        let backupURL = backupDir.appendingPathComponent("backup-\(ts).json")
+
+        try? save(state, to: backupURL)
+
+        guard let files = try? FileManager.default.contentsOfDirectory(atPath: backupDir.path) else { return }
+        for name in backupsToPrune(existing: files, keep: keepCount) {
+            try? FileManager.default.removeItem(at: backupDir.appendingPathComponent(name))
+        }
     }
 
     nonisolated public static func makeSeedState() -> WorkspaceState {
