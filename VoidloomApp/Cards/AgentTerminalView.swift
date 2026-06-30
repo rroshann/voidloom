@@ -43,7 +43,7 @@ struct AgentTerminalView: View {
 
             HStack(spacing: 8) {
                 Text("$")
-                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    .font(.system(size: 12 * theme.fontScale, weight: .bold, design: .monospaced))
                     .foregroundStyle(accent)
 
                 TextField("Command", text: $input)

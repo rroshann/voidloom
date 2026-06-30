@@ -93,7 +93,7 @@ struct BrowserCardContentView: View {
             // ── Page title (secondary, truncated) ─────────────────────────
             if let title = loadModel.pageTitle, !title.isEmpty {
                 Text(title)
-                    .font(.system(size: 9, weight: .regular))
+                    .font(.system(size: 9 * theme.fontScale, weight: .regular))
                     .foregroundStyle(theme.ink(0.4))
                     .lineLimit(1)
                     .truncationMode(.tail)
