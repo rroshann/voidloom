@@ -120,19 +120,6 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         cards[index].position.y += screenTranslation.dy / viewport.scale
     }
 
-    public mutating func setCardPosition(id: UUID, to position: CanvasPoint) {
-        guard let index = cards.firstIndex(where: { $0.id == id }) else { return }
-        cards[index].position = position
-    }
-
-    public mutating func setCardPositions(_ positions: [UUID: CanvasPoint]) {
-        for index in cards.indices {
-            if let position = positions[cards[index].id] {
-                cards[index].position = position
-            }
-        }
-    }
-
     /// Moves every card in `ids` by the same screen translation, converted to
     /// canvas units once. Drives marquee group drag: dragging any selected card
     /// moves the whole highlighted set together. Cards outside the set are

@@ -179,9 +179,6 @@ private struct CanvasSettingsTab: View {
     @AppStorage("canvas.invertPan") private var invertPan = false
     @AppStorage("canvas.zoomSensitivity") private var zoomSensitivity = 1.0
     @AppStorage("canvas.zoomTowardCursor") private var zoomTowardCursor = true
-    @AppStorage("canvas.snapToGrid") private var snapToGrid = false
-    @AppStorage("canvas.gridSize") private var gridSize = 16
-    @AppStorage("canvas.showAlignmentGuides") private var showAlignmentGuides = true
     @AppStorage("canvas.defaultZoom") private var defaultZoom = 100
     @AppStorage("canvas.momentumPanning") private var momentumPanning = true
     @AppStorage("canvas.selectionBoxModifier") private var selectionBoxModifier: SelectionBoxModifier = .none
@@ -213,17 +210,6 @@ private struct CanvasSettingsTab: View {
                 Text("None: a plain mouse drag draws a selection box. Pick a modifier to keep plain drag as pan and require that key for the selection box. Two-finger trackpad always pans.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
-            }
-
-            Section("Grid & Snapping") {
-                Toggle("Snap cards to grid", isOn: $snapToGrid)
-
-                Stepper(value: $gridSize, in: 8...64, step: 4) {
-                    LabeledContent("Grid size", value: "\(gridSize) pt")
-                }
-                .disabled(!snapToGrid)
-
-                Toggle("Show alignment guides", isOn: $showAlignmentGuides)
             }
 
             Section("View") {

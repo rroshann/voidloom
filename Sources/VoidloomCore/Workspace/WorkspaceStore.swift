@@ -86,18 +86,6 @@ public final class WorkspaceStore: ObservableObject {
         schedulePersistence()
     }
 
-    public func setCardPosition(id: UUID, to position: CanvasPoint) {
-        guard state.cards.contains(where: { $0.id == id }) else { return }
-        state.setCardPosition(id: id, to: position)
-        schedulePersistence()
-    }
-
-    public func setCardPositions(_ positions: [UUID: CanvasPoint]) {
-        guard !positions.isEmpty else { return }
-        state.setCardPositions(positions)
-        schedulePersistence()
-    }
-
     public func deleteCard(id: UUID) {
         guard state.cards.contains(where: { $0.id == id }) else { return }
         state.deleteCard(id: id)
