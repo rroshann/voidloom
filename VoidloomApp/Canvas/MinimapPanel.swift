@@ -32,29 +32,39 @@ struct MinimapPanel: View {
                     size: CardSize(width: vpBR.x - vpTL.x, height: vpBR.y - vpTL.y)
                 )
 
-                // Scale basis: the cards' bounding box unioned with the current
-                // viewport CENTER (a point, not the full rect). Using the center
-                // keeps the map scale STABLE while zooming — zoom changes the
-                // viewport's size, not its center — so the map no longer zooms with
-                // the canvas. Panning still shifts the basis, so the map follows you
-                // into empty space. Falls back to the viewport rect when no cards.
+                // Scale basis (the world region the panel depicts). Built from the
+                // cards' extent unioned with the viewport CENTER point, then expanded
+                // to at least "one screenful" (the window size in canvas units at
+                // 100%). Two properties fall out of this:
+                //  • STABLE ON ZOOM — the extent depends on card positions, the
+                //    viewport center, and the constant minimum; none of those is the
+                //    viewport's zoom-dependent SIZE, so zooming no longer rescales
+                //    the map (only the "you are here" rect below resizes).
+                //  • NO BLOW-UP ON SMALL CONTENT — a single small card sits in a
+                //    full screenful of space instead of filling the whole panel.
+                // Panning moves the viewport center, so the map still follows you
+                // into empty space.
                 let vpCenter = vp.canvasPoint(
                     forScreenPoint: ScreenPoint(
                         x: Double(viewportSize.width) / 2,
                         y: Double(viewportSize.height) / 2
                     )
                 )
-                let displayBbox: CanvasRect = {
-                    guard let cards = store.state.contentBoundingBox() else { return vpRect }
-                    let minX = Swift.min(cards.origin.x, vpCenter.x)
-                    let minY = Swift.min(cards.origin.y, vpCenter.y)
-                    let maxX = Swift.max(cards.origin.x + cards.size.width, vpCenter.x)
-                    let maxY = Swift.max(cards.origin.y + cards.size.height, vpCenter.y)
-                    return CanvasRect(
-                        origin: CanvasPoint(x: minX, y: minY),
-                        size: CardSize(width: maxX - minX, height: maxY - minY)
-                    )
-                }()
+                let cards = store.state.contentBoundingBox()
+                let cMinX = cards.map { Swift.min($0.origin.x, vpCenter.x) } ?? vpCenter.x
+                let cMinY = cards.map { Swift.min($0.origin.y, vpCenter.y) } ?? vpCenter.y
+                let cMaxX = cards.map { Swift.max($0.origin.x + $0.size.width, vpCenter.x) } ?? vpCenter.x
+                let cMaxY = cards.map { Swift.max($0.origin.y + $0.size.height, vpCenter.y) } ?? vpCenter.y
+                let minWorldW = Swift.max(Double(viewportSize.width), 1)
+                let minWorldH = Swift.max(Double(viewportSize.height), 1)
+                let worldW = Swift.max(cMaxX - cMinX, minWorldW)
+                let worldH = Swift.max(cMaxY - cMinY, minWorldH)
+                let worldCX = (cMinX + cMaxX) / 2
+                let worldCY = (cMinY + cMaxY) / 2
+                let displayBbox = CanvasRect(
+                    origin: CanvasPoint(x: worldCX - worldW / 2, y: worldCY - worldH / 2),
+                    size: CardSize(width: worldW, height: worldH)
+                )
 
                 // Fit the entire display bbox inside the panel with ~10% margin.
                 // Clamp each dimension to at least 1 to guard against NaN fitScale.
