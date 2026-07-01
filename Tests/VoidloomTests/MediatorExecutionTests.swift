@@ -31,3 +31,22 @@ final class AgentTerminalControllingTests: XCTestCase {
         XCTAssertEqual(mock.recentOutput(of: id, maxLines: 2), ["c", "d"])
     }
 }
+
+final class AgentNamePoolTests: XCTestCase {
+    func testAssignsFirstUnusedNamesCaseInsensitively() {
+        let pool = AgentNamePool()
+        let names = pool.nextNames(count: 2, existing: ["Viper", "OMEN"])
+        XCTAssertEqual(names, ["phoenix", "sage"])
+    }
+
+    func testExhaustedPoolAppendsNumericSuffixes() {
+        let pool = AgentNamePool(names: ["viper", "omen"])
+        let names = pool.nextNames(count: 3, existing: ["viper"])
+        XCTAssertEqual(names, ["omen", "viper-2", "omen-2"])
+    }
+
+    func testCustomPackReplacesDefaults() {
+        let pool = AgentNamePool(names: ["jett", "sage"])
+        XCTAssertEqual(pool.nextNames(count: 1, existing: []), ["jett"])
+    }
+}
