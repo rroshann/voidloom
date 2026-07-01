@@ -30,6 +30,12 @@ struct SpacesShellView: View {
 
     /// Index of the tile currently being dragged, or nil when idle.
     @State private var draggingIndex: Int?
+    /// Marquee selection-box corners in the shell's local space, or nil when idle.
+    @State private var marqueeStart: CGPoint?
+    @State private var marqueeCurrent: CGPoint?
+    /// Selection captured at ⌘-drag start, so additive marquee keeps extending it.
+    @State private var marqueeBase: Set<UUID> = []
+    @State private var marqueeAdditive = false
 
     private static let topPadding: CGFloat = 16
     private static let bottomPadding: CGFloat = 24
@@ -66,6 +72,10 @@ struct SpacesShellView: View {
                     dimming: store.state.space?.backgroundDimming ?? 0.35,
                     backgroundsDirectory: store.backgroundsDirectoryURL()
                 )
+
+                Color.clear
+                    .contentShape(Rectangle())
+                    .gesture(marqueeGesture(paged: paged, orderedIDs: orderedIDs))
 
                 if orderedIDs.isEmpty {
                     Text("No cards yet — add one from the dock below.")
@@ -122,6 +132,17 @@ struct SpacesShellView: View {
                     reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85),
                     value: paged.tileSize
                 )
+
+                if let s = marqueeStart, let c = marqueeCurrent {
+                    let rect = CGRect(x: min(s.x, c.x), y: min(s.y, c.y),
+                                      width: abs(c.x - s.x), height: abs(c.y - s.y))
+                    Rectangle()
+                        .fill(Color.accentColor.opacity(0.12))
+                        .overlay(Rectangle().stroke(Color.accentColor.opacity(0.65), lineWidth: 1))
+                        .frame(width: rect.width, height: rect.height)
+                        .position(x: rect.midX, y: rect.midY)
+                        .allowsHitTesting(false)
+                }
 
                 VStack {
                     SpaceTopBar(store: store, sessionManager: sessionManager, onReTile: reTile)
@@ -249,6 +270,54 @@ struct SpacesShellView: View {
             }
         }
         return nil
+    }
+
+    /// Left-drag on empty background draws a selection box; ⌘-drag extends the
+    /// existing selection. Coordinates are `.local` to the shell, matching the
+    /// `SpaceGrid` tile origins used by `tileIndices`.
+    private func marqueeGesture(paged: SpaceGrid.PagedLayout, orderedIDs: [UUID]) -> some Gesture {
+        DragGesture(minimumDistance: 1)
+            .onChanged { value in
+                if marqueeStart == nil {
+                    marqueeStart = value.startLocation
+                    marqueeAdditive = NSEvent.modifierFlags.contains(.command)
+                    if marqueeAdditive {
+                        var base = store.state.marqueeSelectedCardIDs
+                        if let single = store.state.selectedCardID { base.insert(single) }
+                        marqueeBase = base
+                    } else {
+                        marqueeBase = []
+                    }
+                }
+                marqueeCurrent = value.location
+                let hits = marqueeHits(start: value.startLocation, current: value.location,
+                                       paged: paged, orderedIDs: orderedIDs)
+                store.selectCardsInSpace(ids: marqueeAdditive ? marqueeBase.union(hits) : hits)
+            }
+            .onEnded { _ in
+                marqueeStart = nil
+                marqueeCurrent = nil
+                marqueeBase = []
+                marqueeAdditive = false
+            }
+    }
+
+    /// Maps a screen-space selection box to the set of card ids it covers on the
+    /// current page.
+    private func marqueeHits(
+        start: CGPoint, current: CGPoint,
+        paged: SpaceGrid.PagedLayout, orderedIDs: [UUID]
+    ) -> Set<UUID> {
+        let locals = SpaceGrid.tileIndices(
+            fromCorner: ScreenPoint(x: start.x, y: start.y),
+            toCorner: ScreenPoint(x: current.x, y: current.y),
+            tileOrigins: paged.tileOrigins, tileSize: paged.tileSize)
+        var ids = Set<UUID>()
+        for local in locals {
+            let global = paged.cardRange.lowerBound + local
+            if orderedIDs.indices.contains(global) { ids.insert(orderedIDs[global]) }
+        }
+        return ids
     }
 
     @ViewBuilder private func pager(_ paged: SpaceGrid.PagedLayout) -> some View {
