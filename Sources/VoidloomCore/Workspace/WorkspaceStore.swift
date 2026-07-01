@@ -191,6 +191,14 @@ public final class WorkspaceStore: ObservableObject {
         schedulePersistence()
     }
 
+    /// Screen-space selection for Spaces (marquee/⌘). The marquee set is
+    /// transient, but a lone hit also sets `selectedCardID`, so persistence is
+    /// scheduled — matching the canvas `selectCards` overloads.
+    public func selectCardsInSpace(ids: Set<UUID>) {
+        state.selectCardsInSpace(ids: ids)
+        schedulePersistence()
+    }
+
     public func addCard(kind: CardKind) {
         var card = Self.makeCard(kind: kind, index: state.cards.count)
         // After deletions, the count-based index can map to a grid slot already

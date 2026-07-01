@@ -273,4 +273,33 @@ extension SpaceModelTests {
         XCTAssertTrue(state.marqueeSelectedCardIDs.isEmpty)
         XCTAssertNil(state.selectedCardID)
     }
+
+    @MainActor
+    func testSetSpaceTilingPersistsImmediately() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(state: WorkspaceState(cards: []), storageURL: url, persistenceDelay: 0)
+        store.setSpaceTiling(SpaceTiling(mode: .fixedColumns, columns: 3, maxRows: 2))
+
+        let reloaded = try WorkspaceStore.load(from: url)   // synchronous immediate write
+        XCTAssertEqual(reloaded.space?.tiling.columns, 3)
+        XCTAssertEqual(reloaded.space?.tiling.maxRows, 2)
+        XCTAssertEqual(reloaded.space?.tiling.mode, .fixedColumns)
+    }
+
+    @MainActor
+    func testStoreSelectCardsInSpaceUpdatesSelection() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(state: stateWithCards(3), storageURL: url, persistenceDelay: 0)
+        let ids = Set(store.state.cards.prefix(2).map(\.id))
+        store.selectCardsInSpace(ids: ids)
+
+        XCTAssertEqual(store.state.marqueeSelectedCardIDs, ids)
+        XCTAssertNil(store.state.selectedCardID)
+    }
 }
