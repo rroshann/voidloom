@@ -12,6 +12,8 @@ struct RootView: View {
     @ObservedObject var interaction: CanvasInteractionModel
 
     @AppStorage("app.mode") private var appMode: AppMode = .canvas
+    @AppStorage("isWorkspaceSidebarVisible") private var isWorkspaceSidebarVisible = false
+    @AppStorage("isMinimapVisible") private var isMinimapVisible = false
 
     var body: some View {
         ZStack {
@@ -30,5 +32,20 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.28), value: appMode)
+        .onReceive(NotificationCenter.default.publisher(for: MenuAction.notification)) { note in
+            guard let action = note.object as? MenuAction else { return }
+            switch action {
+            case .toggleAppMode:
+                appMode = appMode == .canvas ? .spaces : .canvas
+            case .toggleWorkspaceSidebar:
+                isWorkspaceSidebarVisible.toggle()
+            case .toggleMinimap:
+                isMinimapVisible.toggle()
+            case .addCard(let kind):
+                store.addCard(kind: kind)
+            case .zoomIn, .zoomOut, .resetViewport:
+                break   // handled by CanvasShellView, which owns the zoom anchor
+            }
+        }
     }
 }

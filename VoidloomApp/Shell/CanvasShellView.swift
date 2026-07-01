@@ -78,7 +78,7 @@ struct CanvasShellView: View {
 
         guard interaction.editingTextID == nil,
               interaction.editingCardTitleID == nil else { return false }
-        if event.window?.firstResponder is NSText { return false }
+        if isTypingResponder(event.window?.firstResponder) { return false }
 
         if let id = interaction.selectedConnectionID {
             store.deleteConnection(id: id)
@@ -388,6 +388,17 @@ struct CanvasShellView: View {
             // Backspace keeps reaching the editor).
             .coordinateSpace(.named("rootSpace"))
             .background(CanvasKeyMonitor(onKeyDown: handleDeleteKey))
+            .onReceive(NotificationCenter.default.publisher(for: MenuAction.notification)) { note in
+                guard let action = note.object as? MenuAction else { return }
+                let anchor = ScreenPoint(x: Double(geometry.size.width) / 2,
+                                         y: Double(geometry.size.height) / 2)
+                switch action {
+                case .zoomIn: store.zoomStep(by: 1.15, anchoredAt: anchor)
+                case .zoomOut: store.zoomStep(by: 1 / 1.15, anchoredAt: anchor)
+                case .resetViewport: store.resetViewport()
+                default: break   // store/AppStorage actions live in RootView
+                }
+            }
             .animation(.easeInOut(duration: 0.15), value: isCommandPaletteVisible)
             .animation(.easeInOut(duration: 0.24), value: isWorkspaceSidebarVisible)
             .animation(.easeInOut(duration: 0.24), value: isAIConversationVisible)
