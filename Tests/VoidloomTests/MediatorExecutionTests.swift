@@ -136,3 +136,127 @@ final class MediatorTargetResolverTests: XCTestCase {
         XCTAssertEqual(r, TargetResolution.none(suggestion: nil))
     }
 }
+
+@MainActor
+final class CommandExecutorTests: XCTestCase {
+    private func makeStore() -> WorkspaceStore {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        addTeardownBlock { try? FileManager.default.removeItem(at: url) }
+        return WorkspaceStore(
+            state: WorkspaceState(viewport: CanvasViewport(origin: .zero, scale: 1), cards: []),
+            storageURL: url,
+            persistenceDelay: 60
+        )
+    }
+
+    private func makeExecutor(_ store: WorkspaceStore, _ terminals: MockAgentTerminals) -> CommandExecutor {
+        CommandExecutor(store: store, terminals: terminals, namePool: AgentNamePool())
+    }
+
+    func testSpawnAgentsCreatesTitledCardsAndSessions() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let result = makeExecutor(store, terminals).execute(.spawnAgents(count: 2, kind: .claudeCode, names: nil))
+
+        let agents = store.state.cards.filter { $0.kind == .agent }
+        XCTAssertEqual(agents.map(\.title), ["ember", "slate"])
+        XCTAssertEqual(terminals.spawned.count, 2)
+        XCTAssertEqual(result, .success(narration: "Spawned 2 claude agents: ember, slate"))
+    }
+
+    func testSpawnCountOutsideLimitsIsRefused() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let result = makeExecutor(store, terminals).execute(.spawnAgents(count: 9, kind: .claudeCode, names: nil))
+        XCTAssertEqual(result, .refused(reason: "I can spawn between 1 and 8 agents at once."))
+        XCTAssertTrue(store.state.cards.isEmpty)
+    }
+
+    func testSendPromptRoutesToResolvedAgentCard() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let id = store.addTitledCard(kind: .agent, title: "jerry")
+        let result = makeExecutor(store, terminals).execute(.sendPrompt(target: "jery", text: "look into the API errors"))
+
+        XCTAssertEqual(terminals.sent.first?.cardID, id)
+        XCTAssertEqual(terminals.sent.first?.text, "look into the API errors")
+        XCTAssertEqual(result, .success(narration: "→ jerry"))
+    }
+
+    func testSendPromptToUnknownTargetAsksForClarification() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        store.addTitledCard(kind: .agent, title: "jerry")
+        let result = makeExecutor(store, terminals).execute(.sendPrompt(target: "jasper", text: "hi"))
+        XCTAssertEqual(result, .needsClarification(question: "I don't see a jasper — did you mean jerry?"))
+        XCTAssertTrue(terminals.sent.isEmpty)
+    }
+
+    func testCloseTerminalRequiresConfirmationThenDeletes() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let id = store.addTitledCard(kind: .agent, title: "omen")
+        let executor = makeExecutor(store, terminals)
+
+        let first = executor.execute(.closeTerminal(target: "omen"))
+        XCTAssertEqual(first, .needsConfirmation(
+            prompt: "Close omen and its session?",
+            pending: .closeTerminal(target: "omen")
+        ))
+        XCTAssertTrue(store.state.cards.contains { $0.id == id })
+
+        let second = executor.execute(.closeTerminal(target: "omen"), confirmed: true)
+        XCTAssertEqual(second, .success(narration: "Closed omen"))
+        XCTAssertEqual(terminals.terminated, [id])
+        XCTAssertFalse(store.state.cards.contains { $0.id == id })
+    }
+
+    func testReadOutputReturnsRecentLinesInNarration() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let id = store.addTitledCard(kind: .agent, title: "viper")
+        terminals.outputByCard[id] = (1...30).map { "line \($0)" }
+        let result = makeExecutor(store, terminals).execute(.readOutput(target: "viper"))
+        guard case .success(let narration) = result else { return XCTFail("expected success, got \(result)") }
+        XCTAssertTrue(narration.contains("line 30"))
+        XCTAssertFalse(narration.contains("line 5")) // clamped to last 25
+    }
+
+    func testCreateCardAndSetBackgroundAndArrange() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let executor = makeExecutor(store, terminals)
+
+        XCTAssertEqual(
+            executor.execute(.createCard(kind: .note, content: "standup notes")),
+            .success(narration: "Created a note")
+        )
+        XCTAssertEqual(store.state.cards.first?.content, "standup notes")
+
+        XCTAssertEqual(
+            executor.execute(.setBackground(spec: .solid(hex: "#102030FF"))),
+            .success(narration: "Background updated")
+        )
+        XCTAssertEqual(store.state.space?.background, .solid(hex: "#102030FF"))
+
+        XCTAssertEqual(executor.execute(.arrange(style: .retile)), .success(narration: "Re-tiled the space"))
+    }
+
+    func testSwitchSpaceWithDuplicateNamesAsksForClarification() {
+        // createWorkspace only mutates the library in library mode, so this
+        // test needs a library-backed store (unlike makeStore()'s legacy
+        // single-file store, where createWorkspace is a no-op).
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: baseDirectory) }
+        let store = WorkspaceStore(
+            libraryURL: baseDirectory.appendingPathComponent("library.json"),
+            workspacesDirectoryURL: baseDirectory.appendingPathComponent("workspaces", isDirectory: true),
+            legacyStorageURL: baseDirectory.appendingPathComponent("workspace.json"),
+            persistenceDelay: 60
+        )
+        let terminals = MockAgentTerminals()
+        // Two workspaces named identically → never guess (spec finding 13).
+        store.createWorkspace(named: "research")
+        store.createWorkspace(named: "research")
+        let result = makeExecutor(store, terminals).execute(.switchSpace(name: "research"))
+        XCTAssertEqual(result, .needsClarification(
+            question: "There are 2 spaces named research — rename one to switch by voice."
+        ))
+    }
+}
