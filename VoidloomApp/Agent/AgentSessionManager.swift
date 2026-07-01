@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import VoidloomCore
 
 @MainActor
 final class AgentSessionManager: ObservableObject {
@@ -43,5 +44,24 @@ final class AgentSessionManager: ObservableObject {
         session.outputLines.append("$ \(trimmed)")
         session.outputLines.append("session stub: \(trimmed)")
         sessions[cardID] = session
+    }
+}
+
+extension AgentSessionManager: AgentTerminalControlling {
+    func spawn(cardID: UUID, kind: MediatorAgentKind) {
+        // Stub sessions have no process; kind becomes meaningful when PTY lands.
+        startSession(cardID: cardID)
+    }
+
+    func send(text: String, to cardID: UUID) {
+        submitInput(cardID: cardID, input: text)
+    }
+
+    func recentOutput(of cardID: UUID, maxLines: Int) -> [String] {
+        Array((session(for: cardID)?.outputLines ?? []).suffix(maxLines))
+    }
+
+    func terminate(cardID: UUID) {
+        terminateSession(cardID: cardID)
     }
 }
