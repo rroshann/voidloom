@@ -128,4 +128,77 @@ final class SpaceGridTests: XCTestCase {
         )
         XCTAssertEqual(l2.columns, 3, "columns=100 with 3 cards should clamp to cardCount")
     }
+
+    private func paged(_ n: Int, _ tiling: SpaceTiling, page: Int) -> SpaceGrid.PagedLayout {
+        SpaceGrid.pagedLayout(cardCount: n, viewportSize: viewport,
+                              topInset: topInset, bottomInset: bottomInset, tiling: tiling, page: page)
+    }
+
+    func testPagedLayoutSinglePageMatchesLayoutForAuto() {
+        let l = layout(7)
+        let p = paged(7, SpaceTiling(), page: 0)
+        XCTAssertEqual(p.pageCount, 1)
+        XCTAssertEqual(p.page, 0)
+        XCTAssertEqual(p.cardRange, 0..<7)
+        XCTAssertEqual(p.columns, l.columns)
+        XCTAssertEqual(p.rows, l.rows)
+        XCTAssertEqual(p.tileSize, l.tileSize)
+        XCTAssertEqual(p.tileOrigins, l.tileOrigins)
+    }
+
+    func testPagedLayoutSinglePageMatchesLayoutForFixedColumns() {
+        let tiling = SpaceTiling(mode: .fixedColumns, columns: 3)   // no maxRows
+        let l = SpaceGrid.layout(cardCount: 5, viewportSize: viewport,
+                                 topInset: topInset, bottomInset: bottomInset, tiling: tiling)
+        let p = paged(5, tiling, page: 0)
+        XCTAssertEqual(p.pageCount, 1)
+        XCTAssertEqual(p.tileOrigins, l.tileOrigins)
+        XCTAssertEqual(p.tileSize, l.tileSize)
+    }
+
+    func testPagedLayoutPaginatesFixedGrid() {
+        let tiling = SpaceTiling(mode: .fixedColumns, columns: 3, maxRows: 2)   // capacity 6
+        let p0 = paged(8, tiling, page: 0)
+        let p1 = paged(8, tiling, page: 1)
+        XCTAssertEqual(p0.pageCount, 2)
+        XCTAssertEqual(p0.page, 0)
+        XCTAssertEqual(p0.cardRange, 0..<6)
+        XCTAssertEqual(p0.tileOrigins.count, 6)
+        XCTAssertEqual(p1.page, 1)
+        XCTAssertEqual(p1.cardRange, 6..<8)
+        XCTAssertEqual(p1.tileOrigins.count, 2)
+        // Tiles are the same size on every page (the "tiles stay large" promise).
+        XCTAssertEqual(p0.tileSize, p1.tileSize)
+        XCTAssertEqual(p0.columns, 3)
+        XCTAssertEqual(p0.rows, 2)
+    }
+
+    func testPagedLayoutClampsPageBeyondRange() {
+        let tiling = SpaceTiling(mode: .fixedColumns, columns: 3, maxRows: 2)
+        let p = paged(8, tiling, page: 5)
+        XCTAssertEqual(p.page, 1)
+        XCTAssertEqual(p.cardRange, 6..<8)
+    }
+
+    func testPagedLayoutExactMultipleFillsLastPage() {
+        let tiling = SpaceTiling(mode: .fixedColumns, columns: 2, maxRows: 2)   // capacity 4
+        let p = paged(8, tiling, page: 1)
+        XCTAssertEqual(p.pageCount, 2)
+        XCTAssertEqual(p.cardRange, 4..<8)
+        XCTAssertEqual(p.tileOrigins.count, 4)
+    }
+
+    func testPagedLayoutAutoNeverPaginatesEvenWithMaxRows() {
+        let tiling = SpaceTiling(mode: .auto, columns: 2, maxRows: 2)
+        let p = paged(12, tiling, page: 0)
+        XCTAssertEqual(p.pageCount, 1)
+        XCTAssertEqual(p.cardRange, 0..<12)
+    }
+
+    func testPagedLayoutZeroCards() {
+        let p = paged(0, SpaceTiling(mode: .fixedColumns, columns: 3, maxRows: 2), page: 0)
+        XCTAssertEqual(p.pageCount, 1)
+        XCTAssertTrue(p.tileOrigins.isEmpty)
+        XCTAssertEqual(p.cardRange, 0..<0)
+    }
 }
