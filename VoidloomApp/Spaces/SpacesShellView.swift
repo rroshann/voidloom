@@ -160,7 +160,7 @@ struct SpacesShellView: View {
                     .padding(.bottom, Self.bottomPadding)
                 }
             }
-            .onChange(of: paged.pageCount) { _, newCount in
+            .onChange(of: paged.pageCount, initial: true) { _, newCount in
                 pageCount = newCount
                 if currentPage > newCount - 1 { currentPage = max(0, newCount - 1) }
             }
