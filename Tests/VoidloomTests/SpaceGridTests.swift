@@ -167,10 +167,57 @@ final class SpaceGridTests: XCTestCase {
         XCTAssertEqual(p1.page, 1)
         XCTAssertEqual(p1.cardRange, 6..<8)
         XCTAssertEqual(p1.tileOrigins.count, 2)
-        // Tiles are the same size on every page (the "tiles stay large" promise).
-        XCTAssertEqual(p0.tileSize, p1.tileSize)
+        // A full page uses the full caps grid…
         XCTAssertEqual(p0.columns, 3)
         XCTAssertEqual(p0.rows, 2)
+        // …while an underfilled page expands its tiles to fill the space
+        // (2 cards → side-by-side halves, full usable height).
+        XCTAssertEqual(p1.columns, 2)
+        XCTAssertEqual(p1.rows, 1)
+        XCTAssertGreaterThan(p1.tileSize.x, p0.tileSize.x)
+        XCTAssertGreaterThan(p1.tileSize.y, p0.tileSize.y)
+    }
+
+    // Columns × Rows are CAPS on page capacity, not a literal grid: pages with
+    // fewer cards re-solve the aspect-optimal grid within the caps so the
+    // cards always claim the whole usable rect.
+    func testPagedGridAdaptsToFewCards() {
+        let tiling = SpaceTiling(mode: .fixedColumns, columns: 2, maxRows: 2)   // capacity 4
+        let usableW = viewport.x - 2 * tiling.margin
+        let usableH = viewport.y - topInset - bottomInset - 2 * tiling.margin
+
+        // 1 card fills the screen.
+        let one = paged(1, tiling, page: 0)
+        XCTAssertEqual(one.columns, 1)
+        XCTAssertEqual(one.rows, 1)
+        XCTAssertEqual(one.tileSize.x, usableW, accuracy: 0.5)
+        XCTAssertEqual(one.tileSize.y, usableH, accuracy: 0.5)
+
+        // 2 cards split left/right at full height.
+        let two = paged(2, tiling, page: 0)
+        XCTAssertEqual(two.columns, 2)
+        XCTAssertEqual(two.rows, 1)
+        XCTAssertEqual(two.tileSize.y, usableH, accuracy: 0.5)
+
+        // 3 cards use the 2×2 grid with the last row centered.
+        let three = paged(3, tiling, page: 0)
+        XCTAssertEqual(three.columns, 2)
+        XCTAssertEqual(three.rows, 2)
+        XCTAssertEqual(three.tileOrigins.count, 3)
+        XCTAssertGreaterThan(three.tileOrigins[2].x, three.tileOrigins[0].x)
+    }
+
+    // The adaptive per-page grid still respects BOTH caps.
+    func testPagedGridAdaptationRespectsCaps() {
+        // 3 cards, caps 3×1 → one row of three (rows may not exceed maxRows).
+        let wide = paged(3, SpaceTiling(mode: .fixedColumns, columns: 3, maxRows: 1), page: 0)
+        XCTAssertEqual(wide.columns, 3)
+        XCTAssertEqual(wide.rows, 1)
+
+        // 3 cards, caps 1×3 → one column of three (columns may not exceed cap).
+        let tall = paged(3, SpaceTiling(mode: .fixedColumns, columns: 1, maxRows: 3), page: 0)
+        XCTAssertEqual(tall.columns, 1)
+        XCTAssertEqual(tall.rows, 3)
     }
 
     func testPagedLayoutClampsPageBeyondRange() {

@@ -28,9 +28,9 @@ public enum SpaceGrid {
     public struct PagedLayout: Equatable, Sendable {
         public let pageCount: Int
         public let page: Int                    // clamped index actually shown
-        public let columns: Int
+        public let columns: Int                 // effective grid on THIS page
         public let rows: Int                    // rows used for tile SIZING
-        public let tileSize: ScreenPoint        // uniform, identical on every page
+        public let tileSize: ScreenPoint        // uniform within a page
         public let tileOrigins: [ScreenPoint]   // one per card ON THIS PAGE, reading order
         public let cardRange: Range<Int>        // global card indices [start, end) on this page
 
@@ -64,8 +64,9 @@ public enum SpaceGrid {
 
     /// Page-aware layout. Non-paginating tilings (`.auto`, or `.fixedColumns`
     /// without `maxRows`) return a single page equal to `layout(...)`. A fixed
-    /// grid with `maxRows` shows exactly `columns × maxRows` full-size tiles per
-    /// page and paginates the overflow.
+    /// grid with `maxRows` paginates at `columns × maxRows` cards per page;
+    /// within a page the caps only bound the grid — fewer cards re-solve the
+    /// aspect-optimal arrangement so they always fill the usable rect.
     public static func pagedLayout(
         cardCount: Int,
         viewportSize: ScreenPoint,
@@ -91,31 +92,43 @@ public enum SpaceGrid {
         let usableH = size.y - topInset - bottomInset - (2 * margin)
 
         let paginating = tiling.mode == .fixedColumns && (tiling.maxRows ?? 0) > 0
-
-        let cols: Int
-        let rowsForSizing: Int
-        let capacity: Int
-        if paginating {
-            cols = max(tiling.columns, 1)
-            rowsForSizing = max(tiling.maxRows ?? 1, 1)
-            capacity = cols * rowsForSizing
-        } else {
-            switch tiling.mode {
-            case .fixedColumns:
-                cols = min(max(tiling.columns, 1), cardCount)
-            case .auto:
-                cols = bestColumnCount(cardCount: cardCount, usableW: usableW,
-                                       usableH: usableH, gap: gap, targetAspect: tiling.targetAspect)
-            }
-            rowsForSizing = Int((Double(cardCount) / Double(cols)).rounded(.up))
-            capacity = cardCount
-        }
+        let capacity = paginating
+            ? max(tiling.columns, 1) * max(tiling.maxRows ?? 1, 1)
+            : cardCount
 
         let pageCount = max(1, Int((Double(cardCount) / Double(capacity)).rounded(.up)))
         let clampedPage = min(max(page, 0), pageCount - 1)
         let start = clampedPage * capacity
         let end = min(cardCount, start + capacity)
         let countOnPage = end - start
+
+        let cols: Int
+        let rowsForSizing: Int
+        if paginating {
+            // Columns × Rows are CAPS on page capacity, not a literal grid: a
+            // page with fewer cards re-solves the aspect-optimal grid within
+            // the caps, so 1 card fills the screen, 2 split it, and only a
+            // full page uses the whole caps grid.
+            let maxCols = max(tiling.columns, 1)
+            let maxRows = max(tiling.maxRows ?? 1, 1)
+            let minCols = Int((Double(countOnPage) / Double(maxRows)).rounded(.up))
+            cols = bestColumnCount(
+                cardCount: countOnPage, usableW: usableW, usableH: usableH,
+                gap: gap, targetAspect: tiling.targetAspect,
+                columns: max(minCols, 1)...max(min(maxCols, countOnPage), max(minCols, 1))
+            )
+            rowsForSizing = Int((Double(countOnPage) / Double(cols)).rounded(.up))
+        } else {
+            switch tiling.mode {
+            case .fixedColumns:
+                cols = min(max(tiling.columns, 1), cardCount)
+            case .auto:
+                cols = bestColumnCount(cardCount: cardCount, usableW: usableW,
+                                       usableH: usableH, gap: gap, targetAspect: tiling.targetAspect,
+                                       columns: 1...cardCount)
+            }
+            rowsForSizing = Int((Double(cardCount) / Double(cols)).rounded(.up))
+        }
 
         let rawTileW = (usableW - Double(cols - 1) * gap) / Double(cols)
         let rawTileH = (usableH - Double(rowsForSizing - 1) * gap) / Double(rowsForSizing)
@@ -185,15 +198,17 @@ public enum SpaceGrid {
         }
     }
 
-    /// Picks the column count that maximizes the aspect-weighted area of a tile.
-    /// score = min(w, h*AR) * min(h, w/AR) — rewards tiles close to `targetAspect`
-    /// without letting one dimension run away.
+    /// Picks the column count within `columns` that maximizes the
+    /// aspect-weighted area of a tile. score = min(w, h*AR) * min(h, w/AR) —
+    /// rewards tiles close to `targetAspect` without letting one dimension run
+    /// away.
     private static func bestColumnCount(
-        cardCount: Int, usableW: Double, usableH: Double, gap: Double, targetAspect: Double
+        cardCount: Int, usableW: Double, usableH: Double, gap: Double, targetAspect: Double,
+        columns: ClosedRange<Int>
     ) -> Int {
-        var bestCols = 1
+        var bestCols = columns.lowerBound
         var bestScore = -Double.greatestFiniteMagnitude
-        for cols in 1...cardCount {
+        for cols in columns {
             let rows = Int((Double(cardCount) / Double(cols)).rounded(.up))
             let tileW = (usableW - Double(cols - 1) * gap) / Double(cols)
             let tileH = (usableH - Double(rows - 1) * gap) / Double(rows)
