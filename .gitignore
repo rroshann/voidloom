@@ -3,6 +3,13 @@ references/
 docs/
 handoff/
 
+# Local agent / editor tooling (never committed — keep out of the repo)
+.claude/
+.conductor/
+.cursor/
+.omc/
+.superpowers/
+
 # macOS
 .DS_Store
 
