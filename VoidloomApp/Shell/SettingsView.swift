@@ -235,6 +235,7 @@ private struct CanvasSettingsTab: View {
 private struct SpacesSettingsTab: View {
     @AppStorage("app.mode") private var appMode: AppMode = .canvas
     @AppStorage("spaces.defaultColumns") private var defaultColumns = 0   // 0 = auto
+    @AppStorage("spaces.defaultRows") private var defaultRows = 0         // 0 = auto / no pagination
 
     var body: some View {
         Form {
@@ -255,6 +256,17 @@ private struct SpacesSettingsTab: View {
                     ForEach(1...5, id: \.self) { Text("\($0)").tag($0) }
                 }
                 .pickerStyle(.menu)
+
+                Picker("Rows", selection: $defaultRows) {
+                    Text("Auto").tag(0)
+                    ForEach(1...5, id: \.self) { Text("\($0)").tag($0) }
+                }
+                .pickerStyle(.menu)
+                .disabled(defaultColumns == 0)
+
+                Text("Defaults for new spaces. A fixed columns × rows grid paginates overflow; each space can override this from its top bar.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
