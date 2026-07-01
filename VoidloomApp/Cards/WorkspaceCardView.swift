@@ -2,9 +2,17 @@ import SwiftUI
 import VoidloomCore
 
 struct WorkspaceCardView: View {
+    /// Approximate height of the card header (icon + title/eyebrow + padding),
+    /// used by the Spaces click monitor to split header clicks (→ select) from
+    /// content clicks (→ activate). Keep in sync with `header`'s layout.
+    static let approximateHeaderHeight: CGFloat = 58
+
     let card: WorkspaceCard
     @ObservedObject var store: WorkspaceStore
     var isSelected: Bool = false
+    /// Content focus (typing lands in this card) — renders a neutral focus
+    /// ring, distinct from the accent `isSelected` border that arms Delete.
+    var isActive: Bool = false
     var isCardFocused: Bool = false
     var onToggleCardFocus: () -> Void = {}
     var onClose: () -> Void = {}
@@ -30,12 +38,20 @@ struct WorkspaceCardView: View {
                 .overlay(theme.ink(0.12))
 
             content
-                .allowsHitTesting(isSelected)
         }
         .background(cardBackground)
+        // The shadow is cast by a plain shape BEHIND the card, never by the
+        // composited card content: live-repainting content (terminal PTY, web
+        // view) would otherwise force this 24–30px blur to be recomputed on
+        // every frame, which made terminal cards visibly laggy.
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(cardShadowColor)
+                .shadow(color: cardShadowColor, radius: cardShadowRadius, x: 0, y: 18)
+        )
         .overlay(cardBorder)
-        .shadow(color: cardShadowColor, radius: cardShadowRadius, x: 0, y: 18)
         .animation(selectionAnimation, value: isSelected)
+        .animation(selectionAnimation, value: isActive)
         .animation(.easeOut(duration: 0.15), value: isHeaderHovered)
         .animation(.easeOut(duration: 0.15), value: isEditingTitle)
         .onChange(of: isSelected) { _, selected in
@@ -69,7 +85,7 @@ struct WorkspaceCardView: View {
 
             Spacer(minLength: 0)
 
-            if isSelected, isHeaderHovered, !isEditingTitle {
+            if isSelected || isActive, isHeaderHovered, !isEditingTitle {
                 headerActions
                     .transition(.opacity)
             }
@@ -225,22 +241,36 @@ struct WorkspaceCardView: View {
         RoundedRectangle(cornerRadius: 24, style: .continuous)
             .stroke(
                 LinearGradient(
-                    colors: isSelected
-                        ? [
-                            palette.accent.opacity(0.72),
-                            palette.accent.opacity(0.42),
-                            theme.ink(0.18)
-                        ]
-                        : [
-                            theme.ink(0.22),
-                            palette.accent.opacity(0.18),
-                            theme.ink(0.06)
-                        ],
+                    colors: borderColors,
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 ),
-                lineWidth: isSelected ? 2 : 1
+                lineWidth: isSelected || isActive ? 2 : 1
             )
+    }
+
+    /// Selected = accent (armed for keyboard commands). Active = neutral bright
+    /// focus ring (typing lands here). Idle = faint outline.
+    private var borderColors: [Color] {
+        if isSelected {
+            return [
+                palette.accent.opacity(0.72),
+                palette.accent.opacity(0.42),
+                theme.ink(0.18)
+            ]
+        }
+        if isActive {
+            return [
+                theme.ink(0.9),
+                theme.ink(0.55),
+                theme.ink(0.3)
+            ]
+        }
+        return [
+            theme.ink(0.22),
+            palette.accent.opacity(0.18),
+            theme.ink(0.06)
+        ]
     }
 
     private var cardShadowColor: Color {

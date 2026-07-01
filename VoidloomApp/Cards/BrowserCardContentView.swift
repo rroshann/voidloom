@@ -88,7 +88,6 @@ struct BrowserCardContentView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(theme.ink(0.55))
             }
-            .allowsHitTesting(isSelected)
 
             // ── Page title (secondary, truncated) ─────────────────────────
             if let title = loadModel.pageTitle, !title.isEmpty {
@@ -105,7 +104,6 @@ struct BrowserCardContentView: View {
             ZStack {
                 BrowserWebView(urlString: content, model: loadModel)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .allowsHitTesting(isSelected)
 
                 if loadModel.isLoading {
                     VStack {

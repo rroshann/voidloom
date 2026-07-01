@@ -27,7 +27,6 @@ struct NoteCardContentView: View {
             .foregroundStyle(theme.ink(0.78))
             .scrollContentBackground(.hidden)
             .padding(12)
-            .allowsHitTesting(isSelected)
             .focused($isEditorFocused)
             // Esc ends editing (resign focus + persist) and is consumed here, so
             // it never bubbles to the window — which in native full screen would
