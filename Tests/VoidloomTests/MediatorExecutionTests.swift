@@ -98,3 +98,41 @@ final class AddTitledCardTests: XCTestCase {
         XCTAssertFalse(todo?.content.isEmpty ?? true)
     }
 }
+
+final class MediatorTargetResolverTests: XCTestCase {
+    private let a = UUID(), b = UUID(), c = UUID()
+
+    func testExactCaseInsensitiveMatchWins() {
+        let r = MediatorTargetResolver.resolve("Jerry", in: [(a, "jerry"), (b, "sage")])
+        XCTAssertEqual(r, .match(a))
+    }
+
+    func testDuplicateNamesAreAmbiguous() {
+        let r = MediatorTargetResolver.resolve("untitled", in: [(a, "Untitled"), (b, "Untitled")])
+        XCTAssertEqual(r, .ambiguous(["Untitled", "Untitled"]))
+    }
+
+    func testUniquePrefixMatches() {
+        let r = MediatorTargetResolver.resolve("phoe", in: [(a, "phoenix"), (b, "sage")])
+        XCTAssertEqual(r, .match(a))
+    }
+
+    func testCloseMisspellingMatchesWithinDistanceTwo() {
+        // ASR often drops/mangles a character or two.
+        let r = MediatorTargetResolver.resolve("jery", in: [(a, "jerry"), (b, "sage")])
+        XCTAssertEqual(r, .match(a))
+    }
+
+    func testFarMissReturnsNoneWithNearestSuggestion() {
+        // "jasper" is edit-distance 5 from "jerry" — far beyond the match
+        // threshold, but the mediator still offers the nearest name as a
+        // question rather than silently failing (spec flow example).
+        let r = MediatorTargetResolver.resolve("jasper", in: [(a, "jerry")])
+        XCTAssertEqual(r, TargetResolution.none(suggestion: "jerry"))
+    }
+
+    func testEmptyCandidatesReturnsNoneWithoutSuggestion() {
+        let r = MediatorTargetResolver.resolve("jerry", in: [])
+        XCTAssertEqual(r, TargetResolution.none(suggestion: nil))
+    }
+}
