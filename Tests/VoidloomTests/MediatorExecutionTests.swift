@@ -79,4 +79,22 @@ final class AddTitledCardTests: XCTestCase {
         XCTAssertEqual(note?.content, "standup notes")
         XCTAssertNotEqual(agent?.position, note?.position) // cascade, no stacking
     }
+
+    func testAddTitledCardPreservesDefaultContentWhenOmitted() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = WorkspaceStore(
+            state: WorkspaceState(viewport: CanvasViewport(origin: .zero, scale: 1), cards: []),
+            storageURL: url,
+            persistenceDelay: 60
+        )
+
+        let id = store.addTitledCard(kind: .todo, title: "chores")
+
+        let todo = store.state.cards.first { $0.id == id }
+        XCTAssertEqual(todo?.title, "chores")
+        XCTAssertFalse(todo?.content.isEmpty ?? true)
+    }
 }

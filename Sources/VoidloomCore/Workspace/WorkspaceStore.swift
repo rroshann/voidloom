@@ -214,7 +214,7 @@ public final class WorkspaceStore: ObservableObject {
     public func addTitledCard(kind: CardKind, title: String = "", content: String = "") -> UUID {
         var card = Self.makeCard(kind: kind, index: state.cards.count)
         if !title.isEmpty { card.title = title }
-        card.content = content
+        if !content.isEmpty { card.content = content }
         let center = CanvasPoint(
             x: card.position.x + card.size.width / 2,
             y: card.position.y + card.size.height / 2
