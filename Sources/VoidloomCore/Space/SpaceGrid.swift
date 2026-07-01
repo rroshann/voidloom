@@ -144,6 +144,29 @@ public enum SpaceGrid {
         )
     }
 
+    /// Page-local tile indices whose frame `[origin, origin+tileSize)` overlaps the
+    /// screen-space rect spanned by `a` and `b` (order-independent). Mirrors the
+    /// AABB test in `WorkspaceState.cardIntersects`, but in screen space because
+    /// Spaces tile positions come from the grid, not from card canvas positions.
+    public static func tileIndices(
+        fromCorner a: ScreenPoint,
+        toCorner b: ScreenPoint,
+        tileOrigins: [ScreenPoint],
+        tileSize: ScreenPoint
+    ) -> [Int] {
+        let minX = min(a.x, b.x), maxX = max(a.x, b.x)
+        let minY = min(a.y, b.y), maxY = max(a.y, b.y)
+        var hits: [Int] = []
+        for (i, o) in tileOrigins.enumerated() {
+            let tMaxX = o.x + tileSize.x
+            let tMaxY = o.y + tileSize.y
+            if minX < tMaxX && maxX > o.x && minY < tMaxY && maxY > o.y {
+                hits.append(i)
+            }
+        }
+        return hits
+    }
+
     /// Picks the column count that maximizes the aspect-weighted area of a tile.
     /// score = min(w, h*AR) * min(h, w/AR) — rewards tiles close to `targetAspect`
     /// without letting one dimension run away.

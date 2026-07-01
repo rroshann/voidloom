@@ -201,4 +201,33 @@ final class SpaceGridTests: XCTestCase {
         XCTAssertTrue(p.tileOrigins.isEmpty)
         XCTAssertEqual(p.cardRange, 0..<0)
     }
+
+    func testTileIndicesReturnsOverlappingTiles() {
+        let origins = [ScreenPoint(x: 0, y: 0), ScreenPoint(x: 120, y: 0), ScreenPoint(x: 240, y: 0)]
+        let size = ScreenPoint(x: 100, y: 100)
+        // Rect spanning the first two tiles.
+        let hits = SpaceGrid.tileIndices(fromCorner: ScreenPoint(x: 10, y: 10),
+                                         toCorner: ScreenPoint(x: 130, y: 50),
+                                         tileOrigins: origins, tileSize: size)
+        XCTAssertEqual(hits, [0, 1])
+    }
+
+    func testTileIndicesReturnsEmptyWhenOutside() {
+        let origins = [ScreenPoint(x: 0, y: 0), ScreenPoint(x: 120, y: 0)]
+        let size = ScreenPoint(x: 100, y: 100)
+        let hits = SpaceGrid.tileIndices(fromCorner: ScreenPoint(x: 400, y: 400),
+                                         toCorner: ScreenPoint(x: 500, y: 500),
+                                         tileOrigins: origins, tileSize: size)
+        XCTAssertTrue(hits.isEmpty)
+    }
+
+    func testTileIndicesCountsPartialOverlapAndNormalizesCorners() {
+        let origins = [ScreenPoint(x: 0, y: 0)]
+        let size = ScreenPoint(x: 100, y: 100)
+        // Corners given bottom-right -> top-left; a 1px clip of the tile still counts.
+        let hits = SpaceGrid.tileIndices(fromCorner: ScreenPoint(x: 50, y: 50),
+                                         toCorner: ScreenPoint(x: -10, y: -10),
+                                         tileOrigins: origins, tileSize: size)
+        XCTAssertEqual(hits, [0])
+    }
 }
