@@ -2,6 +2,7 @@
 references/
 docs/
 handoff/
+research/
 
 # Local agent / editor tooling (never committed — keep out of the repo)
 .claude/

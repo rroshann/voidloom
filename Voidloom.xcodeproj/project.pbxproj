@@ -56,6 +56,12 @@
 		A90000000000000000000001 /* BrowserLoadModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90000000000000000000011 /* BrowserLoadModel.swift */; };
 		AB0000000000000000000002 /* Color+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000001 /* Color+Hex.swift */; };
 		AB0000000000000000000004 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000003 /* Theme.swift */; };
+		AC0000000000000000000001 /* AppMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0000000000000000000011 /* AppMode.swift */; };
+		A80000000000000000000002 /* CanvasShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000012 /* CanvasShellView.swift */; };
+		A80000000000000000000003 /* SpacesShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000013 /* SpacesShellView.swift */; };
+		A80000000000000000000004 /* SpaceBackgroundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000014 /* SpaceBackgroundView.swift */; };
+		A80000000000000000000005 /* SpaceTileCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000015 /* SpaceTileCard.swift */; };
+		A80000000000000000000006 /* SpaceTopBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000016 /* SpaceTopBar.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -110,6 +116,12 @@
 		A90000000000000000000011 /* BrowserLoadModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/BrowserLoadModel.swift; sourceTree = "<group>"; };
 		AB0000000000000000000001 /* Color+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Hex.swift"; sourceTree = "<group>"; };
 		AB0000000000000000000003 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
+		AC0000000000000000000011 /* AppMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/AppMode.swift; sourceTree = "<group>"; };
+		A80000000000000000000012 /* CanvasShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/CanvasShellView.swift; sourceTree = "<group>"; };
+		A80000000000000000000013 /* SpacesShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spaces/SpacesShellView.swift; sourceTree = "<group>"; };
+		A80000000000000000000014 /* SpaceBackgroundView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spaces/SpaceBackgroundView.swift; sourceTree = "<group>"; };
+		A80000000000000000000015 /* SpaceTileCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spaces/SpaceTileCard.swift; sourceTree = "<group>"; };
+		A80000000000000000000016 /* SpaceTopBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spaces/SpaceTopBar.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -148,6 +160,12 @@
 				AB0000000000000000000005 /* Design */,
 				A10000000000000000000011 /* VoidloomApp.swift */,
 				A10000000000000000000012 /* RootView.swift */,
+				AC0000000000000000000011 /* AppMode.swift */,
+				A80000000000000000000012 /* CanvasShellView.swift */,
+				A80000000000000000000013 /* SpacesShellView.swift */,
+				A80000000000000000000014 /* SpaceBackgroundView.swift */,
+				A80000000000000000000015 /* SpaceTileCard.swift */,
+				A80000000000000000000016 /* SpaceTopBar.swift */,
 				A100000000000000000000F1 /* CanvasKeyMonitor.swift */,
 				A20000000000000000000011 /* AtmosphereBackground.swift */,
 				A20000000000000000000018 /* WorkspaceSidebar.swift */,
@@ -325,6 +343,12 @@
 				A70000000000000000000002 /* TextElementEditor.swift in Sources */,
 				A70000000000000000000003 /* TextOptionsPanel.swift in Sources */,
 				A90000000000000000000001 /* BrowserLoadModel.swift in Sources */,
+				AC0000000000000000000001 /* AppMode.swift in Sources */,
+				A80000000000000000000002 /* CanvasShellView.swift in Sources */,
+				A80000000000000000000003 /* SpacesShellView.swift in Sources */,
+				A80000000000000000000004 /* SpaceBackgroundView.swift in Sources */,
+				A80000000000000000000005 /* SpaceTileCard.swift in Sources */,
+				A80000000000000000000006 /* SpaceTopBar.swift in Sources */,
 				A10000000000000000000005 /* PreviewSupport.swift in Sources */,
 				AB0000000000000000000002 /* Color+Hex.swift in Sources */,
 				AB0000000000000000000004 /* Theme.swift in Sources */,

@@ -1,0 +1,70 @@
+import SwiftUI
+import VoidloomCore
+
+/// Full-bleed Space background: the existing gradient, a solid color, or an
+/// imported image, with a dimming scrim so glassy cards stay legible. When
+/// Reduce Transparency is enabled the dimming scrim is applied to ALL background
+/// cases (including `.atmosphere`) so cards retain a legibility floor regardless
+/// of the active background.
+struct SpaceBackgroundView: View {
+    let background: SpaceBackground
+    let dimming: Double
+    let backgroundsDirectory: URL
+
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    var body: some View {
+        ZStack {
+            switch background {
+            case .atmosphere:
+                AtmosphereBackground()
+            case .solid(let hex):
+                (Color(rgbaHex: hex) ?? .black).ignoresSafeArea()
+            case .image(let fileName):
+                imageView(fileName: fileName)
+            }
+
+            if shouldDim {
+                Color.black.opacity(dimming).ignoresSafeArea()
+            }
+        }
+    }
+
+    private var shouldDim: Bool {
+        // When Reduce Transparency is on, apply the scrim to every background
+        // (including .atmosphere) so cards always have a legibility floor.
+        if reduceTransparency { return dimming > 0 }
+        if case .atmosphere = background { return false }   // gradient already dark
+        return dimming > 0
+    }
+
+    @ViewBuilder
+    private func imageView(fileName: String) -> some View {
+        let url = backgroundsDirectory.appendingPathComponent(fileName)
+        if let nsImage = NSImage(contentsOf: url) {
+            Image(nsImage: nsImage)
+                .resizable()
+                .scaledToFill()
+                .ignoresSafeArea()
+        } else {
+            AtmosphereBackground()   // graceful fallback if the file is missing
+        }
+    }
+}
+
+private extension Color {
+    /// Parses "#RRGGBB" or "#RRGGBBAA" (alpha-aware, unlike the app-wide
+    /// `Color(hex:)` which is RGB-only). Returns nil on malformed input.
+    init?(rgbaHex hex: String) {
+        var s = hex.hasPrefix("#") ? String(hex.dropFirst()) : hex
+        if s.count == 6 { s += "FF" }
+        guard s.count == 8, let value = UInt64(s, radix: 16) else { return nil }
+        self = Color(
+            .sRGB,
+            red: Double((value >> 24) & 0xFF) / 255,
+            green: Double((value >> 16) & 0xFF) / 255,
+            blue: Double((value >> 8) & 0xFF) / 255,
+            opacity: Double(value & 0xFF) / 255
+        )
+    }
+}
