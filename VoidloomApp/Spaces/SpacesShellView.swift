@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import VoidloomCore
 
@@ -150,10 +151,49 @@ struct SpacesShellView: View {
                 Color.clear.preference(key: ShellFrameKey.self, value: proxy.frame(in: .global))
             }
         )
+        .background(CanvasKeyMonitor(onKeyDown: handleSpacesKey))
         .preferredColorScheme(.dark)
         .onPreferenceChange(ShellFrameKey.self) { shellFrame = $0 }
         .onPreferenceChange(SpacesTopBarHeightKey.self) { topBarHeight = $0 }
         .onPreferenceChange(SpacesDockHeightKey.self) { dockHeight = $0 }
+    }
+
+    /// Window-scoped key handling for Spaces. Delete/Backspace removes the marquee
+    /// group or the single selected tile (terminating any agent sessions first);
+    /// Escape clears selection. Stays inert while a text control is first responder
+    /// so typing in a title/note/todo/terminal keeps its keys.
+    private func handleSpacesKey(_ event: NSEvent) -> Bool {
+        let typing = event.window?.firstResponder is NSText
+        switch event.keyCode {
+        case 51, 117:   // delete / forward-delete
+            guard !typing else { return false }
+            if !store.state.marqueeSelectedCardIDs.isEmpty {
+                let ids = store.state.marqueeSelectedCardIDs
+                terminateAgentSessions(for: ids)
+                store.deleteCards(ids: ids)
+                return true
+            }
+            if let id = store.state.selectedCardID {
+                terminateAgentSessions(for: [id])
+                store.deleteCard(id: id)
+                return true
+            }
+            return false
+        case 53:        // escape
+            guard !typing else { return false }
+            store.clearSelection()
+            return true
+        default:
+            return false
+        }
+    }
+
+    /// Terminates the agent session for every `.agent` card in `ids`, mirroring the
+    /// per-card close button so Delete never leaks a running terminal.
+    private func terminateAgentSessions(for ids: Set<UUID>) {
+        for id in ids where store.state.cards.first(where: { $0.id == id })?.kind == .agent {
+            sessionManager.terminateSession(cardID: id)
+        }
     }
 
     private func reTile() {
