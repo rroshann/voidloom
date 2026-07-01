@@ -7,7 +7,9 @@ import VoidloomCore
 struct VoidloomApp: App {
     @StateObject private var store = WorkspaceStore()
     @StateObject private var agentSessionManager = AgentSessionManager()
-    @StateObject private var conversationStore = ConversationStore()
+    @StateObject private var conversationStore = ConversationStore(
+        provider: AnthropicResponseProvider()
+    )
     @StateObject private var interaction = CanvasInteractionModel()
 
     var body: some Scene {
@@ -24,9 +26,12 @@ struct VoidloomApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unifiedCompact)
+        .commands { VoidloomCommands() }
 
         Settings {
             SettingsView()
+                .environmentObject(store)
+                .environmentObject(agentSessionManager)
         }
     }
 }
