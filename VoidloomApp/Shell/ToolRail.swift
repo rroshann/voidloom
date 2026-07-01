@@ -42,7 +42,7 @@ struct ToolDock: View {
             // In .spaces: both clicks create instantly (no place-mode in grid layout).
             DockToolButton(
                 systemName: "terminal",
-                label: "Terminal — click to place, double-click to add",
+                label: variant == .spaces ? "Add terminal card" : "Terminal — click to place, double-click to add",
                 isArmed: variant == .canvas && interaction.isArmed(.placingCard(.agent)),
                 onSingle: variant == .canvas ? { interaction.armPlacingCard(.agent) } : { onAddCard(.agent) },
                 onDouble: { onAddCard(.agent) }
@@ -50,7 +50,7 @@ struct ToolDock: View {
 
             DockToolButton(
                 systemName: "note.text",
-                label: "Note — click to place, double-click to add",
+                label: variant == .spaces ? "Add note card" : "Note — click to place, double-click to add",
                 isArmed: variant == .canvas && interaction.isArmed(.placingCard(.note)),
                 onSingle: variant == .canvas ? { interaction.armPlacingCard(.note) } : { onAddCard(.note) },
                 onDouble: { onAddCard(.note) }
@@ -58,7 +58,7 @@ struct ToolDock: View {
 
             DockToolButton(
                 systemName: "checklist",
-                label: "Todo — click to place, double-click to add",
+                label: variant == .spaces ? "Add todo card" : "Todo — click to place, double-click to add",
                 isArmed: variant == .canvas && interaction.isArmed(.placingCard(.todo)),
                 onSingle: variant == .canvas ? { interaction.armPlacingCard(.todo) } : { onAddCard(.todo) },
                 onDouble: { onAddCard(.todo) }
@@ -66,7 +66,7 @@ struct ToolDock: View {
 
             DockToolButton(
                 systemName: "safari",
-                label: "Preview — click to place, double-click to add",
+                label: variant == .spaces ? "Add browser card" : "Preview — click to place, double-click to add",
                 isArmed: variant == .canvas && interaction.isArmed(.placingCard(.browser)),
                 onSingle: variant == .canvas ? { interaction.armPlacingCard(.browser) } : { onAddCard(.browser) },
                 onDouble: { onAddCard(.browser) }
@@ -113,11 +113,13 @@ struct ToolDock: View {
                 DockDivider()
             }
 
-            DockAIHint(
-                errorMessage: errorMessage,
-                isActive: isAIHintActive,
-                action: onToggleAIHint
-            )
+            if variant == .canvas {
+                DockAIHint(
+                    errorMessage: errorMessage,
+                    isActive: isAIHintActive,
+                    action: onToggleAIHint
+                )
+            }
 
             if variant == .canvas {
                 DockDivider()

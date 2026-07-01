@@ -11,6 +11,7 @@ struct SpaceTopBar: View {
     let onReTile: () -> Void
 
     @State private var showBackgroundPopover = false
+    @State private var showImportError = false
 
     private var activeName: String {
         store.library.workspaces.first { $0.id == store.library.selectedWorkspaceID }?.name ?? "Space"
@@ -62,6 +63,11 @@ struct SpaceTopBar: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
         .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(.white.opacity(0.12), lineWidth: 1))
         .shadow(color: .black.opacity(0.3), radius: 20, y: 12)
+        .alert("Import failed", isPresented: $showImportError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("The selected image could not be imported. Make sure it is a valid PNG, JPEG, or HEIC file.")
+        }
     }
 
     private var barDivider: some View {
@@ -99,7 +105,9 @@ struct SpaceTopBar: View {
         panel.allowsMultipleSelection = false
         panel.canChooseDirectories = false
         if panel.runModal() == .OK, let url = panel.url {
-            _ = store.importBackgroundImage(from: url)
+            if store.importBackgroundImage(from: url) == nil {
+                showImportError = true
+            }
         }
     }
 }
