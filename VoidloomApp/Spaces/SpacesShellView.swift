@@ -12,8 +12,14 @@ struct SpacesShellView: View {
 
     @AppStorage("spaces.defaultColumns") private var defaultColumns = 0
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
     @State private var topBarHeight: CGFloat = 0
     @State private var dockHeight: CGFloat = 0
+    /// Current global frame of the shell, updated continuously via a background
+    /// GeometryReader so drop hit-tests always use up-to-date geometry even if
+    /// the window is resized during a drag.
+    @State private var shellFrame: CGRect = .zero
 
     /// Index of the tile currently being dragged, or nil when idle.
     @State private var draggingIndex: Int?
@@ -67,17 +73,22 @@ struct SpacesShellView: View {
                             onDragChanged: { _ in
                                 if draggingIndex != index { draggingIndex = index }
                             },
-                            onDropped: { globalLocation in
-                                let geoFrame = geo.frame(in: .global)
-                                let geoOrigin = CGPoint(x: geoFrame.origin.x, y: geoFrame.origin.y)
+                            onDropped: { globalLocation -> Bool in
+                                // shellFrame is tracked via a background GeometryReader
+                                // so it reflects the current window position even when
+                                // the window was moved or resized mid-drag.
+                                let geoOrigin = shellFrame.origin
                                 if let target = slotIndex(
                                     for: globalLocation,
                                     layout: layout,
                                     geoOrigin: geoOrigin
                                 ), target != index {
                                     store.moveSpaceCard(fromIndex: index, toIndex: target)
+                                    draggingIndex = nil
+                                    return true
                                 }
                                 draggingIndex = nil
+                                return false
                             }
                         )
                         .frame(width: layout.tileSize.x, height: layout.tileSize.y)
@@ -88,8 +99,14 @@ struct SpacesShellView: View {
                         .zIndex(draggingIndex == index ? 2 : (store.state.selectedCardID == id ? 1 : 0))
                     }
                 }
-                .animation(.spring(response: 0.4, dampingFraction: 0.85), value: orderedIDs)
-                .animation(.spring(response: 0.4, dampingFraction: 0.85), value: layout.tileSize)
+                .animation(
+                    reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85),
+                    value: orderedIDs
+                )
+                .animation(
+                    reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85),
+                    value: layout.tileSize
+                )
 
                 VStack {
                     SpaceTopBar(store: store, sessionManager: sessionManager, onReTile: reTile)
@@ -128,7 +145,13 @@ struct SpacesShellView: View {
                 }
             }
         }
+        .background(
+            GeometryReader { proxy in
+                Color.clear.preference(key: ShellFrameKey.self, value: proxy.frame(in: .global))
+            }
+        )
         .preferredColorScheme(.dark)
+        .onPreferenceChange(ShellFrameKey.self) { shellFrame = $0 }
         .onPreferenceChange(SpacesTopBarHeightKey.self) { topBarHeight = $0 }
         .onPreferenceChange(SpacesDockHeightKey.self) { dockHeight = $0 }
     }
@@ -149,13 +172,18 @@ struct SpacesShellView: View {
         let lx = globalPoint.x - geoOrigin.x
         let ly = globalPoint.y - geoOrigin.y
         for (i, origin) in layout.tileOrigins.enumerated() {
-            if lx >= origin.x && lx <= origin.x + layout.tileSize.x
-                && ly >= origin.y && ly <= origin.y + layout.tileSize.y {
+            if lx >= origin.x && lx < origin.x + layout.tileSize.x
+                && ly >= origin.y && ly < origin.y + layout.tileSize.y {
                 return i
             }
         }
         return nil
     }
+}
+
+struct ShellFrameKey: PreferenceKey {
+    static let defaultValue: CGRect = .zero
+    static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = nextValue() }
 }
 
 struct SpacesTopBarHeightKey: PreferenceKey {

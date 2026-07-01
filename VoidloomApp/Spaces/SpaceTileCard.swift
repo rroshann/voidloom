@@ -8,7 +8,9 @@ struct SpaceTileCard: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var sessionManager: AgentSessionManager
     let onDragChanged: (CGSize) -> Void
-    let onDropped: (CGPoint) -> Void
+    /// Returns `true` iff a reorder was committed, so the caller can skip
+    /// the snap-back animation and let the grid spring do the work alone.
+    let onDropped: (CGPoint) -> Bool
 
     @State private var isEditingTitle = false
     @State private var editingCardTitleID: UUID?
@@ -34,9 +36,16 @@ struct SpaceTileCard: View {
                     onDragChanged(value.translation)
                 }
                 .onEnded { value in
-                    onDropped(value.location)
-                    withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    let didReorder = onDropped(value.location)
+                    if didReorder {
+                        // Grid spring handles the visual move; reset without
+                        // animation so the two springs don't compound into a
+                        // visible double-move.
                         translation = .zero
+                    } else {
+                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                            translation = .zero
+                        }
                     }
                 }
         )
