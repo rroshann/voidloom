@@ -80,4 +80,52 @@ final class SpaceGridTests: XCTestCase {
         let l = layout(0)
         XCTAssertEqual(l.tileOrigins.count, 0)
     }
+
+    // (c) Incomplete final row (N=5 or 7): every tile rect — including the centered
+    // last row — must stay inside the usable rectangle.
+    func testIncompleteLastRowStaysWithinUsableRect() {
+        for n in [5, 7] {
+            let l = layout(n)
+            let usableTop = topInset + tiling.margin
+            let usableBottom = viewport.y - bottomInset - tiling.margin
+            let usableLeft = tiling.margin
+            let usableRight = viewport.x - tiling.margin
+            for (idx, origin) in l.tileOrigins.enumerated() {
+                XCTAssertGreaterThanOrEqual(
+                    origin.x, usableLeft - 0.5,
+                    "N=\(n) tile \(idx): left edge out of usable bounds"
+                )
+                XCTAssertGreaterThanOrEqual(
+                    origin.y, usableTop - 0.5,
+                    "N=\(n) tile \(idx): top edge out of usable bounds"
+                )
+                XCTAssertLessThanOrEqual(
+                    origin.x + l.tileSize.x, usableRight + 0.5,
+                    "N=\(n) tile \(idx): right edge out of usable bounds"
+                )
+                XCTAssertLessThanOrEqual(
+                    origin.y + l.tileSize.y, usableBottom + 0.5,
+                    "N=\(n) tile \(idx): bottom edge out of usable bounds"
+                )
+            }
+        }
+    }
+
+    // (d) fixedColumns edge cases: columns=0 clamps to 1; columns=100 with few
+    // cards clamps down to cardCount.
+    func testFixedColumnsEdgeCases() {
+        let zeroColumns = SpaceTiling(mode: .fixedColumns, columns: 0)
+        let l1 = SpaceGrid.layout(
+            cardCount: 3, viewportSize: viewport,
+            topInset: topInset, bottomInset: bottomInset, tiling: zeroColumns
+        )
+        XCTAssertEqual(l1.columns, 1, "columns=0 should clamp to 1")
+
+        let manyColumns = SpaceTiling(mode: .fixedColumns, columns: 100)
+        let l2 = SpaceGrid.layout(
+            cardCount: 3, viewportSize: viewport,
+            topInset: topInset, bottomInset: bottomInset, tiling: manyColumns
+        )
+        XCTAssertEqual(l2.columns, 3, "columns=100 with 3 cards should clamp to cardCount")
+    }
 }

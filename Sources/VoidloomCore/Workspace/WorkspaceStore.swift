@@ -180,7 +180,18 @@ public final class WorkspaceStore: ObservableObject {
     }
 
     public func addCard(kind: CardKind) {
-        state.addCard(Self.makeCard(kind: kind, index: state.cards.count))
+        var card = Self.makeCard(kind: kind, index: state.cards.count)
+        // After deletions, the count-based index can map to a grid slot already
+        // occupied by a surviving card. Route through nonOverlappingOrigin so the
+        // candidate position cascades diagonally until it is clear of all existing
+        // cards. When the slot is free the base position is returned unchanged, so
+        // fresh add sequences (no deletions) land exactly on the grid.
+        let center = CanvasPoint(
+            x: card.position.x + card.size.width / 2,
+            y: card.position.y + card.size.height / 2
+        )
+        card.position = state.nonOverlappingOrigin(for: card.size, centeredAt: center)
+        state.addCard(card)
         persist()
     }
 

@@ -941,6 +941,45 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertFalse(intersects, "placement must keep the spacing margin clear of the existing card")
     }
 
+    /// Regression: after deleting a card, `addCard(kind:)` used `cards.count` as
+    /// the grid-slot index. When a deletion brought the count back to a value whose
+    /// corresponding slot was already occupied by a surviving card, the new card
+    /// landed exactly on top of the existing one.
+    @MainActor
+    func testAddCardAfterDeletionDoesNotOverlap() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(state: WorkspaceState(cards: []), storageURL: url, persistenceDelay: 0)
+
+        // Three notes land in reading-order grid slots 0, 1, 2 (columns 0–2, row 0).
+        store.addCard(kind: .note)
+        store.addCard(kind: .note)
+        store.addCard(kind: .note)
+
+        // Delete the first card so cards.count drops to 2.  The old code now calls
+        // makeCard(index: 2), which maps to the same canvas position as the third
+        // surviving card → exact overlap.
+        let firstID = try XCTUnwrap(store.state.cards.first?.id)
+        store.deleteCard(id: firstID)
+
+        store.addCard(kind: .note)
+
+        let cards = store.state.cards
+        for i in 0..<cards.count {
+            for j in (i + 1)..<cards.count {
+                let a = cards[i], b = cards[j]
+                let overlaps = a.position.x < b.position.x + b.size.width
+                    && a.position.x + a.size.width > b.position.x
+                    && a.position.y < b.position.y + b.size.height
+                    && a.position.y + a.size.height > b.position.y
+                XCTAssertFalse(overlaps, "Cards \(i) and \(j) overlap after add-after-delete")
+            }
+        }
+    }
+
     @MainActor
     func testDefaultCardSizesAreEnlarged() throws {
         let url = FileManager.default.temporaryDirectory

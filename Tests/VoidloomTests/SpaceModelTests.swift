@@ -117,6 +117,22 @@ extension SpaceModelTests {
         XCTAssertNil(state.space?.cardOrder)
     }
 
+    // (a) equal indices: orderedCardIDsForSpace must be identical to the original.
+    func testReorderSpaceCardEqualIndicesLeavesOrderUnchanged() {
+        var state = stateWithCards(3)
+        let original = state.orderedCardIDsForSpace
+        state.reorderSpaceCard(fromIndex: 1, toIndex: 1)
+        XCTAssertEqual(state.orderedCardIDsForSpace, original)
+    }
+
+    // (b) out-of-range toIndex clamps: item from index 0 should land last.
+    func testReorderSpaceCardOutOfRangeToIndexClampsToLast() {
+        var state = stateWithCards(3)
+        let ids = state.cards.map(\.id)
+        state.reorderSpaceCard(fromIndex: 0, toIndex: 99)
+        XCTAssertEqual(state.orderedCardIDsForSpace, [ids[1], ids[2], ids[0]])
+    }
+
     func testResetSpaceCardOrderClearsCardOrder() {
         var state = stateWithCards(3)
         state.reorderSpaceCard(fromIndex: 0, toIndex: 2)
@@ -185,5 +201,32 @@ extension SpaceModelTests {
         XCTAssertTrue(FileManager.default.fileExists(atPath: copied.path))
         XCTAssertEqual(store.state.space?.background, .image(fileName: fileName))
         try? FileManager.default.removeItem(at: copied)
+    }
+
+    // (e) importBackgroundImage also persists the background choice to the workspace
+    // file immediately so a reload sees the same value.
+    @MainActor
+    func testImportBackgroundImagePersistsToWorkspaceFile() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).appendingPathExtension("json")
+        let source = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).appendingPathExtension("png")
+        try Data([0x89, 0x50, 0x4E, 0x47]).write(to: source)
+        defer {
+            try? FileManager.default.removeItem(at: url)
+            try? FileManager.default.removeItem(at: source)
+        }
+
+        let store = WorkspaceStore(state: WorkspaceState(cards: []), storageURL: url, persistenceDelay: 0)
+        let fileName = try XCTUnwrap(store.importBackgroundImage(from: source))
+
+        // Reload from disk — the workspace file must already carry the background.
+        let reloaded = try WorkspaceStore.load(from: url)
+        XCTAssertEqual(reloaded.space?.background, .image(fileName: fileName))
+
+        // Clean up the copied image so the temp directory stays tidy.
+        try? FileManager.default.removeItem(
+            at: store.backgroundsDirectoryURL().appendingPathComponent(fileName)
+        )
     }
 }
