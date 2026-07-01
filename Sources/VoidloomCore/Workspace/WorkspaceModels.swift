@@ -42,6 +42,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public var strokes: [DrawingStroke]
     public var textElements: [TextElement]
     public var selectedTextID: UUID?
+    public var space: SpaceConfig?
 
     /// Transient marquee multi-selection: the cards a drag-box currently covers.
     /// Deliberately excluded from `CodingKeys`, so it is never encoded and a
@@ -86,6 +87,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         case strokes
         case textElements
         case selectedTextID
+        case space
     }
 
     // Custom decode so workspaces persisted before annotations existed still
@@ -100,6 +102,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         strokes = try container.decodeIfPresent([DrawingStroke].self, forKey: .strokes) ?? []
         textElements = try container.decodeIfPresent([TextElement].self, forKey: .textElements) ?? []
         selectedTextID = try container.decodeIfPresent(UUID.self, forKey: .selectedTextID)
+        space = try container.decodeIfPresent(SpaceConfig.self, forKey: .space)
     }
 
     /// Normalizes two opposite corners into a top-left origin and a positive
@@ -766,5 +769,59 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
             origin: CanvasPoint(x: minX, y: minY),
             size: CardSize(width: maxX - minX, height: maxY - minY)
         )
+    }
+
+    // MARK: - Spaces
+
+    /// Card ids in tile order: the explicit `cardOrder` (filtered to live cards,
+    /// with any new cards appended), else the natural `cards` array order.
+    public var orderedCardIDsForSpace: [UUID] {
+        guard let order = space?.cardOrder else { return cards.map(\.id) }
+        let live = Set(cards.map(\.id))
+        let kept = order.filter { live.contains($0) }
+        let appended = cards.map(\.id).filter { !kept.contains($0) }
+        return kept + appended
+    }
+
+    /// Materializes a default `SpaceConfig` on first edit; never overwrites an
+    /// existing one.
+    public mutating func ensureSpaceConfig() {
+        if space == nil { space = SpaceConfig() }
+    }
+
+    /// Reorders a Spaces tile by moving the displayed item from `fromIndex` to
+    /// `toIndex`, writing the result to `space.cardOrder` so the canonical `cards`
+    /// array (and Canvas z-order) is untouched. Operates on the current displayed
+    /// order (`orderedCardIDsForSpace`). No-op for out-of-range/equal indices.
+    public mutating func reorderSpaceCard(fromIndex: Int, toIndex: Int) {
+        var order = orderedCardIDsForSpace
+        guard order.indices.contains(fromIndex) else { return }
+        let clampedTo = min(max(toIndex, 0), order.count - 1)
+        guard fromIndex != clampedTo else { return }
+        let id = order.remove(at: fromIndex)
+        order.insert(id, at: clampedTo)
+        ensureSpaceConfig()
+        space?.cardOrder = order
+    }
+
+    /// Resets Spaces order to the canonical `cards` array order.
+    public mutating func resetSpaceCardOrder() {
+        ensureSpaceConfig()
+        space?.cardOrder = nil
+    }
+
+    public mutating func setSpaceBackground(_ background: SpaceBackground) {
+        ensureSpaceConfig()
+        space?.background = background
+    }
+
+    public mutating func setSpaceTiling(_ tiling: SpaceTiling) {
+        ensureSpaceConfig()
+        space?.tiling = tiling
+    }
+
+    public mutating func setBackgroundDimming(_ value: Double) {
+        ensureSpaceConfig()
+        space?.backgroundDimming = min(max(value, 0), 1)
     }
 }

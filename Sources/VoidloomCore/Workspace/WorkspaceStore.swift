@@ -192,7 +192,18 @@ public final class WorkspaceStore: ObservableObject {
     }
 
     public func addCard(kind: CardKind) {
-        state.addCard(Self.makeCard(kind: kind, index: state.cards.count))
+        var card = Self.makeCard(kind: kind, index: state.cards.count)
+        // After deletions, the count-based index can map to a grid slot already
+        // occupied by a surviving card. Route through nonOverlappingOrigin so the
+        // candidate position cascades diagonally until it is clear of all existing
+        // cards. When the slot is free the base position is returned unchanged, so
+        // fresh add sequences (no deletions) land exactly on the grid.
+        let center = CanvasPoint(
+            x: card.position.x + card.size.width / 2,
+            y: card.position.y + card.size.height / 2
+        )
+        card.position = state.nonOverlappingOrigin(for: card.size, centeredAt: center)
+        state.addCard(card)
         persist()
     }
 
@@ -376,6 +387,66 @@ public final class WorkspaceStore: ObservableObject {
     public func resetViewport() {
         state.viewport = CanvasViewport()
         persist()
+    }
+
+    // MARK: - Spaces
+
+    public func setSpaceBackground(_ background: SpaceBackground) {
+        state.setSpaceBackground(background)
+        persist()
+    }
+
+    public func setSpaceTiling(_ tiling: SpaceTiling) {
+        state.setSpaceTiling(tiling)
+        persist()
+    }
+
+    public func setBackgroundDimming(_ value: Double) {
+        state.setBackgroundDimming(value)
+        persist()
+    }
+
+    public func moveSpaceCard(fromIndex: Int, toIndex: Int) {
+        state.reorderSpaceCard(fromIndex: fromIndex, toIndex: toIndex)
+        persist()
+    }
+
+    public func resetSpaceCardOrder() {
+        state.resetSpaceCardOrder()
+        persist()
+    }
+
+    /// Directory holding imported background images, a sibling of the active
+    /// workspace storage (so it lands in `…/Voidloom/backgrounds` in library mode
+    /// and beside the test file in single-file mode).
+    public func backgroundsDirectoryURL() -> URL {
+        let base: URL
+        if isLibraryMode, let workspacesDirectoryURL {
+            base = workspacesDirectoryURL.deletingLastPathComponent()
+        } else {
+            base = storageURL.deletingLastPathComponent()
+        }
+        return base.appendingPathComponent("backgrounds", isDirectory: true)
+    }
+
+    /// Copies the chosen image into `backgroundsDirectoryURL()` under a fresh
+    /// UUID filename, sets the space background to it, persists immediately, and
+    /// returns the stored filename (nil on failure).
+    public func importBackgroundImage(from url: URL) -> String? {
+        let directory = backgroundsDirectoryURL()
+        let ext = url.pathExtension.isEmpty ? "img" : url.pathExtension
+        let fileName = "\(UUID().uuidString).\(ext)"
+        let destination = directory.appendingPathComponent(fileName)
+        do {
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try FileManager.default.copyItem(at: url, to: destination)
+        } catch {
+            lastPersistenceError = error.localizedDescription
+            return nil
+        }
+        state.setSpaceBackground(.image(fileName: fileName))
+        persist()
+        return fileName
     }
 
     public func focusOnSelectedCard(viewportSize: ScreenPoint, padding: Double = 48) {
