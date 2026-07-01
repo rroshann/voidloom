@@ -1,18 +1,19 @@
 import Foundation
 
-/// Deterministic agent-card naming. The built-in pack is generic tactical
-/// callsigns (ordinary dictionary words only — never game-branded, no coined
-/// names). Users can substitute any custom pack.
+/// Deterministic agent-card naming. The built-in pack is ordinary dictionary
+/// words (nature, mineral, and bird names); users can substitute any custom
+/// pack. An empty pack falls back to the defaults.
 public struct AgentNamePool: Equatable, Sendable {
     public static let defaultCallsigns = [
-        "viper", "omen", "phoenix", "sage", "echo", "harbor",
-        "breach", "cipher", "nova", "drift", "ember", "slate",
+        "ember", "slate", "nova", "drift", "ridge", "quartz",
+        "wren", "vale", "flint", "cove", "sage", "echo",
     ]
 
     private let names: [String]
 
     public init(names: [String] = AgentNamePool.defaultCallsigns) {
-        self.names = names.map { $0.lowercased() }
+        let cleaned = names.map { $0.lowercased() }
+        self.names = cleaned.isEmpty ? Self.defaultCallsigns : cleaned
     }
 
     /// First `count` names not present in `existing` (case-insensitive),

@@ -35,18 +35,23 @@ final class AgentTerminalControllingTests: XCTestCase {
 final class AgentNamePoolTests: XCTestCase {
     func testAssignsFirstUnusedNamesCaseInsensitively() {
         let pool = AgentNamePool()
-        let names = pool.nextNames(count: 2, existing: ["Viper", "OMEN"])
-        XCTAssertEqual(names, ["phoenix", "sage"])
+        let names = pool.nextNames(count: 2, existing: ["Ember", "SLATE"])
+        XCTAssertEqual(names, ["nova", "drift"])
     }
 
     func testExhaustedPoolAppendsNumericSuffixes() {
-        let pool = AgentNamePool(names: ["viper", "omen"])
-        let names = pool.nextNames(count: 3, existing: ["viper"])
-        XCTAssertEqual(names, ["omen", "viper-2", "omen-2"])
+        let pool = AgentNamePool(names: ["fox", "owl"])
+        let names = pool.nextNames(count: 3, existing: ["fox"])
+        XCTAssertEqual(names, ["owl", "fox-2", "owl-2"])
     }
 
     func testCustomPackReplacesDefaults() {
-        let pool = AgentNamePool(names: ["jett", "sage"])
-        XCTAssertEqual(pool.nextNames(count: 1, existing: []), ["jett"])
+        let pool = AgentNamePool(names: ["maple", "fox"])
+        XCTAssertEqual(pool.nextNames(count: 1, existing: []), ["maple"])
+    }
+
+    func testEmptyCustomPackFallsBackToDefaults() {
+        let pool = AgentNamePool(names: [])
+        XCTAssertEqual(pool.nextNames(count: 1, existing: []), ["ember"])
     }
 }
