@@ -25,6 +25,7 @@ struct SpaceTileCard: View {
             store: store,
             isSelected: store.state.selectedCardID == card.id
                 || store.state.marqueeSelectedCardIDs.contains(card.id),
+            isActive: store.state.activeCardID == card.id,
             isCardFocused: false,
             onToggleCardFocus: {},
             onClose: closeCard,
@@ -40,13 +41,10 @@ struct SpaceTileCard: View {
             // so typing/selection isn't stolen and a stray move can't reorder.
             including: isEditingTitle ? .subviews : .all
         )
-        .onTapGesture {
-            if NSEvent.modifierFlags.contains(.command) {
-                store.toggleCardInSelection(id: card.id)
-            } else {
-                store.selectCard(id: card.id)
-            }
-        }
+        // No tap gesture here: selection-on-click (including ⌘-toggle) is owned
+        // by SpacesShellView's ContentClickMonitor, which also sees clicks on
+        // AppKit-backed content this gesture never would. A second handler here
+        // would double-toggle ⌘-clicks.
     }
 
     private func closeCard() {

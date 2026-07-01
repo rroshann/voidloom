@@ -21,6 +21,8 @@ struct SpaceTopBar: View {
         store.library.workspaces.first { $0.id == store.library.selectedWorkspaceID }?.name ?? "Space"
     }
 
+    private var layoutMode: SpaceLayoutMode { store.state.space?.layoutMode ?? .pagedGrid }
+
     /// Effective column setting for the current space (0 = Auto). Falls back to the
     /// global default when the space has no tiling yet.
     private var currentColumns: Int {
@@ -81,11 +83,19 @@ struct SpaceTopBar: View {
             .menuStyle(.borderlessButton).fixedSize()
 
             barDivider
+            barButton(
+                layoutMode == .pagedGrid ? "rectangle.3.group" : "square.grid.2x2",
+                help: layoutMode == .pagedGrid ? "Free-arrange" : "Grid"
+            ) {
+                store.setSpaceLayoutMode(layoutMode == .pagedGrid ? .freeArrange : .pagedGrid)
+            }
             barButton("rectangle.grid.2x2", help: "Re-tile", action: onReTile)
             barButton("square.grid.3x3", help: "Layout") { showLayoutPopover = true }
                 .popover(isPresented: $showLayoutPopover, arrowEdge: .bottom) {
                     layoutPopover.padding(16).frame(width: 240)
                 }
+                .disabled(layoutMode == .freeArrange)
+                .opacity(layoutMode == .freeArrange ? 0.4 : 1)
             barButton("photo", help: "Background") { showBackgroundPopover = true }
                 .popover(isPresented: $showBackgroundPopover, arrowEdge: .bottom) {
                     backgroundPopover.padding(16).frame(width: 260)

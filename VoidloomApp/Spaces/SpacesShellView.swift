@@ -53,6 +53,7 @@ struct SpacesShellView: View {
 
     private var topInset: Double { Double(topBarHeight + Self.topPadding) }
     private var bottomInset: Double { Double(dockHeight + Self.bottomPadding + Self.dockGap) }
+    private var isPagedGrid: Bool { (store.state.space?.layoutMode ?? .pagedGrid) == .pagedGrid }
 
     /// Builds a tiling from the global Settings defaults, used when a space has no
     /// tiling of its own. Columns 0 = Auto (fit all); Rows 0 = no pagination.
@@ -74,8 +75,12 @@ struct SpacesShellView: View {
         GeometryReader { geo in
             let tiling = store.state.space?.tiling
                 ?? Self.fallbackTiling(columns: defaultColumns, rows: defaultRows)
+            let layoutMode = store.state.space?.layoutMode ?? .pagedGrid
             let orderedIDs = store.state.orderedCardIDsForSpace
             let cardsByID = Dictionary(uniqueKeysWithValues: store.state.cards.map { ($0.id, $0) })
+            let freeFrames = layoutMode == .freeArrange
+                ? effectiveFreeFrames(orderedIDs: orderedIDs, tiling: tiling, viewport: geo.size)
+                : [:]
             let paged = SpaceGrid.pagedLayout(
                 cardCount: orderedIDs.count,
                 viewportSize: ScreenPoint(x: geo.size.width, y: geo.size.height),
@@ -109,8 +114,16 @@ struct SpacesShellView: View {
 
                 Color.clear
                     .contentShape(Rectangle())
-                    .onTapGesture { store.clearSelection() }
-                    .gesture(marqueeGesture(paged: paged, orderedIDs: orderedIDs))
+                    .onTapGesture {
+                        store.clearSelection()
+                        // Also drop content focus so an "invisible" active
+                        // terminal can't keep swallowing keystrokes.
+                        NSApp.keyWindow?.makeFirstResponder(nil)
+                    }
+                    .gesture(marqueeGesture(
+                        paged: paged, orderedIDs: orderedIDs,
+                        freeFrames: layoutMode == .freeArrange ? freeFrames : nil
+                    ))
 
                 if orderedIDs.isEmpty {
                     Text("No cards yet — add one from the dock below.")
@@ -118,6 +131,16 @@ struct SpacesShellView: View {
                         .foregroundStyle(.white.opacity(0.5))
                 }
 
+                if layoutMode == .freeArrange {
+                    SpaceFreeArrangeLayer(
+                        store: store,
+                        sessionManager: sessionManager,
+                        orderedIDs: orderedIDs,
+                        cardsByID: cardsByID,
+                        effectiveFrames: freeFrames,
+                        viewportSize: geo.size
+                    )
+                } else {
                 // Single ForEach + zIndex (Canvas gotcha #1 discipline: never split
                 // the dragged/selected tile into its own branch). Idle tiles sit at
                 // their preview slot; the dragged tile floats under the cursor. The
@@ -181,7 +204,8 @@ struct SpacesShellView: View {
                             .opacity(id == pendingRevealCardID ? 0 : 1)
                             .transition(reduceMotion ? .opacity : .scale(scale: 0.86).combined(with: .opacity))
                             .position(center)
-                            .zIndex(isDragged ? 2 : (store.state.selectedCardID == id ? 1 : 0))
+                            .zIndex(isDragged ? 2
+                                    : (store.state.selectedCardID == id || store.state.activeCardID == id ? 1 : 0))
                             // The dragged tile must follow the cursor instantly, never
                             // ride the reorder spring.
                             .transaction { if isDragged { $0.animation = nil } }
@@ -202,6 +226,7 @@ struct SpacesShellView: View {
                     insertion: .move(edge: pageForward ? .trailing : .leading),
                     removal: .move(edge: pageForward ? .leading : .trailing)
                 ))
+                }
 
                 if let s = marqueeStart, let c = marqueeCurrent {
                     let rect = CGRect(x: min(s.x, c.x), y: min(s.y, c.y),
@@ -215,7 +240,9 @@ struct SpacesShellView: View {
                 }
 
                 VStack {
-                    SpaceTopBar(store: store, sessionManager: sessionManager, onReTile: reTile)
+                    SpaceTopBar(store: store, sessionManager: sessionManager, onReTile: {
+                        reTile(orderedIDs: orderedIDs, tiling: tiling, viewport: geo.size)
+                    })
                         .background(GeometryReader { p in
                             Color.clear.preference(key: SpacesTopBarHeightKey.self, value: p.size.height)
                         })
@@ -225,7 +252,7 @@ struct SpacesShellView: View {
 
                 VStack(spacing: 12) {
                     Spacer()
-                    if paged.pageCount > 1 { pager(paged) }
+                    if layoutMode == .pagedGrid, paged.pageCount > 1 { pager(paged) }
                     ToolDock(
                         store: store,
                         interaction: dockInteraction,
@@ -243,6 +270,9 @@ struct SpacesShellView: View {
                         onToggleWorkspaceSidebar: {},
                         onAddCard: { kind in
                             store.addCard(kind: kind)
+                            // Free-arrange: the card is seeded a frame by the
+                            // onChange below; no page to jump to.
+                            guard layoutMode == .pagedGrid else { return }
                             // A new card is appended (always the last card). Same page:
                             // the tile transition pops it in. Another page: keep it
                             // hidden while sliding there, then pop it in on arrival so
@@ -257,11 +287,11 @@ struct SpacesShellView: View {
                                 return
                             }
                             pendingRevealCardID = orderedAfterAdd.last
-                            withAnimation(.spring(response: 0.45, dampingFraction: 0.9),
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.9),
                                           completionCriteria: .logicallyComplete) {
                                 currentPage = target
                             } completion: {
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                                withAnimation(.spring(response: 0.25, dampingFraction: 0.75)) {
                                     pendingRevealCardID = nil
                                 }
                             }
@@ -279,8 +309,18 @@ struct SpacesShellView: View {
                 pageCount = newCount
                 if currentPage > newCount - 1 { currentPage = max(0, newCount - 1) }
             }
+            .background(ContentClickMonitor { point, commandHeld in
+                selectCard(atContentClick: point, commandHeld: commandHeld,
+                           paged: paged, orderedIDs: orderedIDs, freeFrames: freeFrames)
+            })
             .onChange(of: store.library.selectedWorkspaceID) { _, _ in currentPage = 0 }
             .onChange(of: store.state.space?.tiling) { _, _ in currentPage = 0 }
+            .onChange(of: layoutMode, initial: true) { _, _ in
+                seedFreeFramesIfNeeded(orderedIDs: orderedIDs, tiling: tiling, viewport: geo.size)
+            }
+            .onChange(of: orderedIDs) { _, newIDs in
+                seedFreeFramesIfNeeded(orderedIDs: newIDs, tiling: tiling, viewport: geo.size)
+            }
         }
         .background(
             GeometryReader { proxy in
@@ -299,7 +339,7 @@ struct SpacesShellView: View {
     /// Escape clears selection. Stays inert while a text control is first responder
     /// so typing in a title/note/todo/terminal keeps its keys.
     private func handleSpacesKey(_ event: NSEvent) -> Bool {
-        let typing = event.window?.firstResponder is NSText
+        let typing = isTypingResponder(event.window?.firstResponder)
         switch event.keyCode {
         case 51, 117:   // delete / forward-delete
             guard !typing else { return false }
@@ -320,11 +360,11 @@ struct SpacesShellView: View {
             store.clearSelection()
             return true
         case 123:   // left arrow
-            guard !typing, pageCount > 1 else { return false }
+            guard !typing, pageCount > 1, isPagedGrid else { return false }
             goToPage(currentPage - 1)
             return true
         case 124:   // right arrow
-            guard !typing, pageCount > 1 else { return false }
+            guard !typing, pageCount > 1, isPagedGrid else { return false }
             goToPage(currentPage + 1)
             return true
         default:
@@ -340,13 +380,61 @@ struct SpacesShellView: View {
         }
     }
 
-    private func reTile() {
-        // Resets Spaces order to the canonical cards array order and persists.
-        store.resetSpaceCardOrder()
+    private func reTile(orderedIDs: [UUID], tiling: SpaceTiling, viewport: CGSize) {
+        if (store.state.space?.layoutMode ?? .pagedGrid) == .freeArrange {
+            // Snap every free-arranged card back to the tidy fit-all grid.
+            store.setSpaceFreeFrames(
+                defaultFreeFrames(orderedIDs: orderedIDs, tiling: tiling, viewport: viewport)
+            )
+        } else {
+            // Resets Spaces order to the canonical cards array order and persists.
+            store.resetSpaceCardOrder()
+        }
         draggingCardID = nil
         dragTranslation = .zero
         dragHoverLocal = nil
         currentPage = 0
+    }
+
+    /// Grid-derived frames for every card: the single-screen fit-all layout at
+    /// the space's gap/margin/aspect. Pure — used for seeding and Re-tile.
+    private func defaultFreeFrames(
+        orderedIDs: [UUID], tiling: SpaceTiling, viewport: CGSize
+    ) -> [UUID: SpaceFreeFrame] {
+        let layout = SpaceGrid.layout(
+            cardCount: orderedIDs.count,
+            viewportSize: ScreenPoint(x: viewport.width, y: viewport.height),
+            topInset: topInset,
+            bottomInset: bottomInset,
+            tiling: SpaceTiling(mode: .auto, gap: tiling.gap, margin: tiling.margin,
+                                targetAspect: tiling.targetAspect)
+        )
+        var frames: [UUID: SpaceFreeFrame] = [:]
+        for (i, id) in orderedIDs.enumerated() where i < layout.tileOrigins.count {
+            frames[id] = SpaceFreeFrame(origin: layout.tileOrigins[i], size: layout.tileSize)
+        }
+        return frames
+    }
+
+    /// Persisted free frames overlaid on grid-derived defaults, so a card that
+    /// hasn't been seeded yet still renders somewhere sensible this frame.
+    private func effectiveFreeFrames(
+        orderedIDs: [UUID], tiling: SpaceTiling, viewport: CGSize
+    ) -> [UUID: SpaceFreeFrame] {
+        var frames = defaultFreeFrames(orderedIDs: orderedIDs, tiling: tiling, viewport: viewport)
+        frames.merge(store.state.space?.freeFrames ?? [:]) { _, persisted in persisted }
+        return frames
+    }
+
+    /// Persists default frames for any free-arrange card that lacks one. Runs on
+    /// mode entry and card additions; never touches an existing frame.
+    private func seedFreeFramesIfNeeded(orderedIDs: [UUID], tiling: SpaceTiling, viewport: CGSize) {
+        guard (store.state.space?.layoutMode ?? .pagedGrid) == .freeArrange else { return }
+        let persisted = store.state.space?.freeFrames ?? [:]
+        let missing = defaultFreeFrames(orderedIDs: orderedIDs, tiling: tiling, viewport: viewport)
+            .filter { persisted[$0.key] == nil }
+        guard !missing.isEmpty else { return }
+        store.seedSpaceFreeFrames(missing)
     }
 
     /// Animated, direction-aware page change (drives the horizontal slide between
@@ -357,6 +445,68 @@ struct SpacesShellView: View {
         pageForward = clamped > currentPage
         withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.32)) {
             currentPage = clamped
+        }
+    }
+
+    /// Routes a raw mouse-down anywhere in the shell. This is the ONLY
+    /// click-handling path in Spaces — it fires for every left click (via
+    /// `ContentClickMonitor`), including clicks on AppKit-backed card content
+    /// (terminal, web view) that SwiftUI tap gestures never see. A click on a
+    /// card's HEADER selects it (accent highlight, armed for Delete); a click
+    /// anywhere in its CONTENT makes it active (focus ring, typing lands in
+    /// it). ⌘-click toggles the multi-selection from either region.
+    private func selectCard(
+        atContentClick point: CGPoint, commandHeld: Bool,
+        paged: SpaceGrid.PagedLayout, orderedIDs: [UUID],
+        freeFrames: [UUID: SpaceFreeFrame]
+    ) {
+        let hitID: UUID?
+        let tileTopY: CGFloat
+        if isPagedGrid {
+            if let local = slotIndex(for: point, tileOrigins: paged.tileOrigins,
+                                     tileSize: paged.tileSize, geoOrigin: .zero) {
+                let global = paged.cardRange.lowerBound + local
+                hitID = orderedIDs.indices.contains(global) ? orderedIDs[global] : nil
+                tileTopY = paged.tileOrigins[local].y
+            } else {
+                hitID = nil
+                tileTopY = 0
+            }
+        } else {
+            let hits = Set(SpaceGrid.cardIDs(
+                fromCorner: ScreenPoint(x: point.x - 0.5, y: point.y - 0.5),
+                toCorner: ScreenPoint(x: point.x + 0.5, y: point.y + 0.5),
+                frames: freeFrames))
+            // Topmost wins: the selected/active card renders above, then space order.
+            let raised = store.state.selectedCardID ?? store.state.activeCardID
+            if let raised, hits.contains(raised) {
+                hitID = raised
+            } else {
+                hitID = orderedIDs.last(where: { hits.contains($0) })
+            }
+            tileTopY = hitID.flatMap { freeFrames[$0]?.origin.y }.map { CGFloat($0) } ?? 0
+        }
+        guard let hitID else { return }
+
+        if commandHeld {
+            store.toggleCardInSelection(id: hitID)
+            return
+        }
+
+        let inHeader = point.y - tileTopY < WorkspaceCardView.approximateHeaderHeight
+        if inHeader {
+            if store.state.selectedCardID != hitID
+                || store.state.activeCardID != nil
+                || !store.state.marqueeSelectedCardIDs.isEmpty {
+                store.selectCard(id: hitID)
+            }
+            // Drop any text/terminal focus so Delete acts on the selection
+            // instead of typing into whatever was focused.
+            NSApp.keyWindow?.makeFirstResponder(nil)
+        } else if store.state.activeCardID != hitID
+                    || store.state.selectedCardID != nil
+                    || !store.state.marqueeSelectedCardIDs.isEmpty {
+            store.activateCard(id: hitID)
         }
     }
 
@@ -382,7 +532,11 @@ struct SpacesShellView: View {
     /// Left-drag on empty background draws a selection box; ⌘-drag extends the
     /// existing selection. Coordinates are `.local` to the shell, matching the
     /// `SpaceGrid` tile origins used by `tileIndices`.
-    private func marqueeGesture(paged: SpaceGrid.PagedLayout, orderedIDs: [UUID]) -> some Gesture {
+    private func marqueeGesture(
+        paged: SpaceGrid.PagedLayout,
+        orderedIDs: [UUID],
+        freeFrames: [UUID: SpaceFreeFrame]?
+    ) -> some Gesture {
         DragGesture(minimumDistance: 1)
             .onChanged { value in
                 if marqueeStart == nil {
@@ -398,7 +552,7 @@ struct SpacesShellView: View {
                 }
                 marqueeCurrent = value.location
                 let hits = marqueeHits(start: value.startLocation, current: value.location,
-                                       paged: paged, orderedIDs: orderedIDs)
+                                       paged: paged, orderedIDs: orderedIDs, freeFrames: freeFrames)
                 store.selectCardsInSpace(ids: marqueeAdditive ? marqueeBase.union(hits) : hits)
             }
             .onEnded { _ in
@@ -409,12 +563,19 @@ struct SpacesShellView: View {
             }
     }
 
-    /// Maps a screen-space selection box to the set of card ids it covers on the
-    /// current page.
+    /// Maps a screen-space selection box to the set of card ids it covers — on
+    /// the current page in grid mode, or across all free frames in free-arrange.
     private func marqueeHits(
         start: CGPoint, current: CGPoint,
-        paged: SpaceGrid.PagedLayout, orderedIDs: [UUID]
+        paged: SpaceGrid.PagedLayout, orderedIDs: [UUID],
+        freeFrames: [UUID: SpaceFreeFrame]?
     ) -> Set<UUID> {
+        if let freeFrames {
+            return Set(SpaceGrid.cardIDs(
+                fromCorner: ScreenPoint(x: start.x, y: start.y),
+                toCorner: ScreenPoint(x: current.x, y: current.y),
+                frames: freeFrames))
+        }
         let locals = SpaceGrid.tileIndices(
             fromCorner: ScreenPoint(x: start.x, y: start.y),
             toCorner: ScreenPoint(x: current.x, y: current.y),
