@@ -289,6 +289,249 @@ extension SpaceModelTests {
         XCTAssertEqual(reloaded.space?.tiling.mode, .fixedColumns)
     }
 
+    func testSpaceConfigLayoutDefaults() {
+        let config = SpaceConfig()
+        XCTAssertEqual(config.layoutMode, .pagedGrid)
+        XCTAssertTrue(config.freeFrames.isEmpty)
+    }
+
+    func testSpaceConfigDecodesLegacyJSONWithoutLayoutKeys() throws {
+        // Simulate a pre-free-arrange file: encode a current config, then strip
+        // the new keys so decoding must fall back to defaults.
+        let data = try JSONEncoder().encode(SpaceConfig(backgroundDimming: 0.5))
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        object.removeValue(forKey: "layoutMode")
+        object.removeValue(forKey: "freeFrames")
+        let legacy = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try JSONDecoder().decode(SpaceConfig.self, from: legacy)
+        XCTAssertEqual(decoded.layoutMode, .pagedGrid)
+        XCTAssertTrue(decoded.freeFrames.isEmpty)
+        XCTAssertEqual(decoded.backgroundDimming, 0.5, accuracy: 0.0001)
+    }
+
+    func testSpaceConfigRoundTripsLayoutModeAndFreeFrames() throws {
+        var config = SpaceConfig()
+        let id = UUID()
+        config.layoutMode = .freeArrange
+        config.freeFrames = [id: SpaceFreeFrame(origin: ScreenPoint(x: 40, y: 60),
+                                                size: ScreenPoint(x: 320, y: 220))]
+        let decoded = try JSONDecoder().decode(SpaceConfig.self, from: JSONEncoder().encode(config))
+        XCTAssertEqual(decoded, config)
+    }
+
+    func testSetSpaceLayoutModeMaterializesAndSets() {
+        var state = stateWithCards(1)
+        state.setSpaceLayoutMode(.freeArrange)
+        XCTAssertEqual(state.space?.layoutMode, .freeArrange)
+        state.setSpaceLayoutMode(.pagedGrid)
+        XCTAssertEqual(state.space?.layoutMode, .pagedGrid)
+    }
+
+    func testSeedMissingFreeFramesOnlyFillsAbsentEntries() {
+        var state = stateWithCards(2)
+        let (a, b) = (state.cards[0].id, state.cards[1].id)
+        let existing = SpaceFreeFrame(origin: ScreenPoint(x: 5, y: 5), size: ScreenPoint(x: 100, y: 80))
+        state.setSpaceLayoutMode(.freeArrange)
+        state.space?.freeFrames[a] = existing
+
+        let seedA = SpaceFreeFrame(origin: ScreenPoint(x: 900, y: 900), size: ScreenPoint(x: 1, y: 1))
+        let seedB = SpaceFreeFrame(origin: ScreenPoint(x: 50, y: 60), size: ScreenPoint(x: 300, y: 200))
+        state.seedMissingFreeFrames([a: seedA, b: seedB])
+
+        XCTAssertEqual(state.space?.freeFrames[a], existing)   // never overwritten
+        XCTAssertEqual(state.space?.freeFrames[b], seedB)
+    }
+
+    func testMoveSpaceCardFreelyUpdatesOriginKeepingSize() {
+        var state = stateWithCards(1)
+        let id = state.cards[0].id
+        state.setSpaceLayoutMode(.freeArrange)
+        state.seedMissingFreeFrames([id: SpaceFreeFrame(origin: ScreenPoint(x: 10, y: 10),
+                                                        size: ScreenPoint(x: 300, y: 200))])
+        state.moveSpaceCardFreely(id: id, to: ScreenPoint(x: 120, y: 140))
+        XCTAssertEqual(state.space?.freeFrames[id]?.origin, ScreenPoint(x: 120, y: 140))
+        XCTAssertEqual(state.space?.freeFrames[id]?.size, ScreenPoint(x: 300, y: 200))
+    }
+
+    func testMoveSpaceCardFreelyUnknownIDIsNoOp() {
+        var state = stateWithCards(1)
+        state.setSpaceLayoutMode(.freeArrange)
+        state.moveSpaceCardFreely(id: UUID(), to: ScreenPoint(x: 1, y: 1))
+        XCTAssertTrue(state.space?.freeFrames.isEmpty ?? false)
+    }
+
+    func testDeleteCardPrunesItsFreeFrame() {
+        var state = stateWithCards(2)
+        let (a, b) = (state.cards[0].id, state.cards[1].id)
+        state.setSpaceLayoutMode(.freeArrange)
+        let frame = SpaceFreeFrame(origin: ScreenPoint(x: 0, y: 0), size: ScreenPoint(x: 10, y: 10))
+        state.seedMissingFreeFrames([a: frame, b: frame])
+
+        state.deleteCard(id: a)
+        XCTAssertNil(state.space?.freeFrames[a])
+        XCTAssertNotNil(state.space?.freeFrames[b])
+
+        state.deleteCards(ids: [b])
+        XCTAssertTrue(state.space?.freeFrames.isEmpty ?? false)
+    }
+
+    func testActivateCardSetsActiveAndClearsSelection() {
+        var state = stateWithCards(2)
+        let (a, b) = (state.cards[0].id, state.cards[1].id)
+        state.selectCard(id: a)
+        state.activateCard(id: b)
+        XCTAssertEqual(state.activeCardID, b)
+        XCTAssertNil(state.selectedCardID)
+        XCTAssertTrue(state.marqueeSelectedCardIDs.isEmpty)
+    }
+
+    func testActivateUnknownCardIsNoOp() {
+        var state = stateWithCards(1)
+        state.selectCard(id: state.cards[0].id)
+        state.activateCard(id: UUID())
+        XCTAssertNil(state.activeCardID)
+        XCTAssertEqual(state.selectedCardID, state.cards[0].id)
+    }
+
+    func testSelectionMutationsClearActiveCard() {
+        var state = stateWithCards(2)
+        let (a, b) = (state.cards[0].id, state.cards[1].id)
+
+        state.activateCard(id: a)
+        state.selectCard(id: b)
+        XCTAssertNil(state.activeCardID)
+
+        state.activateCard(id: a)
+        state.toggleCardInSelection(id: b)
+        XCTAssertNil(state.activeCardID)
+
+        state.activateCard(id: a)
+        state.selectCardsInSpace(ids: [b])
+        XCTAssertNil(state.activeCardID)
+
+        state.activateCard(id: a)
+        state.clearSelection()
+        XCTAssertNil(state.activeCardID)
+    }
+
+    func testDeleteClearsActiveCardOnlyWhenDeleted() {
+        var state = stateWithCards(2)
+        let (a, b) = (state.cards[0].id, state.cards[1].id)
+        state.activateCard(id: a)
+        state.deleteCard(id: b)
+        XCTAssertEqual(state.activeCardID, a)
+        state.deleteCards(ids: [a])
+        XCTAssertNil(state.activeCardID)
+    }
+
+    func testActiveCardIDIsNotPersisted() throws {
+        var state = stateWithCards(1)
+        state.activateCard(id: state.cards[0].id)
+        let decoded = try JSONDecoder().decode(WorkspaceState.self, from: JSONEncoder().encode(state))
+        XCTAssertNil(decoded.activeCardID)
+    }
+
+    func testSetSpaceFreeFramesReplacesAll() {
+        var state = stateWithCards(2)
+        let (a, b) = (state.cards[0].id, state.cards[1].id)
+        let f1 = SpaceFreeFrame(origin: ScreenPoint(x: 1, y: 1), size: ScreenPoint(x: 10, y: 10))
+        let f2 = SpaceFreeFrame(origin: ScreenPoint(x: 2, y: 2), size: ScreenPoint(x: 20, y: 20))
+        state.seedMissingFreeFrames([a: f1])
+        state.setSpaceFreeFrames([b: f2])
+        XCTAssertNil(state.space?.freeFrames[a])
+        XCTAssertEqual(state.space?.freeFrames[b], f2)
+    }
+
+    func testFreeFrameHitTestOverlapsAndMisses() {
+        let a = UUID(), b = UUID()
+        let frames = [
+            a: SpaceFreeFrame(origin: ScreenPoint(x: 0, y: 0), size: ScreenPoint(x: 100, y: 100)),
+            b: SpaceFreeFrame(origin: ScreenPoint(x: 300, y: 300), size: ScreenPoint(x: 50, y: 50))
+        ]
+        // Box covering only frame a (order-independent corners).
+        let hitA = SpaceGrid.cardIDs(fromCorner: ScreenPoint(x: 90, y: 90),
+                                     toCorner: ScreenPoint(x: 10, y: 10), frames: frames)
+        XCTAssertEqual(hitA, [a])
+        // Box grazing both.
+        let hitBoth = SpaceGrid.cardIDs(fromCorner: ScreenPoint(x: 50, y: 50),
+                                        toCorner: ScreenPoint(x: 310, y: 310), frames: frames)
+        XCTAssertEqual(Set(hitBoth), [a, b])
+        // Box touching neither (edge-exclusive, like tileIndices).
+        let miss = SpaceGrid.cardIDs(fromCorner: ScreenPoint(x: 110, y: 110),
+                                     toCorner: ScreenPoint(x: 290, y: 290), frames: frames)
+        XCTAssertTrue(miss.isEmpty)
+    }
+
+    @MainActor
+    func testResetAllDataWipesDiskAndRecreatesFreshLibrary() throws {
+        let fm = FileManager.default
+        let base = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try fm.createDirectory(at: base, withIntermediateDirectories: true)
+        defer { try? fm.removeItem(at: base) }
+        let workspacesDir = base.appendingPathComponent("workspaces", isDirectory: true)
+
+        let store = WorkspaceStore(
+            libraryURL: base.appendingPathComponent("library.json"),
+            workspacesDirectoryURL: workspacesDir,
+            legacyStorageURL: base.appendingPathComponent("workspace.json"),
+            persistenceDelay: 0
+        )
+        store.addCard(kind: .note)
+        store.createWorkspace(named: "Second")
+        store.addCard(kind: .todo)
+        XCTAssertEqual(store.library.workspaces.count, 2)
+
+        store.resetAllData()
+
+        XCTAssertEqual(store.library.workspaces.count, 1)
+        XCTAssertTrue(store.state.cards.isEmpty)
+        // Disk holds exactly the one fresh workspace file, and the persisted
+        // library points at it.
+        let files = try fm.contentsOfDirectory(at: workspacesDir, includingPropertiesForKeys: nil)
+            .filter { $0.pathExtension == "json" }
+        XCTAssertEqual(files.count, 1)
+        XCTAssertEqual(
+            files.first?.lastPathComponent,
+            "\(store.library.selectedWorkspaceID.uuidString).json"
+        )
+        let reloaded = try WorkspaceStore.load(
+            from: WorkspaceStore.workspaceURL(for: store.library.selectedWorkspaceID, in: workspacesDir)
+        )
+        XCTAssertTrue(reloaded.cards.isEmpty)
+    }
+
+    @MainActor
+    func testCenterViewportPutsCanvasPointAtScreenCenter() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(state: WorkspaceState(cards: []), storageURL: url, persistenceDelay: 0)
+        let target = CanvasPoint(x: 500, y: -300)
+        let viewport = ScreenPoint(x: 1200, y: 800)
+        store.centerViewport(on: target, viewportSize: viewport)
+
+        let screen = store.state.viewport.screenPoint(forCanvasPoint: target)
+        XCTAssertEqual(screen.x, 600, accuracy: 0.0001)
+        XCTAssertEqual(screen.y, 400, accuracy: 0.0001)
+        // Scale must be untouched — recenter is a pan, not a zoom.
+        XCTAssertEqual(store.state.viewport.scale, 1, accuracy: 0.0001)
+    }
+
+    @MainActor
+    func testSetSpaceLayoutModePersistsImmediately() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(state: WorkspaceState(cards: []), storageURL: url, persistenceDelay: 0)
+        store.setSpaceLayoutMode(.freeArrange)
+
+        let reloaded = try WorkspaceStore.load(from: url)
+        XCTAssertEqual(reloaded.space?.layoutMode, .freeArrange)
+    }
+
     @MainActor
     func testStoreSelectCardsInSpaceUpdatesSelection() {
         let url = FileManager.default.temporaryDirectory

@@ -14,16 +14,37 @@ public struct SpaceConfig: Codable, Equatable, Sendable {
     public var tiling: SpaceTiling
     public var backgroundDimming: Double   // 0…1 scrim over the background
     public var cardOrder: [UUID]?          // nil = follow the cards array order
+    public var layoutMode: SpaceLayoutMode
+    public var freeFrames: [UUID: SpaceFreeFrame]   // free-arrange only; grid derives
 
     public init(
         background: SpaceBackground = .atmosphere,
         tiling: SpaceTiling = SpaceTiling(),
         backgroundDimming: Double = 0.35,
-        cardOrder: [UUID]? = nil
+        cardOrder: [UUID]? = nil,
+        layoutMode: SpaceLayoutMode = .pagedGrid,
+        freeFrames: [UUID: SpaceFreeFrame] = [:]
     ) {
         self.background = background
         self.tiling = tiling
         self.backgroundDimming = backgroundDimming
         self.cardOrder = cardOrder
+        self.layoutMode = layoutMode
+        self.freeFrames = freeFrames
+    }
+
+    private enum CodingKeys: String, CodingKey {
+        case background, tiling, backgroundDimming, cardOrder, layoutMode, freeFrames
+    }
+
+    // Custom decode so configs persisted before free-arrange existed still load.
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        background = try container.decode(SpaceBackground.self, forKey: .background)
+        tiling = try container.decode(SpaceTiling.self, forKey: .tiling)
+        backgroundDimming = try container.decode(Double.self, forKey: .backgroundDimming)
+        cardOrder = try container.decodeIfPresent([UUID].self, forKey: .cardOrder)
+        layoutMode = try container.decodeIfPresent(SpaceLayoutMode.self, forKey: .layoutMode) ?? .pagedGrid
+        freeFrames = try container.decodeIfPresent([UUID: SpaceFreeFrame].self, forKey: .freeFrames) ?? [:]
     }
 }

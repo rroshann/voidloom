@@ -167,6 +167,24 @@ public enum SpaceGrid {
         return hits
     }
 
+    /// Free-arrange counterpart of `tileIndices`: card ids whose persisted frame
+    /// overlaps the screen-space rect spanned by `a` and `b` (order-independent,
+    /// edge-exclusive). Result order is unspecified — callers treat it as a set.
+    public static func cardIDs(
+        fromCorner a: ScreenPoint,
+        toCorner b: ScreenPoint,
+        frames: [UUID: SpaceFreeFrame]
+    ) -> [UUID] {
+        let minX = min(a.x, b.x), maxX = max(a.x, b.x)
+        let minY = min(a.y, b.y), maxY = max(a.y, b.y)
+        return frames.compactMap { id, f in
+            let fMaxX = f.origin.x + f.size.x
+            let fMaxY = f.origin.y + f.size.y
+            let hit = minX < fMaxX && maxX > f.origin.x && minY < fMaxY && maxY > f.origin.y
+            return hit ? id : nil
+        }
+    }
+
     /// Picks the column count that maximizes the aspect-weighted area of a tile.
     /// score = min(w, h*AR) * min(h, w/AR) — rewards tiles close to `targetAspect`
     /// without letting one dimension run away.

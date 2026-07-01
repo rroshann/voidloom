@@ -191,6 +191,12 @@ public final class WorkspaceStore: ObservableObject {
         schedulePersistence()
     }
 
+    /// Makes a card active (content focus) — transient UI state, no persistence.
+    public func activateCard(id: UUID) {
+        guard state.cards.contains(where: { $0.id == id }) else { return }
+        state.activateCard(id: id)
+    }
+
     /// Screen-space selection for Spaces (marquee/⌘). The marquee set is
     /// transient, but a lone hit also sets `selectedCardID`, so persistence is
     /// scheduled — matching the canvas `selectCards` overloads.
@@ -424,6 +430,30 @@ public final class WorkspaceStore: ObservableObject {
         persist()
     }
 
+    public func setSpaceLayoutMode(_ mode: SpaceLayoutMode) {
+        state.setSpaceLayoutMode(mode)
+        persist()
+    }
+
+    /// Seeds free-arrange frames for cards that don't have one yet (structural,
+    /// one-time per card — persists immediately).
+    public func seedSpaceFreeFrames(_ defaults: [UUID: SpaceFreeFrame]) {
+        state.seedMissingFreeFrames(defaults)
+        persist()
+    }
+
+    /// Replaces every free-arrange frame (Re-tile in free mode). Structural.
+    public func setSpaceFreeFrames(_ frames: [UUID: SpaceFreeFrame]) {
+        state.setSpaceFreeFrames(frames)
+        persist()
+    }
+
+    /// Debounced like `moveCard` — a free-arrange drag emits many origins.
+    public func moveSpaceCardFreely(id: UUID, to origin: ScreenPoint) {
+        state.moveSpaceCardFreely(id: id, to: origin)
+        schedulePersistence()
+    }
+
     /// Directory holding imported background images, a sibling of the active
     /// workspace storage (so it lands in `…/Voidloom/backgrounds` in library mode
     /// and beside the test file in single-file mode).
@@ -466,6 +496,17 @@ public final class WorkspaceStore: ObservableObject {
             size: card.size,
             padding: padding,
             viewportSize: viewportSize
+        )
+        schedulePersistence()
+    }
+
+    /// Pans (never zooms) so `point` lands at the screen center — drives the
+    /// minimap's click-to-recenter. Debounced like other viewport moves.
+    public func centerViewport(on point: CanvasPoint, viewportSize: ScreenPoint) {
+        guard viewportSize.x > 0, viewportSize.y > 0 else { return }
+        state.viewport.pan(
+            soCanvasPoint: point,
+            appearsAt: ScreenPoint(x: viewportSize.x / 2, y: viewportSize.y / 2)
         )
         schedulePersistence()
     }
@@ -610,6 +651,48 @@ public final class WorkspaceStore: ObservableObject {
             } catch {
                 lastPersistenceError = error.localizedDescription
             }
+        }
+    }
+
+    /// Destructive factory reset (library mode only): deletes every workspace
+    /// file, the library index, backups, imported backgrounds, and the legacy
+    /// single-file store, then recreates a fresh empty "Untitled" workspace as
+    /// the only library entry and persists it. Callers own any confirmation UI
+    /// and terminating live agent sessions first.
+    public func resetAllData() {
+        guard isLibraryMode, let libraryURL, let workspacesDirectoryURL else { return }
+
+        // Cancel (don't flush) any queued write so a debounce can't resurrect
+        // the old data after the wipe.
+        pendingPersistenceTask?.cancel()
+        pendingPersistenceTask = nil
+
+        let fm = FileManager.default
+        let base = libraryURL.deletingLastPathComponent()
+        try? fm.removeItem(at: workspacesDirectoryURL)
+        try? fm.removeItem(at: base.appendingPathComponent("backups", isDirectory: true))
+        try? fm.removeItem(at: base.appendingPathComponent("backgrounds", isDirectory: true))
+        try? fm.removeItem(at: base.appendingPathComponent("workspace.json"))
+        try? fm.removeItem(at: libraryURL)
+
+        let workspaceID = UUID()
+        let now = Date()
+        library = WorkspaceLibrary(
+            selectedWorkspaceID: workspaceID,
+            workspaces: [
+                WorkspaceSummary(id: workspaceID, name: "Untitled",
+                                 createdAt: now, updatedAt: now, cardCount: 0)
+            ]
+        )
+        state = WorkspaceState()
+
+        do {
+            try fm.createDirectory(at: workspacesDirectoryURL, withIntermediateDirectories: true)
+            try Self.save(state, to: Self.workspaceURL(for: workspaceID, in: workspacesDirectoryURL))
+            try Self.saveLibrary(library, to: libraryURL)
+            lastPersistenceError = nil
+        } catch {
+            lastPersistenceError = error.localizedDescription
         }
     }
 
