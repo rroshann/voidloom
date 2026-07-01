@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import VoidloomCore
 
 /// One Spaces grid tile: the existing card chrome at a grid-assigned frame,
@@ -20,7 +21,8 @@ struct SpaceTileCard: View {
         WorkspaceCardView(
             card: card,
             store: store,
-            isSelected: store.state.selectedCardID == card.id,
+            isSelected: store.state.selectedCardID == card.id
+                || store.state.marqueeSelectedCardIDs.contains(card.id),
             isCardFocused: false,
             onToggleCardFocus: {},
             onClose: closeCard,
@@ -53,7 +55,11 @@ struct SpaceTileCard: View {
             including: isEditingTitle ? .subviews : .all
         )
         .onTapGesture {
-            store.selectCard(id: card.id)
+            if NSEvent.modifierFlags.contains(.command) {
+                store.toggleCardInSelection(id: card.id)
+            } else {
+                store.selectCard(id: card.id)
+            }
         }
     }
 
