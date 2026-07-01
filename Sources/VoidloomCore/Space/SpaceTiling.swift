@@ -8,7 +8,8 @@ public struct SpaceTiling: Codable, Equatable, Sendable {
     }
 
     public var mode: Mode
-    public var columns: Int        // used only when mode == .fixedColumns
+    public var columns: Int        // used only when mode == .fixedColumns ("max columns")
+    public var maxRows: Int?       // nil = unbounded (single screen); >0 paginates at columns × maxRows
     public var gap: Double         // screen px between tiles
     public var margin: Double      // screen px from the usable-rect edge to the first tile
     public var targetAspect: Double // preferred tile width:height for the auto column search
@@ -16,12 +17,14 @@ public struct SpaceTiling: Codable, Equatable, Sendable {
     public init(
         mode: Mode = .auto,
         columns: Int = 2,
+        maxRows: Int? = nil,
         gap: Double = 18,
         margin: Double = 28,
         targetAspect: Double = 1.6
     ) {
         self.mode = mode
         self.columns = columns
+        self.maxRows = maxRows
         self.gap = gap
         self.margin = margin
         self.targetAspect = targetAspect

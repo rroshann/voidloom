@@ -28,6 +28,25 @@ final class SpaceModelTests: XCTestCase {
         XCTAssertEqual(config.backgroundDimming, 0.35, accuracy: 0.0001)
         XCTAssertNil(config.cardOrder)
     }
+
+    func testSpaceTilingDefaultsMaxRowsToNil() {
+        XCTAssertNil(SpaceTiling().maxRows)
+    }
+
+    func testSpaceTilingRoundTripsMaxRows() throws {
+        let tiling = SpaceTiling(mode: .fixedColumns, columns: 3, maxRows: 2)
+        let decoded = try JSONDecoder().decode(SpaceTiling.self, from: JSONEncoder().encode(tiling))
+        XCTAssertEqual(decoded, tiling)
+        XCTAssertEqual(decoded.maxRows, 2)
+    }
+
+    func testSpaceTilingDecodesLegacyJSONWithoutMaxRows() throws {
+        let legacy = #"{"mode":"fixedColumns","columns":3,"gap":18,"margin":28,"targetAspect":1.6}"#
+        let decoded = try JSONDecoder().decode(SpaceTiling.self, from: Data(legacy.utf8))
+        XCTAssertNil(decoded.maxRows)
+        XCTAssertEqual(decoded.columns, 3)
+        XCTAssertEqual(decoded.mode, .fixedColumns)
+    }
 }
 
 extension SpaceModelTests {
