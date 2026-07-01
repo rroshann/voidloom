@@ -47,7 +47,10 @@ struct SpaceTileCard: View {
                             translation = .zero
                         }
                     }
-                }
+                },
+            // While the title field is being edited, disable the tile's own drag
+            // so typing/selection isn't stolen and a stray move can't reorder.
+            including: isEditingTitle ? .subviews : .all
         )
         .onTapGesture {
             store.selectCard(id: card.id)

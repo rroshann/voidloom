@@ -44,13 +44,14 @@ struct ToolDock: View {
 
             // Card-creation buttons — always visible.
             // In .canvas: single-click arms place-mode; double-click creates instantly.
-            // In .spaces: both clicks create instantly (no place-mode in grid layout).
+            // In .spaces: a single click creates instantly; double-click is disabled
+            // (onDouble nil) so one double-click can't spawn several cards.
             DockToolButton(
                 systemName: "terminal",
                 label: variant == .spaces ? "Add terminal card" : "Terminal — click to place, double-click to add",
                 isArmed: variant == .canvas && interaction.isArmed(.placingCard(.agent)),
                 onSingle: variant == .canvas ? { interaction.armPlacingCard(.agent) } : { onAddCard(.agent) },
-                onDouble: { onAddCard(.agent) }
+                onDouble: variant == .canvas ? { onAddCard(.agent) } : nil
             )
 
             DockToolButton(
@@ -58,7 +59,7 @@ struct ToolDock: View {
                 label: variant == .spaces ? "Add note card" : "Note — click to place, double-click to add",
                 isArmed: variant == .canvas && interaction.isArmed(.placingCard(.note)),
                 onSingle: variant == .canvas ? { interaction.armPlacingCard(.note) } : { onAddCard(.note) },
-                onDouble: { onAddCard(.note) }
+                onDouble: variant == .canvas ? { onAddCard(.note) } : nil
             )
 
             DockToolButton(
@@ -66,7 +67,7 @@ struct ToolDock: View {
                 label: variant == .spaces ? "Add todo card" : "Todo — click to place, double-click to add",
                 isArmed: variant == .canvas && interaction.isArmed(.placingCard(.todo)),
                 onSingle: variant == .canvas ? { interaction.armPlacingCard(.todo) } : { onAddCard(.todo) },
-                onDouble: { onAddCard(.todo) }
+                onDouble: variant == .canvas ? { onAddCard(.todo) } : nil
             )
 
             DockToolButton(
@@ -74,7 +75,7 @@ struct ToolDock: View {
                 label: variant == .spaces ? "Add browser card" : "Preview — click to place, double-click to add",
                 isArmed: variant == .canvas && interaction.isArmed(.placingCard(.browser)),
                 onSingle: variant == .canvas ? { interaction.armPlacingCard(.browser) } : { onAddCard(.browser) },
-                onDouble: { onAddCard(.browser) }
+                onDouble: variant == .canvas ? { onAddCard(.browser) } : nil
             )
 
             if variant == .canvas {
@@ -129,6 +130,16 @@ struct ToolDock: View {
                     errorMessage: errorMessage,
                     isActive: isAIHintActive,
                     action: onToggleAIHint
+                )
+            } else if errorMessage != nil {
+                // Spaces has no AI hint, but a persistence error should still be
+                // visible rather than silently swallowed; the button is inert here.
+                DockDivider()
+
+                DockAIHint(
+                    errorMessage: errorMessage,
+                    isActive: false,
+                    action: {}
                 )
             }
 
