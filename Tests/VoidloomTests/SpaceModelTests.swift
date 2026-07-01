@@ -248,4 +248,29 @@ extension SpaceModelTests {
             at: store.backgroundsDirectoryURL().appendingPathComponent(fileName)
         )
     }
+
+    func testSelectCardsInSpaceWithOneIDMirrorsSelectedCardID() {
+        var state = stateWithCards(3)
+        let id = state.cards[1].id
+        state.selectCardsInSpace(ids: [id])
+        XCTAssertEqual(state.marqueeSelectedCardIDs, [id])
+        XCTAssertEqual(state.selectedCardID, id)
+        XCTAssertNil(state.selectedTextID)
+    }
+
+    func testSelectCardsInSpaceWithManyIDsLeavesSelectedCardIDNil() {
+        var state = stateWithCards(3)
+        let ids = Set(state.cards.prefix(2).map(\.id))
+        state.selectCardsInSpace(ids: ids)
+        XCTAssertEqual(state.marqueeSelectedCardIDs, ids)
+        XCTAssertNil(state.selectedCardID)
+    }
+
+    func testSelectCardsInSpaceWithEmptyClears() {
+        var state = stateWithCards(3)
+        state.selectCardsInSpace(ids: [state.cards[0].id])
+        state.selectCardsInSpace(ids: [])
+        XCTAssertTrue(state.marqueeSelectedCardIDs.isEmpty)
+        XCTAssertNil(state.selectedCardID)
+    }
 }

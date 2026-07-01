@@ -405,6 +405,16 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         selectedTextID = nil
     }
 
+    /// Screen-space marquee/⌘ selection for Spaces, where tile geometry is owned
+    /// by `SpaceGrid` (not card canvas positions). Sets the transient marquee set
+    /// from a pre-computed id set and mirrors `selectedCardID` (lone hit ⇒ that id,
+    /// else nil), matching `selectCards(fromCorner:toCorner:additive:base:)`.
+    public mutating func selectCardsInSpace(ids: Set<UUID>) {
+        marqueeSelectedCardIDs = ids
+        selectedCardID = ids.count == 1 ? ids.first : nil
+        selectedTextID = nil
+    }
+
     /// AABB intersection between a card's rect and the marquee rect (canvas space).
     private static func cardIntersects(
         card: WorkspaceCard,
