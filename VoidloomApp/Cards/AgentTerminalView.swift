@@ -1,6 +1,9 @@
 import SwiftUI
 import VoidloomCore
 
+/// The content of an agent card: a real PTY-backed terminal (SwiftTerm) owned
+/// by `AgentSessionManager`. When the shell exits, a restart affordance
+/// replaces the dead session.
 struct AgentTerminalView: View {
     let cardID: UUID
     let accent: Color
@@ -8,71 +11,43 @@ struct AgentTerminalView: View {
 
     @Environment(\.theme) private var theme
     @EnvironmentObject private var agentSessionManager: AgentSessionManager
-    @State private var input = ""
-    @FocusState private var isInputFocused: Bool
-
-    private var outputLines: [String] {
-        agentSessionManager.session(for: cardID)?.outputLines ?? []
-    }
 
     var body: some View {
-        VStack(spacing: 0) {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 6) {
-                        ForEach(Array(outputLines.enumerated()), id: \.offset) { index, line in
-                            Text(line)
-                                .font(.system(size: 12 * theme.fontScale, weight: .medium, design: .monospaced))
-                                .foregroundStyle(theme.ink(index == 0 ? 0.86 : 0.66))
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .id(index)
-                        }
-                    }
-                    .padding(16)
+        ZStack {
+            if let session = agentSessionManager.session(for: cardID) {
+                TerminalHostView(terminal: session.terminal)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 4)
+
+                if !session.isRunning {
+                    sessionEndedOverlay
                 }
-                .onChange(of: outputLines.count) { _, count in
-                    guard count > 0 else { return }
-                    withAnimation(.easeOut(duration: 0.15)) {
-                        proxy.scrollTo(count - 1, anchor: .bottom)
-                    }
-                }
-            }
-
-            Divider()
-                .overlay(theme.ink(0.12))
-
-            HStack(spacing: 8) {
-                Text("$")
-                    .font(.system(size: 12 * theme.fontScale, weight: .bold, design: .monospaced))
-                    .foregroundStyle(accent)
-
-                TextField("Command", text: $input)
-                    .textFieldStyle(.plain)
+            } else {
+                Text("Starting shell…")
                     .font(.system(size: 12 * theme.fontScale, weight: .medium, design: .monospaced))
-                    .foregroundStyle(theme.ink(0.86))
-                    .focused($isInputFocused)
-                    .onSubmit {
-                        submitInput()
-                    }
+                    .foregroundStyle(theme.ink(0.5))
             }
-            .padding(.horizontal, 16)
-            .padding(.vertical, 10)
-            .allowsHitTesting(isSelected)
         }
         .onAppear {
             agentSessionManager.startSession(cardID: cardID)
         }
-        .onChange(of: isSelected) { _, selected in
-            if !selected {
-                isInputFocused = false
-                input = ""
-            }
-        }
     }
 
-    private func submitInput() {
-        let command = input
-        input = ""
-        agentSessionManager.submitInput(cardID: cardID, input: command)
+    private var sessionEndedOverlay: some View {
+        VStack(spacing: 10) {
+            Text("Session ended")
+                .font(.system(size: 13 * theme.fontScale, weight: .semibold, design: .monospaced))
+                .foregroundStyle(theme.ink(0.75))
+            Button {
+                agentSessionManager.restartSession(cardID: cardID)
+            } label: {
+                Label("New Shell", systemImage: "arrow.clockwise")
+                    .font(.system(size: 12 * theme.fontScale, weight: .semibold))
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(accent)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(.black.opacity(0.55))
     }
 }

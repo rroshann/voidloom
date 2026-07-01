@@ -8,8 +8,11 @@
 
 /* Begin PBXBuildFile section */
 		A10000000000000000000001 /* VoidloomApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000011 /* VoidloomApp.swift */; };
+		A80000000000000000000008 /* AppCommands.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000018 /* AppCommands.swift */; };
+		A80000000000000000000032 /* SwiftTerm in Frameworks */ = {isa = PBXBuildFile; productRef = A80000000000000000000031 /* SwiftTerm */; };
 		A10000000000000000000002 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000012 /* RootView.swift */; };
 		A100000000000000000000F0 /* CanvasKeyMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000F1 /* CanvasKeyMonitor.swift */; };
+		A8000000000000000000000C /* ContentClickMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8000000000000000000001C /* ContentClickMonitor.swift */; };
 		A10000000000000000000003 /* CanvasWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* CanvasWorkspaceView.swift */; };
 		A10000000000000000000004 /* WorkspaceCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000014 /* WorkspaceCardView.swift */; };
 		A10000000000000000000005 /* PreviewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000015 /* PreviewSupport.swift */; };
@@ -24,6 +27,7 @@
 		A20000000000000000000008 /* WorkspaceSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000018 /* WorkspaceSidebar.swift */; };
 		A20000000000000000000009 /* CanvasZoomControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000019 /* CanvasZoomControls.swift */; };
 		A30000000000000000000001 /* AgentSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000011 /* AgentSessionManager.swift */; };
+		A80000000000000000000009 /* TerminalHostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000019 /* TerminalHostView.swift */; };
 		A30000000000000000000002 /* CardResizeHandles.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000012 /* CardResizeHandles.swift */; };
 		A30000000000000000000003 /* NoteCardContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000013 /* NoteCardContentView.swift */; };
 		A30000000000000000000004 /* TodoCardContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000014 /* TodoCardContentView.swift */; };
@@ -34,6 +38,8 @@
 		A40000000000000000000001 /* ConversationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000011 /* ConversationStore.swift */; };
 		A40000000000000000000002 /* AIConversationSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000012 /* AIConversationSidebar.swift */; };
 		A40000000000000000000003 /* StubResponseProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000013 /* StubResponseProvider.swift */; };
+		A8000000000000000000000A /* AnthropicResponseProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8000000000000000000001A /* AnthropicResponseProvider.swift */; };
+		A8000000000000000000000B /* AnthropicAPIKeyStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8000000000000000000001B /* AnthropicAPIKeyStore.swift */; };
 		A50000000000000000000001 /* CommandPaletteModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000011 /* CommandPaletteModel.swift */; };
 		A50000000000000000000002 /* CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000012 /* CommandPaletteView.swift */; };
 		A50000000000000000000003 /* CanvasContextMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000013 /* CanvasContextMenu.swift */; };
@@ -62,13 +68,16 @@
 		A80000000000000000000004 /* SpaceBackgroundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000014 /* SpaceBackgroundView.swift */; };
 		A80000000000000000000005 /* SpaceTileCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000015 /* SpaceTileCard.swift */; };
 		A80000000000000000000006 /* SpaceTopBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000016 /* SpaceTopBar.swift */; };
+		A80000000000000000000007 /* SpaceFreeArrangeLayer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000017 /* SpaceFreeArrangeLayer.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		A10000000000000000000010 /* Voidloom.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Voidloom.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000011 /* VoidloomApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/VoidloomApp.swift; sourceTree = "<group>"; };
+		A80000000000000000000018 /* AppCommands.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/AppCommands.swift; sourceTree = "<group>"; };
 		A10000000000000000000012 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/RootView.swift; sourceTree = "<group>"; };
 		A100000000000000000000F1 /* CanvasKeyMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/CanvasKeyMonitor.swift; sourceTree = "<group>"; };
+		A8000000000000000000001C /* ContentClickMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/ContentClickMonitor.swift; sourceTree = "<group>"; };
 		A10000000000000000000013 /* CanvasWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/CanvasWorkspaceView.swift; sourceTree = "<group>"; };
 		A10000000000000000000014 /* WorkspaceCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/WorkspaceCardView.swift; sourceTree = "<group>"; };
 		A10000000000000000000015 /* PreviewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewSupport/PreviewSupport.swift; sourceTree = "<group>"; };
@@ -84,6 +93,7 @@
 		A20000000000000000000018 /* WorkspaceSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/WorkspaceSidebar.swift; sourceTree = "<group>"; };
 		A20000000000000000000019 /* CanvasZoomControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/CanvasZoomControls.swift; sourceTree = "<group>"; };
 		A30000000000000000000011 /* AgentSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Agent/AgentSessionManager.swift; sourceTree = "<group>"; };
+		A80000000000000000000019 /* TerminalHostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Agent/TerminalHostView.swift; sourceTree = "<group>"; };
 		A30000000000000000000012 /* CardResizeHandles.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/CardResizeHandles.swift; sourceTree = "<group>"; };
 		A30000000000000000000013 /* NoteCardContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/NoteCardContentView.swift; sourceTree = "<group>"; };
 		A30000000000000000000014 /* TodoCardContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/TodoCardContentView.swift; sourceTree = "<group>"; };
@@ -94,6 +104,8 @@
 		A40000000000000000000011 /* ConversationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/ConversationStore.swift; sourceTree = "<group>"; };
 		A40000000000000000000012 /* AIConversationSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/AIConversationSidebar.swift; sourceTree = "<group>"; };
 		A40000000000000000000013 /* StubResponseProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/StubResponseProvider.swift; sourceTree = "<group>"; };
+		A8000000000000000000001A /* AnthropicResponseProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/AnthropicResponseProvider.swift; sourceTree = "<group>"; };
+		A8000000000000000000001B /* AnthropicAPIKeyStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/AnthropicAPIKeyStore.swift; sourceTree = "<group>"; };
 		A50000000000000000000011 /* CommandPaletteModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPalette/CommandPaletteModel.swift; sourceTree = "<group>"; };
 		A50000000000000000000012 /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPalette/CommandPaletteView.swift; sourceTree = "<group>"; };
 		A50000000000000000000013 /* CanvasContextMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/CanvasContextMenu.swift; sourceTree = "<group>"; };
@@ -122,6 +134,7 @@
 		A80000000000000000000014 /* SpaceBackgroundView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spaces/SpaceBackgroundView.swift; sourceTree = "<group>"; };
 		A80000000000000000000015 /* SpaceTileCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spaces/SpaceTileCard.swift; sourceTree = "<group>"; };
 		A80000000000000000000016 /* SpaceTopBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spaces/SpaceTopBar.swift; sourceTree = "<group>"; };
+		A80000000000000000000017 /* SpaceFreeArrangeLayer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spaces/SpaceFreeArrangeLayer.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -130,6 +143,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000007 /* VoidloomCore in Frameworks */,
+				A80000000000000000000032 /* SwiftTerm in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -159,6 +173,7 @@
 			children = (
 				AB0000000000000000000005 /* Design */,
 				A10000000000000000000011 /* VoidloomApp.swift */,
+				A80000000000000000000018 /* AppCommands.swift */,
 				A10000000000000000000012 /* RootView.swift */,
 				AC0000000000000000000011 /* AppMode.swift */,
 				A80000000000000000000012 /* CanvasShellView.swift */,
@@ -166,7 +181,9 @@
 				A80000000000000000000014 /* SpaceBackgroundView.swift */,
 				A80000000000000000000015 /* SpaceTileCard.swift */,
 				A80000000000000000000016 /* SpaceTopBar.swift */,
+				A80000000000000000000017 /* SpaceFreeArrangeLayer.swift */,
 				A100000000000000000000F1 /* CanvasKeyMonitor.swift */,
+				A8000000000000000000001C /* ContentClickMonitor.swift */,
 				A20000000000000000000011 /* AtmosphereBackground.swift */,
 				A20000000000000000000018 /* WorkspaceSidebar.swift */,
 				A40000000000000000000012 /* AIConversationSidebar.swift */,
@@ -193,6 +210,8 @@
 				A30000000000000000000018 /* SettingsView.swift */,
 				A40000000000000000000011 /* ConversationStore.swift */,
 				A40000000000000000000013 /* StubResponseProvider.swift */,
+				A8000000000000000000001A /* AnthropicResponseProvider.swift */,
+				A8000000000000000000001B /* AnthropicAPIKeyStore.swift */,
 				A20000000000000000000019 /* CanvasZoomControls.swift */,
 				A10000000000000000000013 /* CanvasWorkspaceView.swift */,
 				A20000000000000000000015 /* DraggableWorkspaceCard.swift */,
@@ -208,6 +227,7 @@
 				A30000000000000000000017 /* AgentTerminalView.swift */,
 				A20000000000000000000017 /* CardPalette.swift */,
 				A30000000000000000000011 /* AgentSessionManager.swift */,
+				A80000000000000000000019 /* TerminalHostView.swift */,
 				A10000000000000000000015 /* PreviewSupport.swift */,
 				A10000000000000000000016 /* Assets.xcassets */,
 				A10000000000000000000017 /* Voidloom.entitlements */,
@@ -241,6 +261,7 @@
 			name = Voidloom;
 			packageProductDependencies = (
 				A10000000000000000000041 /* VoidloomCore */,
+				A80000000000000000000031 /* SwiftTerm */,
 			);
 			productName = Voidloom;
 			productReference = A10000000000000000000010 /* Voidloom.app */;
@@ -272,6 +293,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				A10000000000000000000040 /* XCLocalSwiftPackageReference "" */,
+				A80000000000000000000030 /* XCRemoteSwiftPackageReference "SwiftTerm" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A10000000000000000000024 /* Products */;
@@ -300,8 +322,10 @@
 			buildActionMask = 2147483647;
 			files = (
 				A10000000000000000000001 /* VoidloomApp.swift in Sources */,
+				A80000000000000000000008 /* AppCommands.swift in Sources */,
 				A10000000000000000000002 /* RootView.swift in Sources */,
 				A100000000000000000000F0 /* CanvasKeyMonitor.swift in Sources */,
+				A8000000000000000000000C /* ContentClickMonitor.swift in Sources */,
 				A20000000000000000000001 /* AtmosphereBackground.swift in Sources */,
 				A20000000000000000000003 /* ToolRail.swift in Sources */,
 				A20000000000000000000004 /* CommandBar.swift in Sources */,
@@ -313,6 +337,7 @@
 				A20000000000000000000008 /* WorkspaceSidebar.swift in Sources */,
 				A20000000000000000000009 /* CanvasZoomControls.swift in Sources */,
 				A30000000000000000000001 /* AgentSessionManager.swift in Sources */,
+				A80000000000000000000009 /* TerminalHostView.swift in Sources */,
 				A30000000000000000000002 /* CardResizeHandles.swift in Sources */,
 				A30000000000000000000003 /* NoteCardContentView.swift in Sources */,
 				A30000000000000000000004 /* TodoCardContentView.swift in Sources */,
@@ -323,6 +348,8 @@
 				A40000000000000000000001 /* ConversationStore.swift in Sources */,
 				A40000000000000000000002 /* AIConversationSidebar.swift in Sources */,
 				A40000000000000000000003 /* StubResponseProvider.swift in Sources */,
+				A8000000000000000000000A /* AnthropicResponseProvider.swift in Sources */,
+				A8000000000000000000000B /* AnthropicAPIKeyStore.swift in Sources */,
 				A50000000000000000000001 /* CommandPaletteModel.swift in Sources */,
 				A50000000000000000000002 /* CommandPaletteView.swift in Sources */,
 				A50000000000000000000003 /* CanvasContextMenu.swift in Sources */,
@@ -349,6 +376,7 @@
 				A80000000000000000000004 /* SpaceBackgroundView.swift in Sources */,
 				A80000000000000000000005 /* SpaceTileCard.swift in Sources */,
 				A80000000000000000000006 /* SpaceTopBar.swift in Sources */,
+				A80000000000000000000007 /* SpaceFreeArrangeLayer.swift in Sources */,
 				A10000000000000000000005 /* PreviewSupport.swift in Sources */,
 				AB0000000000000000000002 /* Color+Hex.swift in Sources */,
 				AB0000000000000000000004 /* Theme.swift in Sources */,
@@ -562,11 +590,27 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		A80000000000000000000030 /* XCRemoteSwiftPackageReference "SwiftTerm" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/migueldeicaza/SwiftTerm";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 1.2.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		A10000000000000000000041 /* VoidloomCore */ = {
 			isa = XCSwiftPackageProductDependency;
 			package = A10000000000000000000040 /* XCLocalSwiftPackageReference "" */;
 			productName = VoidloomCore;
+		};
+		A80000000000000000000031 /* SwiftTerm */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A80000000000000000000030 /* XCRemoteSwiftPackageReference "SwiftTerm" */;
+			productName = SwiftTerm;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
