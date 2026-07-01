@@ -172,6 +172,22 @@ final class CommandExecutorTests: XCTestCase {
         XCTAssertTrue(store.state.cards.isEmpty)
     }
 
+    func testSpawnDedupesCallerProvidedNames() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let result = makeExecutor(store, terminals).execute(.spawnAgents(count: 2, kind: .claudeCode, names: ["Ember", "ember"]))
+        let titles = store.state.cards.filter { $0.kind == .agent }.map(\.title)
+        XCTAssertEqual(titles, ["ember", "slate"])
+        XCTAssertEqual(result, .success(narration: "Spawned 2 claude agents: ember, slate"))
+    }
+
+    func testSpawnRefusesNameCollidingWithExistingAgent() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        store.addTitledCard(kind: .agent, title: "ember")
+        let result = makeExecutor(store, terminals).execute(.spawnAgents(count: 1, kind: .claudeCode, names: ["Ember"]))
+        XCTAssertEqual(result, .needsClarification(question: "An agent named ember already exists — pick a different name."))
+        XCTAssertEqual(store.state.cards.filter { $0.kind == .agent }.count, 1)
+    }
+
     func testSendPromptRoutesToResolvedAgentCard() {
         let store = makeStore(); let terminals = MockAgentTerminals()
         let id = store.addTitledCard(kind: .agent, title: "jerry")

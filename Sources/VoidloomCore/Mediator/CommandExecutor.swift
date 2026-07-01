@@ -72,9 +72,15 @@ public final class CommandExecutor {
             return .refused(reason: "I can spawn between \(Self.spawnLimit.lowerBound) and \(Self.spawnLimit.upperBound) agents at once.")
         }
         let existing = Set(agentCards().map(\.name))
-        let assigned = names?.prefix(count).map { $0.lowercased() }
-            ?? namePool.nextNames(count: count, existing: existing)
-        var finalNames: [String] = Array(assigned)
+        var seen = Set<String>()
+        let provided = (names ?? [])
+            .map { $0.lowercased() }
+            .filter { seen.insert($0).inserted }
+            .prefix(count)
+        if let taken = provided.first(where: { existing.contains($0) }) {
+            return .needsClarification(question: "An agent named \(taken) already exists — pick a different name.")
+        }
+        var finalNames = Array(provided)
         if finalNames.count < count {
             finalNames += namePool.nextNames(count: count - finalNames.count,
                                              existing: existing.union(finalNames))
