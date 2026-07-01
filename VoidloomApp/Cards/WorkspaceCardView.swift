@@ -2,10 +2,11 @@ import SwiftUI
 import VoidloomCore
 
 struct WorkspaceCardView: View {
-    /// Approximate height of the card header (icon + title/eyebrow + padding),
-    /// used by the Spaces click monitor to split header clicks (→ select) from
-    /// content clicks (→ activate). Keep in sync with `header`'s layout.
-    static let approximateHeaderHeight: CGFloat = 58
+    /// Approximate height of the card header (20pt icon/button row + 7pt
+    /// vertical padding ×2), used by the Spaces click monitor to split header
+    /// clicks (→ select) from content clicks (→ activate). Keep in sync with
+    /// `header`'s layout.
+    static let approximateHeaderHeight: CGFloat = 34
 
     let card: WorkspaceCard
     @ObservedObject var store: WorkspaceStore
@@ -62,25 +63,29 @@ struct WorkspaceCardView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             ZStack {
                 Circle()
                     .fill(palette.accent.opacity(0.18))
 
                 Image(systemName: palette.symbol)
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(palette.accent)
             }
-            .frame(width: 30, height: 30)
+            .frame(width: 20, height: 20)
 
-            VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline, spacing: 7) {
                 titleView
 
-                Text(palette.eyebrow)
-                    .font(.system(size: 10, weight: .bold, design: theme.monospacedMetadata ? .monospaced : .default))
-                    .textCase(.uppercase)
-                    .tracking(1.1)
-                    .foregroundStyle(palette.accent.opacity(0.78))
+                if !isEditingTitle {
+                    Text(palette.eyebrow)
+                        .font(.system(size: 8.5, weight: .bold, design: theme.monospacedMetadata ? .monospaced : .default))
+                        .textCase(.uppercase)
+                        .tracking(0.9)
+                        .foregroundStyle(palette.accent.opacity(0.7))
+                        .lineLimit(1)
+                        .layoutPriority(-1)
+                }
             }
 
             Spacer(minLength: 0)
@@ -90,8 +95,8 @@ struct WorkspaceCardView: View {
                     .transition(.opacity)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 13)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 7)
         .contentShape(Rectangle())
         .onHover { isHeaderHovered = $0 }
     }
@@ -101,7 +106,7 @@ struct WorkspaceCardView: View {
         if isEditingTitle {
             TextField("Title", text: $editingTitle)
                 .textFieldStyle(.plain)
-                .font(.system(size: 14 * theme.fontScale, weight: .black, design: .rounded))
+                .font(.system(size: 13 * theme.fontScale, weight: .heavy, design: .rounded))
                 .foregroundStyle(theme.ink(0.92))
                 .focused($isTitleFieldFocused)
                 .onSubmit {
@@ -121,7 +126,7 @@ struct WorkspaceCardView: View {
                 }
         } else {
             Text(card.title)
-                .font(.system(size: 14 * theme.fontScale, weight: .black, design: .rounded))
+                .font(.system(size: 13 * theme.fontScale, weight: .heavy, design: .rounded))
                 .foregroundStyle(theme.ink(0.92))
                 .lineLimit(1)
                 .contentShape(Rectangle())
@@ -161,11 +166,11 @@ struct WorkspaceCardView: View {
     private func headerIconButton(systemName: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 11, weight: .bold))
-                .frame(width: 24, height: 24)
+                .font(.system(size: 10, weight: .bold))
+                .frame(width: 20, height: 20)
                 .foregroundStyle(theme.ink(0.84))
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(theme.surface(0.08))
                 )
         }
