@@ -55,3 +55,28 @@ final class AgentNamePoolTests: XCTestCase {
         XCTAssertEqual(pool.nextNames(count: 1, existing: []), ["ember"])
     }
 }
+
+@MainActor
+final class AddTitledCardTests: XCTestCase {
+    func testAddTitledCardSetsTitleContentAndReturnsID() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let store = WorkspaceStore(
+            state: WorkspaceState(viewport: CanvasViewport(origin: .zero, scale: 1), cards: []),
+            storageURL: url,
+            persistenceDelay: 60
+        )
+
+        let id = store.addTitledCard(kind: .agent, title: "viper")
+        let noteID = store.addTitledCard(kind: .note, content: "standup notes")
+
+        let agent = store.state.cards.first { $0.id == id }
+        XCTAssertEqual(agent?.title, "viper")
+        XCTAssertEqual(agent?.kind, .agent)
+        let note = store.state.cards.first { $0.id == noteID }
+        XCTAssertEqual(note?.content, "standup notes")
+        XCTAssertNotEqual(agent?.position, note?.position) // cascade, no stacking
+    }
+}
