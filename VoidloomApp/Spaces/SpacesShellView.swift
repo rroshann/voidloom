@@ -28,8 +28,18 @@ struct SpacesShellView: View {
     /// the window is resized during a drag.
     @State private var shellFrame: CGRect = .zero
 
-    /// Index of the tile currently being dragged, or nil when idle.
-    @State private var draggingIndex: Int?
+    /// Id of the tile currently being dragged, or nil when idle.
+    @State private var draggingCardID: UUID?
+    /// Cumulative drag translation for the dragged tile (keeps it under the cursor).
+    @State private var dragTranslation: CGSize = .zero
+    /// Page-local slot the dragged tile currently hovers, driving the live preview.
+    @State private var dragHoverLocal: Int?
+    /// Direction of the last page change, so the slide transition moves correctly.
+    @State private var pageForward = true
+    /// Card kept invisible while a creation-triggered page slide is in flight, so
+    /// the new card doesn't ride the slide as its birth animation. Cleared with a
+    /// spring once the slide lands, popping the card in like a same-page creation.
+    @State private var pendingRevealCardID: UUID?
     /// Marquee selection-box corners in the shell's local space, or nil when idle.
     @State private var marqueeStart: CGPoint?
     @State private var marqueeCurrent: CGPoint?
@@ -51,6 +61,15 @@ struct SpacesShellView: View {
         return SpaceTiling(mode: .fixedColumns, columns: columns, maxRows: rows == 0 ? nil : rows)
     }
 
+    /// Tiles per page for a paginating tiling, else `Int.max` (single page). Used to
+    /// send the view to the page a freshly-added (always last) card landed on.
+    private static func pageCapacity(_ tiling: SpaceTiling) -> Int {
+        if tiling.mode == .fixedColumns, let r = tiling.maxRows, r > 0 {
+            return max(tiling.columns, 1) * r
+        }
+        return Int.max
+    }
+
     var body: some View {
         GeometryReader { geo in
             let tiling = store.state.space?.tiling
@@ -66,6 +85,21 @@ struct SpacesShellView: View {
                 page: currentPage
             )
 
+            let pageIDs = Array(orderedIDs[paged.cardRange])
+            // Live drag preview: while a tile is dragged, show the order as it will
+            // be AFTER drop (dragged card slotted at the hovered position, the rest
+            // shifted), so the final arrangement is visible before releasing. The
+            // dragged tile itself floats under the cursor; the data commits on drop.
+            let draggedFromLocal = draggingCardID.flatMap { pageIDs.firstIndex(of: $0) }
+            let displayIDs: [UUID] = {
+                guard let dragID = draggingCardID, let from = draggedFromLocal,
+                      let hover = dragHoverLocal else { return pageIDs }
+                var arr = pageIDs
+                arr.remove(at: from)
+                arr.insert(dragID, at: min(max(hover, 0), arr.count))
+                return arr
+            }()
+
             ZStack {
                 SpaceBackgroundView(
                     background: store.state.space?.background ?? .atmosphere,
@@ -75,6 +109,7 @@ struct SpacesShellView: View {
 
                 Color.clear
                     .contentShape(Rectangle())
+                    .onTapGesture { store.clearSelection() }
                     .gesture(marqueeGesture(paged: paged, orderedIDs: orderedIDs))
 
                 if orderedIDs.isEmpty {
@@ -84,54 +119,89 @@ struct SpacesShellView: View {
                 }
 
                 // Single ForEach + zIndex (Canvas gotcha #1 discipline: never split
-                // the selected tile into its own branch). Dragged tile floats highest;
-                // selected tile floats above idle tiles.
-                ForEach(Array(zip(paged.cardRange, orderedIDs[paged.cardRange])), id: \.1) { globalIndex, id in
-                    if let card = cardsByID[id] {
-                        let localIndex = globalIndex - paged.cardRange.lowerBound
-                        let origin = paged.tileOrigins[localIndex]
-                        SpaceTileCard(
-                            card: card,
-                            store: store,
-                            sessionManager: sessionManager,
-                            onDragChanged: { _ in
-                                if draggingIndex != globalIndex { draggingIndex = globalIndex }
-                            },
-                            onDropped: { globalLocation -> Bool in
-                                let geoOrigin = shellFrame.origin
-                                if let localTarget = slotIndex(
-                                    for: globalLocation,
-                                    tileOrigins: paged.tileOrigins,
-                                    tileSize: paged.tileSize,
-                                    geoOrigin: geoOrigin
-                                ) {
-                                    let globalTarget = paged.cardRange.lowerBound + localTarget
-                                    if globalTarget != globalIndex {
-                                        store.moveSpaceCard(fromIndex: globalIndex, toIndex: globalTarget)
-                                        draggingIndex = nil
-                                        return true
+                // the dragged/selected tile into its own branch). Idle tiles sit at
+                // their preview slot; the dragged tile floats under the cursor. The
+                // whole page is keyed by `paged.page` so page changes slide.
+                ZStack {
+                    ForEach(Array(displayIDs.enumerated()), id: \.element) { slot, id in
+                        if let card = cardsByID[id], slot < paged.tileOrigins.count {
+                            let isDragged = id == draggingCardID
+                            let slotOrigin = paged.tileOrigins[slot]
+                            let center: CGPoint = {
+                                // The dragged tile tracks the cursor from its ORIGINAL
+                                // slot, so it never jumps when the preview reorders.
+                                if isDragged, let from = draggedFromLocal, from < paged.tileOrigins.count {
+                                    let o = paged.tileOrigins[from]
+                                    return CGPoint(x: o.x + paged.tileSize.x / 2 + dragTranslation.width,
+                                                   y: o.y + paged.tileSize.y / 2 + dragTranslation.height)
+                                }
+                                return CGPoint(x: slotOrigin.x + paged.tileSize.x / 2,
+                                               y: slotOrigin.y + paged.tileSize.y / 2)
+                            }()
+                            SpaceTileCard(
+                                card: card,
+                                store: store,
+                                sessionManager: sessionManager,
+                                onDragChanged: { translation, location in
+                                    if draggingCardID != id {
+                                        draggingCardID = id
+                                        dragTranslation = .zero
+                                    }
+                                    dragTranslation = translation
+                                    if let hover = slotIndex(
+                                        for: location,
+                                        tileOrigins: paged.tileOrigins,
+                                        tileSize: paged.tileSize,
+                                        geoOrigin: shellFrame.origin
+                                    ) {
+                                        dragHoverLocal = hover
+                                    }
+                                },
+                                onDragEnded: { _ in
+                                    if let dragID = draggingCardID,
+                                       let from = pageIDs.firstIndex(of: dragID),
+                                       let hover = dragHoverLocal {
+                                        let target = min(max(hover, 0), pageIDs.count - 1)
+                                        if target != from {
+                                            store.moveSpaceCard(
+                                                fromIndex: paged.cardRange.lowerBound + from,
+                                                toIndex: paged.cardRange.lowerBound + target
+                                            )
+                                        }
+                                    }
+                                    withAnimation(reduceMotion ? nil : .spring(response: 0.3, dampingFraction: 0.8)) {
+                                        draggingCardID = nil
+                                        dragTranslation = .zero
+                                        dragHoverLocal = nil
                                     }
                                 }
-                                draggingIndex = nil
-                                return false
-                            }
-                        )
-                        .frame(width: paged.tileSize.x, height: paged.tileSize.y)
-                        .position(
-                            x: origin.x + paged.tileSize.x / 2,
-                            y: origin.y + paged.tileSize.y / 2
-                        )
-                        .zIndex(draggingIndex == globalIndex ? 2 : (store.state.selectedCardID == id ? 1 : 0))
+                            )
+                            .frame(width: paged.tileSize.x, height: paged.tileSize.y)
+                            .scaleEffect(id == pendingRevealCardID ? 0.86 : 1)
+                            .opacity(id == pendingRevealCardID ? 0 : 1)
+                            .transition(reduceMotion ? .opacity : .scale(scale: 0.86).combined(with: .opacity))
+                            .position(center)
+                            .zIndex(isDragged ? 2 : (store.state.selectedCardID == id ? 1 : 0))
+                            // The dragged tile must follow the cursor instantly, never
+                            // ride the reorder spring.
+                            .transaction { if isDragged { $0.animation = nil } }
+                        }
                     }
+                    .animation(
+                        reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85),
+                        value: displayIDs
+                    )
+                    .animation(
+                        reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85),
+                        value: paged.tileSize
+                    )
                 }
-                .animation(
-                    reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85),
-                    value: orderedIDs
-                )
-                .animation(
-                    reduceMotion ? nil : .spring(response: 0.4, dampingFraction: 0.85),
-                    value: paged.tileSize
-                )
+                .frame(width: geo.size.width, height: geo.size.height)
+                .id(paged.page)
+                .transition(reduceMotion ? .opacity : .asymmetric(
+                    insertion: .move(edge: pageForward ? .trailing : .leading),
+                    removal: .move(edge: pageForward ? .leading : .trailing)
+                ))
 
                 if let s = marqueeStart, let c = marqueeCurrent {
                     let rect = CGRect(x: min(s.x, c.x), y: min(s.y, c.y),
@@ -171,7 +241,31 @@ struct SpacesShellView: View {
                         workspaceName: "",
                         isWorkspaceSidebarVisible: false,
                         onToggleWorkspaceSidebar: {},
-                        onAddCard: { kind in store.addCard(kind: kind) },
+                        onAddCard: { kind in
+                            store.addCard(kind: kind)
+                            // A new card is appended (always the last card). Same page:
+                            // the tile transition pops it in. Another page: keep it
+                            // hidden while sliding there, then pop it in on arrival so
+                            // creation reads the same on every page.
+                            let orderedAfterAdd = store.state.orderedCardIDsForSpace
+                            let cap = Self.pageCapacity(tiling)
+                            let target = cap > 0 ? (orderedAfterAdd.count - 1) / cap : 0
+                            guard target != currentPage else { return }
+                            pageForward = target >= currentPage
+                            guard !reduceMotion else {
+                                currentPage = target
+                                return
+                            }
+                            pendingRevealCardID = orderedAfterAdd.last
+                            withAnimation(.spring(response: 0.45, dampingFraction: 0.9),
+                                          completionCriteria: .logicallyComplete) {
+                                currentPage = target
+                            } completion: {
+                                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                                    pendingRevealCardID = nil
+                                }
+                            }
+                        },
                         onAddText: {},
                         variant: .spaces
                     )
@@ -227,11 +321,11 @@ struct SpacesShellView: View {
             return true
         case 123:   // left arrow
             guard !typing, pageCount > 1 else { return false }
-            currentPage = max(0, currentPage - 1)
+            goToPage(currentPage - 1)
             return true
         case 124:   // right arrow
             guard !typing, pageCount > 1 else { return false }
-            currentPage = min(pageCount - 1, currentPage + 1)
+            goToPage(currentPage + 1)
             return true
         default:
             return false
@@ -249,8 +343,21 @@ struct SpacesShellView: View {
     private func reTile() {
         // Resets Spaces order to the canonical cards array order and persists.
         store.resetSpaceCardOrder()
-        draggingIndex = nil
+        draggingCardID = nil
+        dragTranslation = .zero
+        dragHoverLocal = nil
         currentPage = 0
+    }
+
+    /// Animated, direction-aware page change (drives the horizontal slide between
+    /// pages). Clamps to the live page count; no-op if already there.
+    private func goToPage(_ target: Int) {
+        let clamped = min(max(target, 0), max(0, pageCount - 1))
+        guard clamped != currentPage else { return }
+        pageForward = clamped > currentPage
+        withAnimation(reduceMotion ? nil : .easeInOut(duration: 0.32)) {
+            currentPage = clamped
+        }
     }
 
     /// Returns the page-local tile index whose frame contains `globalPoint`
@@ -322,13 +429,13 @@ struct SpacesShellView: View {
 
     @ViewBuilder private func pager(_ paged: SpaceGrid.PagedLayout) -> some View {
         HStack(spacing: 10) {
-            Button { currentPage = max(0, currentPage - 1) } label: {
+            Button { goToPage(paged.page - 1) } label: {
                 Image(systemName: "chevron.left").font(.system(size: 13, weight: .semibold))
             }
             .disabled(paged.page == 0)
             Text("\(paged.page + 1) / \(paged.pageCount)")
                 .font(.system(size: 12, weight: .semibold, design: .rounded)).monospacedDigit()
-            Button { currentPage = min(paged.pageCount - 1, currentPage + 1) } label: {
+            Button { goToPage(paged.page + 1) } label: {
                 Image(systemName: "chevron.right").font(.system(size: 13, weight: .semibold))
             }
             .disabled(paged.page >= paged.pageCount - 1)
