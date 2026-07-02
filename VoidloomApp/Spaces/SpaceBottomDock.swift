@@ -136,7 +136,7 @@ struct SpaceBottomDock: View {
                 Text(activeName.uppercased())
                     .font(.system(size: 12, weight: .semibold, design: .monospaced))
                     .tracking(1.5)
-                    .foregroundStyle(dockGlyph)
+                    .foregroundStyle(theme.accent)
                 Image(systemName: "chevron.up")
                     .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(theme.accent)
@@ -150,7 +150,7 @@ struct SpaceBottomDock: View {
     private func barButton(_ icon: String, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon).font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(dockGlyph)
+                .foregroundStyle(theme.accent)
                 .frame(width: 42, height: 42)
                 .modifier(DockChip(shape: RoundedRectangle(cornerRadius: 15, style: .continuous)))
         }
@@ -213,10 +213,6 @@ struct SpaceBottomDock: View {
         }
     }
 }
-
-/// Near-white glyph/text color, kept neutral so it stays legible against any
-/// accent the user picks in Settings › Appearance.
-private let dockGlyph = Color(red: 0.98, green: 0.99, blue: 1.0)
 
 /// Futuristic dock chip for a single control: a dark smoked-glass fill (frosted
 /// material under a dark tint, so bright glyphs stay high-contrast over any
