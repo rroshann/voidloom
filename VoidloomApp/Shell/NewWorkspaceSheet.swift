@@ -2,12 +2,18 @@ import AppKit
 import SwiftUI
 import VoidloomCore
 
-/// Shared trigger for the New Project dialog. Hosted once at RootView and toggled
-/// from any creation entry point (dock, sidebar, command palette).
+/// App-wide session state above the workspace: whether a workspace is open (vs.
+/// the startup/launcher screen) and the New Project sheet trigger. Injected once
+/// by RootThemeHost so the startup screen, the shells, and the sheet all share it.
 @MainActor
-final class NewWorkspaceCoordinator: ObservableObject {
-    @Published var isPresented = false
-    func present() { isPresented = true }
+final class AppSession: ObservableObject {
+    /// False shows the startup/launcher screen; true shows the open workspace.
+    @Published var isWorkspaceOpen = false
+    /// Drives the New Project dialog.
+    @Published var showNewWorkspace = false
+
+    func present() { showNewWorkspace = true }
+    func openWorkspace() { isWorkspaceOpen = true }
 }
 
 /// Dialog for creating a workspace: a name, a project folder (required, chosen
@@ -15,6 +21,7 @@ final class NewWorkspaceCoordinator: ObservableObject {
 /// folder is fixed at creation and drives the Files/Git cards.
 struct NewWorkspaceSheet: View {
     @ObservedObject var store: WorkspaceStore
+    @EnvironmentObject private var session: AppSession
     @Environment(\.dismiss) private var dismiss
     @Environment(\.theme) private var theme
 
@@ -100,6 +107,7 @@ struct NewWorkspaceSheet: View {
         if store.library.selectedWorkspaceID != before {
             store.setSpaceFolder(path)
         }
+        session.openWorkspace()   // enter the workspace (from startup or in-app)
         dismiss()
     }
 }

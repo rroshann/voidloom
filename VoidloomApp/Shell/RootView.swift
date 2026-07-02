@@ -11,11 +11,11 @@ struct RootView: View {
     @ObservedObject var conversationStore: ConversationStore
     @ObservedObject var interaction: CanvasInteractionModel
 
+    @EnvironmentObject private var session: AppSession
+
     @AppStorage("app.mode") private var appMode: AppMode = .canvas
     @AppStorage("isWorkspaceSidebarVisible") private var isWorkspaceSidebarVisible = false
     @AppStorage("isMinimapVisible") private var isMinimapVisible = false
-
-    @StateObject private var newWorkspace = NewWorkspaceCoordinator()
 
     var body: some View {
         ZStack {
@@ -33,10 +33,6 @@ struct RootView: View {
                     .transition(.opacity)
             }
         }
-        .environmentObject(newWorkspace)
-        .sheet(isPresented: $newWorkspace.isPresented) {
-            NewWorkspaceSheet(store: store)
-        }
         .animation(.easeInOut(duration: 0.28), value: appMode)
         .onReceive(NotificationCenter.default.publisher(for: MenuAction.notification)) { note in
             guard let action = note.object as? MenuAction else { return }
@@ -49,6 +45,8 @@ struct RootView: View {
                 isMinimapVisible.toggle()
             case .addCard(let kind):
                 store.addCard(kind: kind)
+            case .goToLauncher:
+                session.isWorkspaceOpen = false
             case .zoomIn, .zoomOut, .resetViewport:
                 break   // handled by CanvasShellView, which owns the zoom anchor
             }

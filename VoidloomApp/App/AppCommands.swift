@@ -13,6 +13,7 @@ enum MenuAction {
     case zoomIn
     case zoomOut
     case resetViewport
+    case goToLauncher
 
     static let notification = Notification.Name("voidloom.menuAction")
 
@@ -37,6 +38,8 @@ struct VoidloomCommands: Commands {
 
         CommandGroup(after: .sidebar) {
             Divider()
+            Button("Go to Launcher") { MenuAction.goToLauncher.post() }
+                .keyboardShortcut("l", modifiers: [.command, .shift, .option])
             Button("Toggle Spaces / Canvas") { MenuAction.toggleAppMode.post() }
                 .keyboardShortcut("s", modifiers: [.command, .shift])
             Button("Toggle Workspace Sidebar") { MenuAction.toggleWorkspaceSidebar.post() }

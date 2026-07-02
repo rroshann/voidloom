@@ -21,7 +21,7 @@ struct SpaceBottomDock: View {
     @State private var showImportError = false
     @State private var showGitUnavailable = false
 
-    @EnvironmentObject private var newWorkspace: NewWorkspaceCoordinator
+    @EnvironmentObject private var newWorkspace: AppSession
 
     @AppStorage("spaces.defaultColumns") private var defaultColumns = 0
     @AppStorage("spaces.defaultRows") private var defaultRows = 0
@@ -157,6 +157,9 @@ struct SpaceBottomDock: View {
             Divider()
             Button("New Space") {
                 newWorkspace.present()
+            }
+            Button("Back to Launcher") {
+                newWorkspace.isWorkspaceOpen = false
             }
         } label: {
             HStack(spacing: 6) {

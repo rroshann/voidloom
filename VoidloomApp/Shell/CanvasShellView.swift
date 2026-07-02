@@ -11,7 +11,7 @@ struct CanvasShellView: View {
     @ObservedObject var conversationStore: ConversationStore
     @ObservedObject var interaction: CanvasInteractionModel
 
-    @EnvironmentObject private var newWorkspace: NewWorkspaceCoordinator
+    @EnvironmentObject private var newWorkspace: AppSession
 
     @AppStorage("app.mode") private var appMode: AppMode = .canvas
     @AppStorage("isWorkspaceSidebarVisible") private var isWorkspaceSidebarVisible = false
@@ -617,6 +617,6 @@ private struct DockHeightPreferenceKey: PreferenceKey {
         conversationStore: ConversationStore(),
         interaction: CanvasInteractionModel()
     )
-    .environmentObject(NewWorkspaceCoordinator())
+    .environmentObject(AppSession())
     .frame(width: 1180, height: 760)
 }

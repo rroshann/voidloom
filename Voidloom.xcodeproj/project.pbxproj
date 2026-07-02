@@ -39,6 +39,7 @@
 		A30000000000000000000008 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000018 /* SettingsView.swift */; };
 		A300000000000000000000C1 /* WorkspaceFolderPrompt.swift in Sources */ = {isa = PBXBuildFile; fileRef = A300000000000000000000D1 /* WorkspaceFolderPrompt.swift */; };
 		A300000000000000000000C2 /* NewWorkspaceSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A300000000000000000000D2 /* NewWorkspaceSheet.swift */; };
+		A300000000000000000000C3 /* StartupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A300000000000000000000D3 /* StartupView.swift */; };
 		A40000000000000000000001 /* ConversationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000011 /* ConversationStore.swift */; };
 		A40000000000000000000002 /* AIConversationSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000012 /* AIConversationSidebar.swift */; };
 		A40000000000000000000003 /* StubResponseProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000013 /* StubResponseProvider.swift */; };
@@ -109,6 +110,7 @@
 		A30000000000000000000018 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/SettingsView.swift; sourceTree = "<group>"; };
 		A300000000000000000000D1 /* WorkspaceFolderPrompt.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/WorkspaceFolderPrompt.swift; sourceTree = "<group>"; };
 		A300000000000000000000D2 /* NewWorkspaceSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/NewWorkspaceSheet.swift; sourceTree = "<group>"; };
+		A300000000000000000000D3 /* StartupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/StartupView.swift; sourceTree = "<group>"; };
 		A40000000000000000000011 /* ConversationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/ConversationStore.swift; sourceTree = "<group>"; };
 		A40000000000000000000012 /* AIConversationSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/AIConversationSidebar.swift; sourceTree = "<group>"; };
 		A40000000000000000000013 /* StubResponseProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/StubResponseProvider.swift; sourceTree = "<group>"; };
@@ -218,6 +220,7 @@
 				A30000000000000000000018 /* SettingsView.swift */,
 				A300000000000000000000D1 /* WorkspaceFolderPrompt.swift */,
 				A300000000000000000000D2 /* NewWorkspaceSheet.swift */,
+				A300000000000000000000D3 /* StartupView.swift */,
 				A40000000000000000000011 /* ConversationStore.swift */,
 				A40000000000000000000013 /* StubResponseProvider.swift */,
 				A8000000000000000000001A /* AnthropicResponseProvider.swift */,
@@ -361,6 +364,7 @@
 				A30000000000000000000008 /* SettingsView.swift in Sources */,
 				A300000000000000000000C1 /* WorkspaceFolderPrompt.swift in Sources */,
 				A300000000000000000000C2 /* NewWorkspaceSheet.swift in Sources */,
+				A300000000000000000000C3 /* StartupView.swift in Sources */,
 				A40000000000000000000001 /* ConversationStore.swift in Sources */,
 				A40000000000000000000002 /* AIConversationSidebar.swift in Sources */,
 				A40000000000000000000003 /* StubResponseProvider.swift in Sources */,
