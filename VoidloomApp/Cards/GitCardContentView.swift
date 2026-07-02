@@ -248,8 +248,16 @@ enum Git {
         await withCheckedContinuation { continuation in
             DispatchQueue.global(qos: .userInitiated).async {
                 let process = Process()
-                process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-                process.arguments = ["git"] + args
+                // Pin to the standard git path — a GUI app's PATH is minimal, so
+                // `/usr/bin/env git` can fail to resolve. Fall back to env lookup
+                // if the CLT shim isn't there.
+                if FileManager.default.isExecutableFile(atPath: "/usr/bin/git") {
+                    process.executableURL = URL(fileURLWithPath: "/usr/bin/git")
+                    process.arguments = args
+                } else {
+                    process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
+                    process.arguments = ["git"] + args
+                }
                 process.currentDirectoryURL = directory
                 let outPipe = Pipe(), errPipe = Pipe()
                 process.standardOutput = outPipe
