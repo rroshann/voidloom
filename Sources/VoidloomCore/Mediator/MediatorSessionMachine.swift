@@ -85,7 +85,11 @@ public struct MediatorSessionMachine: Equatable, Sendable {
             state = .executing(command)
             return [.execute(command, confirmed: false)]
 
-        case (.parsing, .parseFailed), (.parsing, .timeout):
+        case (.parsing, .parseFailed(let message)):
+            state = .idle
+            return [.narrate(message.isEmpty ? Self.rephrasePrompt : message)]
+
+        case (.parsing, .timeout):
             state = .idle
             return [.narrate(Self.rephrasePrompt)]
 

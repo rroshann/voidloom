@@ -57,11 +57,19 @@ final class MediatorSessionTests: XCTestCase {
         XCTAssertEqual(timedOut.state, .idle)
     }
 
-    func testParseFailureNarratesRephrasePrompt() {
-        var machine = MediatorSessionMachine.parsing("mumble mumble")
-        XCTAssertEqual(machine.handle(.parseFailed("no valid command")),
+    func testParseFailureNarratesPayloadVerbatimAndFallsBackWhenEmpty() {
+        // A non-empty payload is surfaced verbatim (carry-over #3): the coordinator
+        // maps availability errors like "model not downloaded" to real sentences.
+        var withMessage = MediatorSessionMachine.parsing("mumble mumble")
+        XCTAssertEqual(withMessage.handle(.parseFailed("no valid command")),
+                       [.narrate("no valid command")])
+        XCTAssertEqual(withMessage.state, .idle)
+
+        // An empty payload (e.g. `.unparseable`) falls back to the generic prompt.
+        var empty = MediatorSessionMachine.parsing("mumble mumble")
+        XCTAssertEqual(empty.handle(.parseFailed("")),
                        [.narrate("Didn't catch that — try rephrasing.")])
-        XCTAssertEqual(machine.state, .idle)
+        XCTAssertEqual(empty.state, .idle)
     }
 
     func testParsingTimesOutAndCanBeCancelled() {

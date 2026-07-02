@@ -2,6 +2,12 @@ import Foundation
 
 public enum BrainError: Error, Equatable {
     case unparseable(String)
+    /// The tier-2 model is not on disk. Payload is a user-facing sentence.
+    case modelNotReady(String)
+    /// The model is mid-download. Payload is a user-facing sentence (may include progress).
+    case modelDownloading(String)
+    /// The inference backend failed (load/decode error). Payload is user-facing.
+    case backendFailure(String)
 }
 
 /// Deterministic command parser — the instant, zero-model fast path the spec

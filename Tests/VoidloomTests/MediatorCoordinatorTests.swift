@@ -89,3 +89,75 @@ final class MediatorCoordinatorTests: XCTestCase {
         XCTAssertTrue(terminals.terminated.isEmpty) // never executed
     }
 }
+
+private final class ControllableBrain: MediatorBrain, @unchecked Sendable {
+    enum Outcome { case success(MediatorCommand), failure(BrainError), hang }
+    var outcome: Outcome
+    let started = AsyncStream<Void>.makeStream()
+    private var release: CheckedContinuation<Void, Never>?
+
+    init(_ outcome: Outcome) { self.outcome = outcome }
+
+    func releaseNow() { release?.resume(); release = nil }
+
+    func command(for utterance: String) async throws -> MediatorCommand {
+        started.continuation.yield(())
+        if case .hang = outcome {
+            await withCheckedContinuation { self.release = $0 }
+            try Task.checkCancellation()
+        }
+        switch outcome {
+        case .success(let c): return c
+        case .failure(let e): throw e
+        case .hang: throw CancellationError()
+        }
+    }
+}
+
+extension MediatorCoordinatorTests {
+    func testParseFailedSurfacesBrainSpecificMessage() async {
+        let brain = ControllableBrain(.failure(.modelNotReady("Local model not downloaded — open Settings › Local AI.")))
+        let c = MediatorSessionCoordinator(
+            brain: brain,
+            executor: CommandExecutor(store: makeStore(), terminals: MockAgentTerminals(), namePool: AgentNamePool()))
+        c.submitTyped("start 2 claude agents")
+        for _ in 0..<4000 where c.narration.isEmpty { await Task.yield() }
+        XCTAssertEqual(c.narration, "Local model not downloaded — open Settings › Local AI.")
+        XCTAssertEqual(c.state, .idle)
+    }
+
+    func testCancelDuringParsingCancelsBrainAndTimer() async {
+        let brain = ControllableBrain(.hang)
+        let c = MediatorSessionCoordinator(
+            brain: brain,
+            executor: CommandExecutor(store: makeStore(), terminals: MockAgentTerminals(), namePool: AgentNamePool()))
+        c.submitTyped("start 2 claude agents")
+        var it = brain.started.stream.makeAsyncIterator()
+        _ = await it.next()                       // brain call is in flight
+        guard case .parsing = c.state else { return XCTFail("expected parsing") }
+        c.cancel()
+        brain.releaseNow()                        // unblock the hung task so it can observe cancellation
+        for _ in 0..<2000 where c.isBusy { await Task.yield() }
+        XCTAssertEqual(c.state, .idle)
+        XCTAssertFalse(c.isBusy)                   // timer + parse task both torn down
+    }
+
+    func testBusyInputQueuesExactlyOnePendingUtterance() async {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let brain = ControllableBrain(.hang)
+        let c = MediatorSessionCoordinator(brain: brain, executor: CommandExecutor(store: store, terminals: terminals, namePool: AgentNamePool()))
+        c.submitTyped("start 1 claude agent")
+        var it = brain.started.stream.makeAsyncIterator(); _ = await it.next()
+        XCTAssertTrue(c.isBusy)
+        c.submitTyped("start 2 shell agents")     // queued, not dropped
+        c.submitTyped("start 3 shell agents")     // replaces the queued one (queue depth 1)
+        brain.outcome = .success(.spawnAgents(count: 1, kind: .claudeCode, names: nil))
+        brain.releaseNow()
+        for _ in 0..<6000 where store.state.cards.filter({ $0.kind == .agent }).count < 3 {
+            await Task.yield(); try? await Task.sleep(nanoseconds: 500_000)
+        }
+        // First utterance spawns 1; the single queued "3 shell agents" runs next → 1 + ... = fast-path? No:
+        // ControllableBrain always returns the same command, so the queued utterance re-runs it → +1 = 2 total.
+        XCTAssertEqual(store.state.cards.filter { $0.kind == .agent }.count, 2)
+    }
+}
