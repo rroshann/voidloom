@@ -559,6 +559,32 @@ struct CanvasShellView: View {
             })
         }
 
+        // Go to (current workspace cards)
+        let viewportSize = ScreenPoint(x: size.width, y: size.height)
+        for card in store.state.cards {
+            let palette = CardPalette(kind: card.kind)
+            let trimmedTitle = card.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let title = trimmedTitle.isEmpty ? palette.eyebrow : trimmedTitle
+            let contentSnippet = String(card.content.prefix(80))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: "\n", with: " ")
+            let center = CanvasPoint(
+                x: card.position.x + card.size.width / 2,
+                y: card.position.y + card.size.height / 2
+            )
+            let cardID = card.id
+            commands.append(PaletteCommand(
+                id: "goto-card-\(card.id)",
+                title: title,
+                section: .cards,
+                systemImage: palette.symbol,
+                keywords: [trimmedTitle, palette.eyebrow, contentSnippet, "go", "card"].filter { !$0.isEmpty }
+            ) {
+                store.selectCard(id: cardID)
+                store.centerViewport(on: center, viewportSize: viewportSize)
+            })
+        }
+
         // App
         commands.append(PaletteCommand(id: "open-settings", title: "Open Settings", section: .app, systemImage: "gearshape", keywords: ["preferences"]) {
             openSettings()
