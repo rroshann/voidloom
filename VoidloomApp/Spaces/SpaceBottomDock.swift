@@ -64,6 +64,8 @@ struct SpaceBottomDock: View {
         // top — never per-icon glass, per Apple's "no stacked glass" rule. Groups
         // (switcher · space controls · card tools) separated by wider spacing.
         HStack(spacing: DockMetrics.groupGap) {
+            DockModeSwitch()
+
             spaceSwitcher
 
             // Card-creation tools: terminal, notes, todo, browser, files, git.

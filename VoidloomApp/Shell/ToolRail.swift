@@ -43,6 +43,8 @@ struct ToolDock: View {
     /// Canvas dock — one clear-glass capsule with monochrome glyphs, matching Spaces.
     private var canvasDock: some View {
         HStack(spacing: DockMetrics.groupGap) {
+            DockModeSwitch()
+
             DockWorkspaceSegment(
                 workspaceName: workspaceName,
                 cardCount: store.state.cards.count,

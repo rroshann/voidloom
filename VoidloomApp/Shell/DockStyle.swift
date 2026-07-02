@@ -65,6 +65,38 @@ struct DockIconGlyph: View {
     }
 }
 
+/// Compact Canvas ⇄ Spaces segmented control for the bottom dock. Writes the
+/// persisted `app.mode` AppStorage key on tap; RootView observes the same key.
+struct DockModeSwitch: View {
+    @AppStorage("app.mode") private var appMode: AppMode = .canvas
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        HStack(spacing: 2) {
+            segment(mode: .canvas, icon: "rectangle.on.rectangle", help: "Canvas")
+            segment(mode: .spaces, icon: "square.grid.2x2", help: "Spaces")
+        }
+    }
+
+    private func segment(mode: AppMode, icon: String, help: String) -> some View {
+        let isActive = appMode == mode
+        return Button { appMode = mode } label: {
+            Image(systemName: icon)
+                .font(.system(size: DockMetrics.glyphSize, weight: .semibold))
+                .foregroundStyle(isActive ? theme.accent : .white.opacity(0.6))
+                .frame(width: DockMetrics.iconSide, height: DockMetrics.iconSide)
+                .background(
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(.white.opacity(isActive ? 0.22 : 0))
+                )
+                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+        }
+        .buttonStyle(.plain)
+        .help(help)
+        .animation(.easeOut(duration: 0.12), value: isActive)
+    }
+}
+
 /// A plain monochrome glyph button that lives directly on the dock glass (no
 /// glass of its own). A faint fill fades in on hover; active tools get a
 /// brighter/accent-tinted glyph and subtle fill.
