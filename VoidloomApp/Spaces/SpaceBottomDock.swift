@@ -23,6 +23,8 @@ struct SpaceBottomDock: View {
     @AppStorage("spaces.defaultColumns") private var defaultColumns = 0
     @AppStorage("spaces.defaultRows") private var defaultRows = 0
 
+    @Environment(\.theme) private var theme
+
     private var activeName: String {
         store.library.workspaces.first { $0.id == store.library.selectedWorkspaceID }?.name ?? "Space"
     }
@@ -97,8 +99,8 @@ struct SpaceBottomDock: View {
                 Image(systemName: "exclamationmark.triangle")
                     .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.orange)
-                    .frame(width: 40, height: 40)
-                    .modifier(DockChip())
+                    .frame(width: 42, height: 42)
+                    .modifier(DockChip(shape: RoundedRectangle(cornerRadius: 15, style: .continuous)))
                     .help(errorMessage)
             }
         }
@@ -130,14 +132,17 @@ struct SpaceBottomDock: View {
                 store.createWorkspace(named: n == 0 ? "Untitled" : "Untitled \(n + 1)")
             }
         } label: {
-            HStack(spacing: 6) {
-                Text(activeName)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                Image(systemName: "chevron.up").font(.system(size: 10, weight: .semibold))
+            HStack(spacing: 7) {
+                Text(activeName.uppercased())
+                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
+                    .tracking(1.5)
+                    .foregroundStyle(dockGlyph)
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(theme.accent)
             }
-            .foregroundStyle(.white.opacity(0.92))
-            .padding(.horizontal, 14).frame(height: 40)
-            .modifier(DockChip())
+            .padding(.horizontal, 16).frame(height: 42)
+            .modifier(DockChip(shape: RoundedRectangle(cornerRadius: 15, style: .continuous)))
         }
         .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
     }
@@ -145,8 +150,9 @@ struct SpaceBottomDock: View {
     private func barButton(_ icon: String, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: icon).font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.9)).frame(width: 40, height: 40)
-                .modifier(DockChip())
+                .foregroundStyle(dockGlyph)
+                .frame(width: 42, height: 42)
+                .modifier(DockChip(shape: RoundedRectangle(cornerRadius: 15, style: .continuous)))
         }
         .buttonStyle(.plain).help(help)
     }
@@ -208,17 +214,43 @@ struct SpaceBottomDock: View {
     }
 }
 
-/// Frosted, self-contained chip background for a single dock control. Used per
-/// icon (and the switcher) now that the dock has no unifying capsule, so each
-/// control stays legible and lifted over any space background.
-private struct DockChip: ViewModifier {
-    var cornerRadius: CGFloat = 12
+/// Near-white glyph/text color, kept neutral so it stays legible against any
+/// accent the user picks in Settings › Appearance.
+private let dockGlyph = Color(red: 0.98, green: 0.99, blue: 1.0)
+
+/// Futuristic dock chip for a single control: a dark smoked-glass fill (frosted
+/// material under a dark tint, so bright glyphs stay high-contrast over any
+/// background), a glossy top sheen, and a border that glows in the Settings
+/// accent color. Generic over the silhouette; no drop shadow.
+private struct DockChip<S: Shape>: ViewModifier {
+    let shape: S
+
+    @Environment(\.theme) private var theme
 
     func body(content: Content) -> some View {
         content
-            .background(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(.regularMaterial))
-            .overlay(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).stroke(.white.opacity(0.12), lineWidth: 1))
-            .shadow(color: .black.opacity(0.3), radius: 14, x: 0, y: 7)
-            .shadow(color: .black.opacity(0.16), radius: 4, x: 0, y: 2)
+            // Dark tint over frosted material → readable "smoked glass".
+            .background(shape.fill(Color(red: 0.04, green: 0.05, blue: 0.06).opacity(0.66)))
+            .background(shape.fill(.ultraThinMaterial))
+            // Glossy sheen along the top edge — reads as a designed, luxe surface.
+            .overlay(
+                shape.fill(
+                    LinearGradient(
+                        colors: [.white.opacity(0.16), .clear],
+                        startPoint: .top, endPoint: .center
+                    )
+                )
+            )
+            // Border in the accent color: a crisp edge plus a soft blurred copy for glow.
+            .overlay(
+                shape.stroke(
+                    LinearGradient(
+                        colors: [theme.accent.opacity(0.95), theme.accent.opacity(0.45)],
+                        startPoint: .topLeading, endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1
+                )
+            )
+            .overlay(shape.stroke(theme.accent.opacity(0.5), lineWidth: 1).blur(radius: 2.5))
     }
 }
