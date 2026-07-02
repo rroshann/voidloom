@@ -15,6 +15,8 @@ struct SpaceBottomDock: View {
     let onAddCard: (CardKind) -> Void
     /// Latest persistence error, surfaced as an inert warning glyph when present.
     let errorMessage: String?
+    let isAIActive: Bool
+    let onToggleAI: () -> Void
 
     @State private var showBackgroundPopover = false
     @State private var showLayoutPopover = false
@@ -22,6 +24,7 @@ struct SpaceBottomDock: View {
     @State private var showGitUnavailable = false
 
     @EnvironmentObject private var newWorkspace: AppSession
+    @Environment(\.theme) private var theme
 
     @AppStorage("spaces.defaultColumns") private var defaultColumns = 0
     @AppStorage("spaces.defaultRows") private var defaultRows = 0
@@ -105,6 +108,14 @@ struct SpaceBottomDock: View {
                         backgroundPopover.padding(16).frame(width: 260)
                     }
             }
+
+            DockIconButton(
+                icon: "sparkles",
+                help: "AI assistant",
+                isActive: isAIActive,
+                activeColor: theme.accent,
+                action: onToggleAI
+            )
 
             if let errorMessage {
                 Image(systemName: "exclamationmark.triangle")

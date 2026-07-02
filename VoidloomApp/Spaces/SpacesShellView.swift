@@ -5,6 +5,7 @@ import VoidloomCore
 struct SpacesShellView: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var sessionManager: AgentSessionManager
+    @ObservedObject var conversationStore: ConversationStore
 
     @AppStorage("spaces.defaultColumns") private var defaultColumns = 0
     @AppStorage("spaces.defaultRows") private var defaultRows = 0
@@ -40,6 +41,7 @@ struct SpacesShellView: View {
     /// Selection captured at ⌘-drag start, so additive marquee keeps extending it.
     @State private var marqueeBase: Set<UUID> = []
     @State private var marqueeAdditive = false
+    @State private var isAIConversationVisible = false
 
     /// Extra top clearance above the tiling margin. Zero makes the top gap equal the
     /// side margin (symmetric card field); the tiling margin alone already clears the
@@ -52,6 +54,20 @@ struct SpacesShellView: View {
     private var topInset: Double { Double(Self.topPadding) }
     private var bottomInset: Double { Double(dockHeight + Self.bottomPadding + Self.dockGap) }
     private var isPagedGrid: Bool { (store.state.space?.layoutMode ?? .pagedGrid) == .pagedGrid }
+
+    private var activeWorkspaceID: UUID {
+        store.library.selectedWorkspaceID
+    }
+
+    /// Builds a context string from the selected card plus its direct neighbors
+    /// (via `WorkspaceState.linkedContext`). Returns nil when no card is selected
+    /// or the assembled string is empty — so the nil path is byte-for-byte
+    /// equivalent to the previous behavior.
+    private var selectedCardContext: String? {
+        guard let id = store.state.selectedCardID else { return nil }
+        let s = store.state.linkedContext(for: id)
+        return s.isEmpty ? nil : s
+    }
 
     /// Builds a tiling from the global Settings defaults, used when a space has no
     /// tiling of its own. Columns 0 = Auto (fit all); Rows 0 = no pagination.
@@ -237,6 +253,21 @@ struct SpacesShellView: View {
                         .allowsHitTesting(false)
                 }
 
+                if isAIConversationVisible {
+                    AIConversationSidebar(
+                        messages: conversationStore.messages(for: activeWorkspaceID),
+                        onSubmit: { conversationStore.submit(workspaceID: activeWorkspaceID, text: $0, context: selectedCardContext) },
+                        onRetry: { conversationStore.retry(workspaceID: activeWorkspaceID, messageID: $0) },
+                        onClose: {
+                            withAnimation(.easeInOut(duration: 0.24)) {
+                                isAIConversationVisible = false
+                            }
+                        }
+                    )
+                    .transition(.move(edge: .trailing).combined(with: .opacity))
+                    .zIndex(1)
+                }
+
                 VStack(spacing: 12) {
                     Spacer()
                     if layoutMode == .pagedGrid, paged.pageCount > 1 { pager(paged) }
@@ -274,7 +305,9 @@ struct SpacesShellView: View {
                                 }
                             }
                         },
-                        errorMessage: store.lastPersistenceError
+                        errorMessage: store.lastPersistenceError,
+                        isAIActive: isAIConversationVisible,
+                        onToggleAI: { isAIConversationVisible.toggle() }
                     )
                     .background(GeometryReader { p in
                         Color.clear.preference(key: SpacesDockHeightKey.self, value: p.size.height)
@@ -308,6 +341,7 @@ struct SpacesShellView: View {
         .preferredColorScheme(.dark)
         .onPreferenceChange(ShellFrameKey.self) { shellFrame = $0 }
         .onPreferenceChange(SpacesDockHeightKey.self) { dockHeight = $0 }
+        .animation(.easeInOut(duration: 0.24), value: isAIConversationVisible)
     }
 
     /// Window-scoped key handling for Spaces. Delete/Backspace removes the marquee

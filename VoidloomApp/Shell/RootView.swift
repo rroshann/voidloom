@@ -30,7 +30,11 @@ struct RootView: View {
                 )
                 .transition(.opacity)
             case .spaces:
-                SpacesShellView(store: store, sessionManager: sessionManager)
+                SpacesShellView(
+                    store: store,
+                    sessionManager: sessionManager,
+                    conversationStore: conversationStore
+                )
                     .transition(.opacity)
             }
         }
