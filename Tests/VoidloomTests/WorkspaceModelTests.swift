@@ -2587,4 +2587,119 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertEqual(u.size.width, 300, accuracy: 0.0001)   // 300 - 0
         XCTAssertEqual(u.size.height, 150, accuracy: 0.0001)  // 150 - 0
     }
+
+    // MARK: - Undo / Redo
+
+    @MainActor
+    func testUndoRedoAddCard() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(state: WorkspaceState(cards: []), storageURL: url, persistenceDelay: 60)
+        XCTAssertFalse(store.canUndo)
+
+        store.addCard(kind: .note)
+        XCTAssertEqual(store.state.cards.count, 1)
+        XCTAssertTrue(store.canUndo)
+
+        store.undo()
+        XCTAssertEqual(store.state.cards.count, 0)
+        XCTAssertTrue(store.canRedo)
+        XCTAssertFalse(store.canUndo)
+
+        store.redo()
+        XCTAssertEqual(store.state.cards.count, 1)
+        XCTAssertFalse(store.canRedo)
+    }
+
+    @MainActor
+    func testUndoDeleteCardRestoresCardAndConnections() throws {
+        let a = UUID()
+        let b = UUID()
+        let c = UUID()
+        var state = WorkspaceState(cards: [
+            makePositionedCard(a, x: 0, y: 0),
+            makePositionedCard(b, x: 200, y: 0),
+            makePositionedCard(c, x: 400, y: 0)
+        ])
+        state.addConnection(from: a, to: b)
+        state.addConnection(from: b, to: c)
+        XCTAssertEqual(state.connections.count, 2)
+
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(state: state, storageURL: url, persistenceDelay: 60)
+        store.deleteCard(id: b)
+
+        XCTAssertEqual(store.state.cards.map(\.id), [a, c])
+        XCTAssertTrue(store.state.connections.isEmpty)
+
+        store.undo()
+        XCTAssertEqual(store.state.cards.map(\.id), [a, b, c])
+        XCTAssertEqual(store.state.connections.count, 2)
+    }
+
+    @MainActor
+    func testUndoCoalescesContinuousMoveCards() {
+        let cardID = UUID()
+        let state = WorkspaceState(cards: [makePositionedCard(cardID, x: 0, y: 0)])
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(state: state, storageURL: url, persistenceDelay: 60)
+
+        store.moveCards(ids: [cardID], screenTranslation: CanvasVector(dx: 10, dy: 0))
+        store.moveCards(ids: [cardID], screenTranslation: CanvasVector(dx: 10, dy: 0))
+
+        XCTAssertTrue(store.canUndo)
+        store.undo()
+        assertPoint(store.state.cards[0].position, 0, 0)
+        XCTAssertFalse(store.canUndo)
+    }
+
+    @MainActor
+    func testUndoWithEmptyStackIsNoOp() {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(state: WorkspaceState(), storageURL: url, persistenceDelay: 60)
+        XCTAssertFalse(store.canUndo)
+        store.undo()
+        XCTAssertFalse(store.canUndo)
+    }
+
+    @MainActor
+    func testSwitchWorkspaceClearsUndoHistory() throws {
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let libraryURL = baseDirectory.appendingPathComponent("library.json")
+        let workspacesDirectory = baseDirectory.appendingPathComponent("workspaces", isDirectory: true)
+
+        let store = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: baseDirectory.appendingPathComponent("workspace.json")
+        )
+        let mainCanvasID = store.library.selectedWorkspaceID
+        store.createWorkspace(named: "Second")
+        let secondID = store.library.selectedWorkspaceID
+
+        store.switchWorkspace(id: mainCanvasID)
+        store.addCard(kind: .note)
+        XCTAssertTrue(store.canUndo)
+
+        store.switchWorkspace(id: secondID)
+        XCTAssertFalse(store.canUndo)
+    }
 }

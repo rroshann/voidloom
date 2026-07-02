@@ -14,6 +14,12 @@ public final class WorkspaceStore: ObservableObject {
     private var pendingPersistenceTask: Task<Void, Never>?
     private let shutdownMarkerURL: URL
 
+    private var undoStack: [WorkspaceState] = []
+    private var redoStack: [WorkspaceState] = []
+    private static let undoHistoryCap = 100
+    private var lastUndoKey: String?
+    private var lastUndoAt: Date?
+
     private var isLibraryMode: Bool { libraryURL != nil }
 
     public init(
@@ -74,6 +80,51 @@ public final class WorkspaceStore: ObservableObject {
         Self.writeShutdownMarker(false, to: shutdownMarkerURL)
     }
 
+    // MARK: - Undo / Redo
+
+    public var canUndo: Bool { !undoStack.isEmpty }
+    public var canRedo: Bool { !redoStack.isEmpty }
+
+    public func undo() {
+        guard !undoStack.isEmpty else { return }
+        redoStack.append(state)
+        state = undoStack.removeLast()
+        lastUndoKey = nil
+        lastUndoAt = nil
+        persist()
+    }
+
+    public func redo() {
+        guard !redoStack.isEmpty else { return }
+        undoStack.append(state)
+        state = redoStack.removeLast()
+        lastUndoKey = nil
+        lastUndoAt = nil
+        persist()
+    }
+
+    private func recordUndo(_ coalescingKey: String? = nil) {
+        if let key = coalescingKey,
+           key == lastUndoKey,
+           Date().timeIntervalSince(lastUndoAt ?? .distantPast) < 0.6 {
+            return
+        }
+        undoStack.append(state)
+        if undoStack.count > Self.undoHistoryCap {
+            undoStack.removeFirst(undoStack.count - Self.undoHistoryCap)
+        }
+        redoStack.removeAll()
+        lastUndoKey = coalescingKey
+        lastUndoAt = Date()
+    }
+
+    private func clearUndoHistory() {
+        undoStack.removeAll()
+        redoStack.removeAll()
+        lastUndoKey = nil
+        lastUndoAt = nil
+    }
+
     public func pan(by translation: CanvasVector) {
         guard translation != .zero else { return }
         state.viewport.pan(by: translation)
@@ -94,12 +145,14 @@ public final class WorkspaceStore: ObservableObject {
 
     public func moveCard(id: UUID, screenTranslation: CanvasVector) {
         guard screenTranslation != .zero else { return }
+        recordUndo("move")
         state.moveCard(id: id, screenTranslation: screenTranslation)
         schedulePersistence()
     }
 
     public func deleteCard(id: UUID) {
         guard state.cards.contains(where: { $0.id == id }) else { return }
+        recordUndo()
         state.deleteCard(id: id)
         persist()
     }
@@ -108,6 +161,7 @@ public final class WorkspaceStore: ObservableObject {
     /// a drag emits many translations.
     public func moveCards(ids: Set<UUID>, screenTranslation: CanvasVector) {
         guard !ids.isEmpty, screenTranslation != .zero else { return }
+        recordUndo("move")
         state.moveCards(ids: ids, screenTranslation: screenTranslation)
         schedulePersistence()
     }
@@ -117,12 +171,14 @@ public final class WorkspaceStore: ObservableObject {
     public func deleteCards(ids: Set<UUID>) {
         let present = ids.filter { id in state.cards.contains(where: { $0.id == id }) }
         guard !present.isEmpty else { return }
+        recordUndo()
         state.deleteCards(ids: Set(present))
         persist()
     }
 
     public func resizeCard(id: UUID, to size: CardSize, position: CanvasPoint? = nil) {
         guard state.cards.contains(where: { $0.id == id }) else { return }
+        recordUndo("resize")
         state.resizeCard(id: id, to: size, position: position)
         schedulePersistence()
     }
@@ -132,12 +188,14 @@ public final class WorkspaceStore: ObservableObject {
         guard !trimmed.isEmpty else { return }
         guard state.cards.contains(where: { $0.id == id }) else { return }
 
+        recordUndo()
         state.updateCardTitle(id: id, to: trimmed)
         schedulePersistence()
     }
 
     public func updateCardContent(id: UUID, to content: String) {
         guard state.cards.contains(where: { $0.id == id }) else { return }
+        recordUndo("content:\(id)")
         state.updateCardContent(id: id, to: content)
         schedulePersistence()
     }
@@ -208,6 +266,7 @@ public final class WorkspaceStore: ObservableObject {
     }
 
     public func addCard(kind: CardKind) {
+        recordUndo()
         var card = Self.makeCard(kind: kind, index: state.cards.count)
         // After deletions, the count-based index can map to a grid slot already
         // occupied by a surviving card. Route through nonOverlappingOrigin so the
@@ -228,6 +287,7 @@ public final class WorkspaceStore: ObservableObject {
     /// existing card the origin cascades diagonally to the nearest free slot, so
     /// rapid additions never stack on top of one another.
     public func addCard(kind: CardKind, centeredAt center: CanvasPoint) {
+        recordUndo()
         var card = Self.defaultCard(kind: kind)
         card.position = state.nonOverlappingOrigin(for: card.size, centeredAt: center)
         state.addCard(card)
@@ -243,6 +303,7 @@ public final class WorkspaceStore: ObservableObject {
     /// the floating dock, so the bottom row never lands behind it.
     @discardableResult
     public func addCardInGrid(kind: CardKind, viewportSize: ScreenPoint, bottomInset: Double = 0) -> UUID {
+        recordUndo()
         let card = Self.defaultCard(kind: kind)
         state.placeCardInGrid(card, viewportSize: viewportSize, bottomInset: bottomInset)
         persist()
@@ -255,6 +316,7 @@ public final class WorkspaceStore: ObservableObject {
     @discardableResult
     public func addCard(kind: CardKind, fromCorner a: CanvasPoint, toCorner b: CanvasPoint) -> UUID? {
         let rect = WorkspaceState.normalizedRect(a, b)
+        recordUndo()
         var card = Self.defaultCard(kind: kind)
         card.position = rect.origin
         card.size = rect.size.clamped()
@@ -267,11 +329,13 @@ public final class WorkspaceStore: ObservableObject {
     // MARK: - Connections
 
     public func addConnection(from: UUID, to: UUID) {
+        recordUndo()
         state.addConnection(from: from, to: to)
         persist()
     }
 
     public func deleteConnection(id: UUID) {
+        recordUndo()
         state.removeConnection(id: id)
         persist()
     }
@@ -287,6 +351,7 @@ public final class WorkspaceStore: ObservableObject {
         colorHex: String = "#FFFFFFFF",
         fontName: String? = nil
     ) -> UUID {
+        recordUndo()
         let size = CardSize(width: 200, height: 44)
         let element = TextElement(
             position: CanvasPoint(
@@ -315,6 +380,7 @@ public final class WorkspaceStore: ObservableObject {
         fontName: String? = nil
     ) -> UUID {
         let rect = WorkspaceState.normalizedRect(a, b)
+        recordUndo()
         let element = TextElement(
             position: rect.origin,
             size: rect.size.clamped(
@@ -333,31 +399,37 @@ public final class WorkspaceStore: ObservableObject {
 
     public func moveTextElement(id: UUID, screenTranslation: CanvasVector) {
         guard screenTranslation != .zero else { return }
+        recordUndo("tmove")
         state.moveTextElement(id: id, screenTranslation: screenTranslation)
         schedulePersistence()
     }
 
     public func resizeTextElement(id: UUID, to size: CardSize, position: CanvasPoint? = nil) {
+        recordUndo("tresize")
         state.resizeTextElement(id: id, to: size, position: position)
         schedulePersistence()
     }
 
     public func updateTextElementText(id: UUID, to text: String) {
+        recordUndo("tstyle:\(id)")
         state.updateTextElementText(id: id, to: text)
         schedulePersistence()
     }
 
     public func updateTextElementFontSize(id: UUID, to fontSize: Double) {
+        recordUndo("tstyle:\(id)")
         state.updateTextElementFontSize(id: id, to: fontSize)
         schedulePersistence()
     }
 
     public func updateTextElementColor(id: UUID, toHex hex: String) {
+        recordUndo("tstyle:\(id)")
         state.updateTextElementColor(id: id, toHex: hex)
         schedulePersistence()
     }
 
     public func updateTextElementFont(id: UUID, to fontName: String?) {
+        recordUndo("tstyle:\(id)")
         state.updateTextElementFont(id: id, to: fontName)
         schedulePersistence()
     }
@@ -369,6 +441,7 @@ public final class WorkspaceStore: ObservableObject {
     }
 
     public func deleteTextElement(id: UUID) {
+        recordUndo()
         state.deleteTextElement(id: id)
         persist()
     }
@@ -379,6 +452,7 @@ public final class WorkspaceStore: ObservableObject {
     /// carry no visible geometry and are rejected.
     public func addStroke(_ stroke: DrawingStroke) {
         guard stroke.points.count >= 2 else { return }
+        recordUndo()
         state.addStroke(stroke)
         persist()
     }
@@ -392,6 +466,7 @@ public final class WorkspaceStore: ObservableObject {
         var working = state
         let changed = working.eraseStrokes(at: point, radius: radius, mode: mode)
         guard changed else { return }
+        recordUndo("erase")
         state = working
         schedulePersistence()
     }
@@ -429,11 +504,13 @@ public final class WorkspaceStore: ObservableObject {
     }
 
     public func moveSpaceCard(fromIndex: Int, toIndex: Int) {
+        recordUndo()
         state.reorderSpaceCard(fromIndex: fromIndex, toIndex: toIndex)
         persist()
     }
 
     public func resetSpaceCardOrder() {
+        recordUndo()
         state.resetSpaceCardOrder()
         persist()
     }
@@ -458,12 +535,14 @@ public final class WorkspaceStore: ObservableObject {
 
     /// Debounced like `moveCard` — a free-arrange drag emits many origins.
     public func moveSpaceCardFreely(id: UUID, to origin: ScreenPoint) {
+        recordUndo("fresize:\(id)")
         state.moveSpaceCardFreely(id: id, to: origin)
         schedulePersistence()
     }
 
     /// Debounced like `resizeCard` — a resize drag emits many sizes.
     public func resizeSpaceCardFreely(id: UUID, to size: ScreenPoint) {
+        recordUndo("fresize:\(id)")
         state.resizeSpaceCardFreely(id: id, to: size)
         schedulePersistence()
     }
@@ -536,6 +615,7 @@ public final class WorkspaceStore: ObservableObject {
               let workspacesDirectoryURL else { return }
 
         flushPendingPersistence()
+        clearUndoHistory()
 
         let workspaceID = UUID()
         let now = Date()
@@ -570,6 +650,7 @@ public final class WorkspaceStore: ObservableObject {
         guard library.workspaces.contains(where: { $0.id == id }) else { return }
 
         flushPendingPersistence()
+        clearUndoHistory()
 
         let workspaceURL = Self.workspaceURL(for: id, in: workspacesDirectoryURL)
 
@@ -638,6 +719,7 @@ public final class WorkspaceStore: ObservableObject {
         if wasActive {
             flushPendingPersistence()
         }
+        clearUndoHistory()
 
         library.workspaces.remove(at: index)
 
@@ -694,6 +776,7 @@ public final class WorkspaceStore: ObservableObject {
         // the old data after the wipe.
         pendingPersistenceTask?.cancel()
         pendingPersistenceTask = nil
+        clearUndoHistory()
 
         let fm = FileManager.default
         let base = libraryURL.deletingLastPathComponent()

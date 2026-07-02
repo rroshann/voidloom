@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import VoidloomCore
 
 /// Top-level shell: switches between the free pan/zoom Canvas presentation and
@@ -52,6 +53,18 @@ struct RootView: View {
                 store.addCard(kind: kind)
             case .goToLauncher:
                 session.isWorkspaceOpen = false
+            case .undo:
+                if NSApp.keyWindow?.firstResponder is NSText {
+                    NSApp.sendAction(Selector(("undo:")), to: nil, from: nil)
+                } else {
+                    store.undo()
+                }
+            case .redo:
+                if NSApp.keyWindow?.firstResponder is NSText {
+                    NSApp.sendAction(Selector(("redo:")), to: nil, from: nil)
+                } else {
+                    store.redo()
+                }
             case .zoomIn, .zoomOut, .resetViewport:
                 break   // handled by CanvasShellView, which owns the zoom anchor
             }

@@ -14,6 +14,8 @@ enum MenuAction {
     case zoomOut
     case resetViewport
     case goToLauncher
+    case undo
+    case redo
 
     static let notification = Notification.Name("voidloom.menuAction")
 
@@ -25,6 +27,13 @@ enum MenuAction {
 /// Menu-bar commands and their keyboard shortcuts.
 struct VoidloomCommands: Commands {
     var body: some Commands {
+        CommandGroup(replacing: .undoRedo) {
+            Button("Undo") { MenuAction.undo.post() }
+                .keyboardShortcut("z", modifiers: .command)
+            Button("Redo") { MenuAction.redo.post() }
+                .keyboardShortcut("z", modifiers: [.command, .shift])
+        }
+
         CommandMenu("Cards") {
             Button("New Agent") { MenuAction.addCard(.agent).post() }
                 .keyboardShortcut("a", modifiers: [.command, .shift])
