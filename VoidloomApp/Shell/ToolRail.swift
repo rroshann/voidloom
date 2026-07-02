@@ -31,56 +31,60 @@ struct ToolDock: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        HStack(spacing: 7) {
+        Group {
             if variant == .canvas {
-                DockWorkspaceSegment(
-                    workspaceName: workspaceName,
-                    cardCount: store.state.cards.count,
-                    isWorkspaceSidebarVisible: isWorkspaceSidebarVisible,
-                    onToggle: onToggleWorkspaceSidebar
+                canvasDock
+            } else {
+                legacySpacesDock
+            }
+        }
+    }
+
+    /// Canvas dock — one clear-glass capsule with monochrome glyphs, matching Spaces.
+    private var canvasDock: some View {
+        HStack(spacing: DockMetrics.groupGap) {
+            DockWorkspaceSegment(
+                workspaceName: workspaceName,
+                cardCount: store.state.cards.count,
+                isWorkspaceSidebarVisible: isWorkspaceSidebarVisible,
+                onToggle: onToggleWorkspaceSidebar
+            )
+
+            HStack(spacing: DockMetrics.iconGap) {
+                DockToolButton(
+                    systemName: "terminal",
+                    label: "Terminal — click to place, double-click to add",
+                    isArmed: interaction.isArmed(.placingCard(.agent)),
+                    onSingle: { interaction.armPlacingCard(.agent) },
+                    onDouble: { onAddCard(.agent) }
                 )
-                DockDivider()
+
+                DockToolButton(
+                    systemName: "note.text",
+                    label: "Note — click to place, double-click to add",
+                    isArmed: interaction.isArmed(.placingCard(.note)),
+                    onSingle: { interaction.armPlacingCard(.note) },
+                    onDouble: { onAddCard(.note) }
+                )
+
+                DockToolButton(
+                    systemName: "checklist",
+                    label: "Todo — click to place, double-click to add",
+                    isArmed: interaction.isArmed(.placingCard(.todo)),
+                    onSingle: { interaction.armPlacingCard(.todo) },
+                    onDouble: { onAddCard(.todo) }
+                )
+
+                DockToolButton(
+                    systemName: "safari",
+                    label: "Preview — click to place, double-click to add",
+                    isArmed: interaction.isArmed(.placingCard(.browser)),
+                    onSingle: { interaction.armPlacingCard(.browser) },
+                    onDouble: { onAddCard(.browser) }
+                )
             }
 
-            // Card-creation buttons — always visible.
-            // In .canvas: single-click arms place-mode; double-click creates instantly.
-            // In .spaces: a single click creates instantly; double-click is disabled
-            // (onDouble nil) so one double-click can't spawn several cards.
-            DockToolButton(
-                systemName: "terminal",
-                label: variant == .spaces ? "Add terminal card" : "Terminal — click to place, double-click to add",
-                isArmed: variant == .canvas && interaction.isArmed(.placingCard(.agent)),
-                onSingle: variant == .canvas ? { interaction.armPlacingCard(.agent) } : { onAddCard(.agent) },
-                onDouble: variant == .canvas ? { onAddCard(.agent) } : nil
-            )
-
-            DockToolButton(
-                systemName: "note.text",
-                label: variant == .spaces ? "Add note card" : "Note — click to place, double-click to add",
-                isArmed: variant == .canvas && interaction.isArmed(.placingCard(.note)),
-                onSingle: variant == .canvas ? { interaction.armPlacingCard(.note) } : { onAddCard(.note) },
-                onDouble: variant == .canvas ? { onAddCard(.note) } : nil
-            )
-
-            DockToolButton(
-                systemName: "checklist",
-                label: variant == .spaces ? "Add todo card" : "Todo — click to place, double-click to add",
-                isArmed: variant == .canvas && interaction.isArmed(.placingCard(.todo)),
-                onSingle: variant == .canvas ? { interaction.armPlacingCard(.todo) } : { onAddCard(.todo) },
-                onDouble: variant == .canvas ? { onAddCard(.todo) } : nil
-            )
-
-            DockToolButton(
-                systemName: "safari",
-                label: variant == .spaces ? "Add browser card" : "Preview — click to place, double-click to add",
-                isArmed: variant == .canvas && interaction.isArmed(.placingCard(.browser)),
-                onSingle: variant == .canvas ? { interaction.armPlacingCard(.browser) } : { onAddCard(.browser) },
-                onDouble: variant == .canvas ? { onAddCard(.browser) } : nil
-            )
-
-            if variant == .canvas {
-                DockDivider()
-
+            HStack(spacing: DockMetrics.iconGap) {
                 DockToolButton(
                     systemName: "arrow.up.right",
                     label: "Connect — link two cards",
@@ -109,51 +113,78 @@ struct ToolDock: View {
                     isArmed: interaction.isArmed(.erasing),
                     onSingle: { interaction.armEraser() }
                 )
+            }
 
-                DockDivider()
-
-                DockButton(systemName: "scope", label: "Reset") {
+            HStack(spacing: DockMetrics.iconGap) {
+                DockIconButton(systemName: "scope", label: "Reset") {
                     store.resetViewport()
                 }
 
-                DockButton(
+                DockIconButton(
                     systemName: "map",
                     label: isMinimapVisible ? "Hide minimap" : "Show minimap",
                     isActive: isMinimapVisible
                 ) {
                     onToggleMinimap()
                 }
+            }
 
-                DockDivider()
+            DockAIHint(
+                errorMessage: errorMessage,
+                isActive: isAIHintActive,
+                action: onToggleAIHint
+            )
 
-                DockAIHint(
-                    errorMessage: errorMessage,
-                    isActive: isAIHintActive,
-                    action: onToggleAIHint
-                )
-            } else if errorMessage != nil {
-                // Spaces has no AI hint, but a persistence error should still be
-                // visible rather than silently swallowed; the button is inert here.
+            CanvasZoomControls(
+                scale: zoomScale,
+                onZoomIn: onZoomIn,
+                onZoomOut: onZoomOut,
+                isCardFocused: isCardFocused,
+                onToggleCardFocus: onToggleCardFocus,
+                isFocusEnabled: isCardSelected,
+                embedded: true
+            )
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .modifier(DockGlass(shape: Capsule()))
+        .shadow(color: .black.opacity(0.25), radius: 14, x: 0, y: 6)
+    }
+
+    /// Legacy layout retained for the unused `.spaces` ToolDock variant.
+    private var legacySpacesDock: some View {
+        HStack(spacing: 7) {
+            DockToolButton(
+                systemName: "terminal",
+                label: "Add terminal card",
+                onSingle: { onAddCard(.agent) }
+            )
+
+            DockToolButton(
+                systemName: "note.text",
+                label: "Add note card",
+                onSingle: { onAddCard(.note) }
+            )
+
+            DockToolButton(
+                systemName: "checklist",
+                label: "Add todo card",
+                onSingle: { onAddCard(.todo) }
+            )
+
+            DockToolButton(
+                systemName: "safari",
+                label: "Add browser card",
+                onSingle: { onAddCard(.browser) }
+            )
+
+            if errorMessage != nil {
                 DockDivider()
 
                 DockAIHint(
                     errorMessage: errorMessage,
                     isActive: false,
                     action: {}
-                )
-            }
-
-            if variant == .canvas {
-                DockDivider()
-
-                CanvasZoomControls(
-                    scale: zoomScale,
-                    onZoomIn: onZoomIn,
-                    onZoomOut: onZoomOut,
-                    isCardFocused: isCardFocused,
-                    onToggleCardFocus: onToggleCardFocus,
-                    isFocusEnabled: isCardSelected,
-                    embedded: true
                 )
             }
         }
@@ -180,99 +211,47 @@ private struct DockWorkspaceSegment: View {
     let onToggle: () -> Void
 
     @State private var isHovering = false
-    @Environment(\.theme) private var theme
 
-    private var restingFill: Color {
-        if isWorkspaceSidebarVisible {
-            return theme.surface(isHovering ? 0.16 : 0.12)
-        }
-        return theme.surface(isHovering ? 0.06 : 0.0)
+    private var restingFill: Double {
+        if isWorkspaceSidebarVisible { return 0.14 }
+        return isHovering ? 0.10 : 0
     }
 
     var body: some View {
         Button(action: onToggle) {
             VStack(alignment: .center, spacing: 1) {
                 Text(workspaceName)
-                    .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    .foregroundStyle(theme.ink(0.92))
+                    .font(.system(size: 12, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.95))
                     .lineLimit(1)
                     .truncationMode(.tail)
 
                 Text("\(cardCount) \(cardCount == 1 ? "card" : "cards")")
-                    .font(.system(size: 10.5, weight: .medium, design: .rounded))
-                    .foregroundStyle(theme.ink(0.5))
+                    .font(.system(size: 9, weight: .medium, design: .rounded))
+                    .foregroundStyle(.white.opacity(0.55))
                     .monospacedDigit()
                     .lineLimit(1)
             }
-            .frame(maxWidth: 160, alignment: .center)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 5)
-            .frame(height: 38)
+            .frame(maxWidth: 140, alignment: .center)
+            .padding(.horizontal, 10)
+            .frame(height: DockMetrics.iconSide)
             .background(
-                RoundedRectangle(cornerRadius: 15, style: .continuous)
-                    .fill(restingFill)
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(.white.opacity(restingFill))
             )
-            .overlay(
-                RoundedRectangle(cornerRadius: 15, style: .continuous)
-                    .stroke(
-                        isWorkspaceSidebarVisible ? theme.ink(0.14) : .clear,
-                        lineWidth: 1
-                    )
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 15, style: .continuous))
-            .animation(.easeInOut(duration: 0.15), value: isHovering)
-            .animation(.easeInOut(duration: 0.15), value: isWorkspaceSidebarVisible)
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .animation(.easeOut(duration: 0.12), value: isHovering)
+            .animation(.easeOut(duration: 0.12), value: isWorkspaceSidebarVisible)
         }
-        .buttonStyle(DockPressStyle())
+        .buttonStyle(.plain)
         .onHover { isHovering = $0 }
         .pointerCursor()
         .help(isWorkspaceSidebarVisible ? "Hide workspaces" : "Show workspaces")
     }
 }
 
-private struct DockPressStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .opacity(configuration.isPressed ? 0.7 : 1)
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
-    }
-}
-
-private struct DockButton: View {
-    let systemName: String
-    let label: String
-    var isActive: Bool = false
-    let action: () -> Void
-
-    @Environment(\.theme) private var theme
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: systemName)
-                .font(.system(size: 16, weight: .semibold))
-                .frame(width: 40, height: 40)
-                .foregroundStyle(isActive ? theme.accent : theme.ink(0.86))
-                .background(
-                    RoundedRectangle(cornerRadius: 11, style: .continuous)
-                        .fill(theme.surface(isActive ? 0.14 : 0.08))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 11, style: .continuous)
-                        .stroke(
-                            isActive ? theme.accent.opacity(0.55) : theme.ink(0.06),
-                            lineWidth: isActive ? 1.5 : 1
-                        )
-                )
-        }
-        .buttonStyle(.plain)
-        .pointerCursor()
-        .help(label)
-        .animation(.easeInOut(duration: 0.15), value: isActive)
-    }
-}
-
 /// A dock tool that distinguishes single-click (arm a canvas mode) from
-/// double-click (instant create). Reuses DockAIHint's active treatment, driven
+/// double-click (instant create). Reuses the shared glyph treatment, driven
 /// by `isArmed`. Tools without a double action pass `onDouble == nil`.
 private struct DockToolButton: View {
     let systemName: String
@@ -281,29 +260,12 @@ private struct DockToolButton: View {
     var onSingle: () -> Void
     var onDouble: (() -> Void)? = nil
 
-    @Environment(\.theme) private var theme
-
     var body: some View {
-        Image(systemName: systemName)
-            .font(.system(size: 16, weight: .semibold))
-            .foregroundStyle(isArmed ? theme.accent : theme.ink(0.86))
-            .frame(width: 40, height: 40)
-            .background(
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .fill(theme.surface(isArmed ? 0.14 : 0.08))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 11, style: .continuous)
-                    .stroke(
-                        isArmed ? theme.accent.opacity(0.55) : theme.ink(0.06),
-                        lineWidth: isArmed ? 1.5 : 1
-                    )
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 11, style: .continuous))
+        DockIconGlyph(icon: systemName, isActive: isArmed)
             .modifier(DockToolGesture(onSingle: onSingle, onDouble: onDouble))
             .pointerCursor()
             .help(label)
-            .animation(.easeInOut(duration: 0.15), value: isArmed)
+            .animation(.easeOut(duration: 0.12), value: isArmed)
     }
 }
 
@@ -359,9 +321,6 @@ private struct DockAIHint: View {
         return errorMessage ?? "Show command hints"
     }
 
-    // `sparkles` is Apple's de-facto AI/generate glyph and is available on the
-    // macOS 14 target; it also avoids clashing with the Terminal tool's icon.
-    // The error state keeps the warning triangle.
     private var iconName: String {
         errorMessage == nil ? "sparkles" : "exclamationmark.triangle"
     }
@@ -371,25 +330,32 @@ private struct DockAIHint: View {
     }
 
     var body: some View {
-        Button(action: action) {
-            Image(systemName: iconName)
-                .font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(accentColor)
-                .frame(width: 40, height: 40)
-                .background(
-                    RoundedRectangle(cornerRadius: 11, style: .continuous)
-                        .fill(theme.surface(isActive ? 0.14 : 0.08))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 11, style: .continuous)
-                        .stroke(
-                            isActive ? accentColor.opacity(0.55) : theme.ink(0.06),
-                            lineWidth: isActive ? 1.5 : 1
-                        )
-                )
-        }
-        .buttonStyle(.plain)
-        .pointerCursor()
-        .help(message)
+        DockIconButton(
+            icon: iconName,
+            help: message,
+            isActive: isActive || errorMessage != nil,
+            activeColor: accentColor,
+            action: action
+        )
+    }
+}
+
+private extension DockIconButton {
+    init(
+        systemName: String,
+        label: String,
+        isActive: Bool = false,
+        activeColor: Color? = nil,
+        isEnabled: Bool = true,
+        action: @escaping () -> Void
+    ) {
+        self.init(
+            icon: systemName,
+            help: label,
+            isActive: isActive,
+            activeColor: activeColor,
+            isEnabled: isEnabled,
+            action: action
+        )
     }
 }

@@ -18,14 +18,6 @@ struct CanvasZoomControls: View {
         Int((scale * 100).rounded())
     }
 
-    /// When embedded in the tool dock, icon buttons match the dock's other tool
-    /// buttons (40x40 / 16-pt / corner radius 11) so every dock icon is the same
-    /// size. Standalone, the control keeps its compact 28x28 / 12-pt footprint.
-    private var buttonSide: CGFloat { embedded ? 40 : 28 }
-    private var iconSize: CGFloat { embedded ? 16 : 12 }
-    private var buttonCornerRadius: CGFloat { embedded ? 11 : 10 }
-    private var dividerHeight: CGFloat { embedded ? 34 : 20 }
-
     var body: some View {
         if embedded {
             controls
@@ -43,50 +35,75 @@ struct CanvasZoomControls: View {
     }
 
     private var controls: some View {
-        HStack(spacing: 8) {
-            CanvasZoomButton(
+        HStack(spacing: embedded ? DockMetrics.iconGap : 8) {
+            zoomButton(
                 systemName: "minus",
                 label: "Zoom out",
-                side: buttonSide,
-                iconSize: iconSize,
-                cornerRadius: buttonCornerRadius,
                 action: onZoomOut
             )
 
             Text("\(zoomPercentage)%")
-                .font(.system(size: 11, weight: .bold, design: .monospaced))
-                .foregroundStyle(theme.ink(0.72))
-                .frame(minWidth: 44)
+                .font(.system(size: embedded ? 11 : 11, weight: .bold, design: .monospaced))
+                .foregroundStyle(embedded ? .white.opacity(0.72) : theme.ink(0.72))
+                .frame(minWidth: embedded ? 40 : 44)
 
-            CanvasZoomButton(
+            zoomButton(
                 systemName: "plus",
                 label: "Zoom in",
-                side: buttonSide,
-                iconSize: iconSize,
-                cornerRadius: buttonCornerRadius,
                 action: onZoomIn
             )
 
-            Divider()
-                .frame(height: dividerHeight)
-                .overlay(theme.ink(0.16))
+            if embedded {
+                focusButton
+            } else {
+                Divider()
+                    .frame(height: 20)
+                    .overlay(theme.ink(0.16))
 
+                focusButton
+            }
+        }
+        .animation(.easeOut(duration: 0.15), value: isFocusEnabled)
+        .animation(.easeOut(duration: 0.15), value: isCardFocused)
+    }
+
+    @ViewBuilder
+    private func zoomButton(systemName: String, label: String, action: @escaping () -> Void) -> some View {
+        if embedded {
+            DockIconButton(icon: systemName, help: label, action: action)
+        } else {
             CanvasZoomButton(
-                systemName: isCardFocused
-                    ? "arrow.down.right.and.arrow.up.left"
-                    : "arrow.up.left.and.arrow.down.right",
-                label: isFocusEnabled
-                    ? (isCardFocused ? "Exit card focus" : "Focus selected card")
-                    : "Select a card to focus",
-                side: buttonSide,
-                iconSize: iconSize,
-                cornerRadius: buttonCornerRadius,
+                systemName: systemName,
+                label: label,
+                action: action
+            )
+        }
+    }
+
+    @ViewBuilder
+    private var focusButton: some View {
+        let icon = isCardFocused
+            ? "arrow.down.right.and.arrow.up.left"
+            : "arrow.up.left.and.arrow.down.right"
+        let label = isFocusEnabled
+            ? (isCardFocused ? "Exit card focus" : "Focus selected card")
+            : "Select a card to focus"
+
+        if embedded {
+            DockIconButton(
+                icon: icon,
+                help: label,
+                isEnabled: isFocusEnabled,
+                action: { onToggleCardFocus?() }
+            )
+        } else {
+            CanvasZoomButton(
+                systemName: icon,
+                label: label,
                 isEnabled: isFocusEnabled,
                 action: { onToggleCardFocus?() }
             )
         }
-        .animation(.easeOut(duration: 0.15), value: isFocusEnabled)
-        .animation(.easeOut(duration: 0.15), value: isCardFocused)
     }
 }
 

@@ -63,11 +63,11 @@ struct SpaceBottomDock: View {
         // A single Liquid-Glass sheet (the dock) with plain monochrome glyphs on
         // top — never per-icon glass, per Apple's "no stacked glass" rule. Groups
         // (switcher · space controls · card tools) separated by wider spacing.
-        HStack(spacing: Self.groupGap) {
+        HStack(spacing: DockMetrics.groupGap) {
             spaceSwitcher
 
             // Card-creation tools: terminal, notes, todo, browser, files, git.
-            HStack(spacing: Self.iconGap) {
+            HStack(spacing: DockMetrics.iconGap) {
                 barButton("terminal", help: "Add terminal card") { onAddCard(.agent) }
                 barButton("note.text", help: "Add note card") { onAddCard(.note) }
                 barButton("checklist", help: "Add todo card") { onAddCard(.todo) }
@@ -77,7 +77,7 @@ struct SpaceBottomDock: View {
             }
 
             // Space customization: layout mode, re-tile, layout, background.
-            HStack(spacing: Self.iconGap) {
+            HStack(spacing: DockMetrics.iconGap) {
                 barButton(
                     layoutMode == .pagedGrid ? "rectangle.3.group" : "square.grid.2x2",
                     help: layoutMode == .pagedGrid ? "Free-arrange" : "Grid"
@@ -99,9 +99,9 @@ struct SpaceBottomDock: View {
 
             if let errorMessage {
                 Image(systemName: "exclamationmark.triangle")
-                    .font(.system(size: Self.glyphSize, weight: .medium))
+                    .font(.system(size: DockMetrics.glyphSize, weight: .medium))
                     .foregroundStyle(.orange)
-                    .frame(width: Self.iconSide, height: Self.iconSide)
+                    .frame(width: DockMetrics.iconSide, height: DockMetrics.iconSide)
                     .help(errorMessage)
             }
         }
@@ -132,12 +132,6 @@ struct SpaceBottomDock: View {
             onAddCard(.git)
         }
     }
-
-    /// Compact metrics — a slim floating glass bar, not a chunky dock.
-    private static let iconSide: CGFloat = 34
-    private static let glyphSize: CGFloat = 18
-    private static let iconGap: CGFloat = 3
-    private static let groupGap: CGFloat = 12
 
     private var spaceSwitcher: some View {
         Menu {
@@ -171,13 +165,13 @@ struct SpaceBottomDock: View {
                     .font(.system(size: 9, weight: .bold))
                     .foregroundStyle(.white.opacity(0.6))
             }
-            .padding(.horizontal, 12).frame(height: Self.iconSide)
+            .padding(.horizontal, 12).frame(height: DockMetrics.iconSide)
         }
         .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
     }
 
     private func barButton(_ icon: String, help: String, action: @escaping () -> Void) -> some View {
-        DockIconButton(icon: icon, help: help, side: Self.iconSide, glyph: Self.glyphSize, action: action)
+        DockIconButton(icon: icon, help: help, action: action)
     }
 
     @ViewBuilder private var backgroundPopover: some View {
@@ -234,52 +228,5 @@ struct SpaceBottomDock: View {
                 showImportError = true
             }
         }
-    }
-}
-
-/// The dock's single Liquid-Glass sheet. Uses Apple's real `.glassEffect` on
-/// macOS 26+, and a translucent frosted-material fallback (with a faint rim) on
-/// older systems. `.clear` is the high-transparency variant, so the background
-/// bleeds strongly through the dock.
-private struct DockGlass<S: Shape>: ViewModifier {
-    let shape: S
-
-    func body(content: Content) -> some View {
-        if #available(macOS 26.0, *) {
-            content.glassEffect(.clear, in: shape)
-        } else {
-            content
-                .background(shape.fill(.ultraThinMaterial).opacity(0.7))
-                .overlay(shape.stroke(.white.opacity(0.12), lineWidth: 1))
-        }
-    }
-}
-
-/// A plain monochrome glyph button that lives directly on the dock glass (no
-/// glass of its own). A faint fill fades in on hover for affordance.
-private struct DockIconButton: View {
-    let icon: String
-    let help: String
-    let side: CGFloat
-    let glyph: CGFloat
-    let action: () -> Void
-
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: glyph, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.95))
-                .frame(width: side, height: side)
-                .background(
-                    Circle().fill(.white.opacity(hovering ? 0.16 : 0))
-                )
-                .contentShape(Circle())
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-        .animation(.easeOut(duration: 0.12), value: hovering)
-        .help(help)
     }
 }
