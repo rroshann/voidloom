@@ -412,6 +412,12 @@ public final class WorkspaceStore: ObservableObject {
         persist()
     }
 
+    /// Sets the space's project folder (used by file-browser and git cards).
+    public func setSpaceFolder(_ path: String?) {
+        state.setSpaceFolder(path)
+        persist()
+    }
+
     public func setSpaceTiling(_ tiling: SpaceTiling) {
         state.setSpaceTiling(tiling)
         persist()
@@ -1115,6 +1121,22 @@ public final class WorkspaceStore: ObservableObject {
                 size: CardSize(width: 520, height: 340),
                 title: "New Preview",
                 content: "Browser card placeholder."
+            )
+        case .fileBrowser:
+            return WorkspaceCard(
+                kind: .fileBrowser,
+                position: .zero,
+                size: CardSize(width: 440, height: 360),
+                title: "Files",
+                content: ""
+            )
+        case .git:
+            return WorkspaceCard(
+                kind: .git,
+                position: .zero,
+                size: CardSize(width: 560, height: 380),
+                title: "Git",
+                content: ""
             )
         }
     }

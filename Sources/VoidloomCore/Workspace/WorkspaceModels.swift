@@ -5,6 +5,8 @@ public enum CardKind: String, CaseIterable, Codable, Equatable, Identifiable, Se
     case note
     case todo
     case browser
+    case fileBrowser
+    case git
 
     public var id: String { rawValue }
 }
@@ -852,6 +854,11 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public mutating func setSpaceBackground(_ background: SpaceBackground) {
         ensureSpaceConfig()
         space?.background = background
+    }
+
+    public mutating func setSpaceFolder(_ path: String?) {
+        ensureSpaceConfig()
+        space?.folderPath = path
     }
 
     public mutating func setSpaceTiling(_ tiling: SpaceTiling) {

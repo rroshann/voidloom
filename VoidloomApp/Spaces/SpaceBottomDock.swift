@@ -63,6 +63,17 @@ struct SpaceBottomDock: View {
         HStack(spacing: Self.groupGap) {
             spaceSwitcher
 
+            // Card-creation tools: terminal, notes, todo, browser, files, git.
+            HStack(spacing: Self.iconGap) {
+                barButton("terminal", help: "Add terminal card") { onAddCard(.agent) }
+                barButton("note.text", help: "Add note card") { onAddCard(.note) }
+                barButton("checklist", help: "Add todo card") { onAddCard(.todo) }
+                barButton("safari", help: "Add browser card") { onAddCard(.browser) }
+                barButton("folder", help: "Add file browser card") { onAddCard(.fileBrowser) }
+                barButton("arrow.triangle.branch", help: "Add git card") { onAddCard(.git) }
+            }
+
+            // Space customization: layout mode, re-tile, layout, background.
             HStack(spacing: Self.iconGap) {
                 barButton(
                     layoutMode == .pagedGrid ? "rectangle.3.group" : "square.grid.2x2",
@@ -81,13 +92,6 @@ struct SpaceBottomDock: View {
                     .popover(isPresented: $showBackgroundPopover, arrowEdge: .top) {
                         backgroundPopover.padding(16).frame(width: 260)
                     }
-            }
-
-            HStack(spacing: Self.iconGap) {
-                barButton("terminal", help: "Add terminal card") { onAddCard(.agent) }
-                barButton("note.text", help: "Add note card") { onAddCard(.note) }
-                barButton("checklist", help: "Add todo card") { onAddCard(.todo) }
-                barButton("safari", help: "Add browser card") { onAddCard(.browser) }
             }
 
             if let errorMessage {

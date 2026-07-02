@@ -195,6 +195,10 @@ struct WorkspaceCardView: View {
             NoteCardContentView(cardID: card.id, content: card.content, store: store, isSelected: isSelected)
         case .todo:
             TodoCardContentView(cardID: card.id, content: card.content, store: store, isSelected: isSelected)
+        case .fileBrowser:
+            FileBrowserCardContentView(store: store, accent: palette.accent)
+        case .git:
+            GitCardContentView(store: store, accent: palette.accent)
         }
     }
 

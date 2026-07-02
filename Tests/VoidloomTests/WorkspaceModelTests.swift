@@ -993,7 +993,9 @@ final class WorkspaceModelTests: XCTestCase {
             .agent: CardSize(width: 480, height: 320),
             .note: CardSize(width: 440, height: 300),
             .todo: CardSize(width: 420, height: 300),
-            .browser: CardSize(width: 520, height: 340)
+            .browser: CardSize(width: 520, height: 340),
+            .fileBrowser: CardSize(width: 440, height: 360),
+            .git: CardSize(width: 560, height: 380)
         ]
 
         // Spread placements far apart so the non-overlap cascade never resizes
@@ -1647,6 +1649,50 @@ final class WorkspaceModelTests: XCTestCase {
         store.clearSelection()
 
         XCTAssertNil(store.state.activeCardID)
+    }
+
+    func testCardKindIncludesFileBrowserAndGit() {
+        XCTAssertTrue(CardKind.allCases.contains(.fileBrowser))
+        XCTAssertTrue(CardKind.allCases.contains(.git))
+    }
+
+    @MainActor
+    func testAddFileBrowserAndGitCards() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(state: WorkspaceState(), storageURL: url, persistenceDelay: 60)
+        store.addCard(kind: .fileBrowser)
+        store.addCard(kind: .git)
+
+        XCTAssertEqual(store.state.cards.map(\.kind), [.fileBrowser, .git])
+    }
+
+    @MainActor
+    func testSetSpaceFolderPersistsAndRoundTrips() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString).appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(state: WorkspaceState(), storageURL: url, persistenceDelay: 0)
+        store.setSpaceFolder("/tmp/project")
+        XCTAssertEqual(store.state.space?.folderPath, "/tmp/project")
+
+        // Round-trips through Codable (migration-safe optional field).
+        let data = try JSONEncoder().encode(store.state)
+        let decoded = try JSONDecoder().decode(WorkspaceState.self, from: data)
+        XCTAssertEqual(decoded.space?.folderPath, "/tmp/project")
+    }
+
+    func testSpaceConfigWithoutFolderPathStillDecodes() throws {
+        // A config JSON predating folderPath must still load (nil folder).
+        let json = """
+        {"background":{"atmosphere":{}},"tiling":{"mode":"auto","columns":2,"gap":18,"margin":28,"targetAspect":1.6},"backgroundDimming":0.35,"layoutMode":"pagedGrid"}
+        """
+        let data = Data(json.utf8)
+        let decoded = try JSONDecoder().decode(SpaceConfig.self, from: data)
+        XCTAssertNil(decoded.folderPath)
     }
 
     @MainActor

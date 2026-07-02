@@ -33,6 +33,8 @@
 		A30000000000000000000004 /* TodoCardContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000014 /* TodoCardContentView.swift */; };
 		A30000000000000000000005 /* BrowserWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000015 /* BrowserWebView.swift */; };
 		A30000000000000000000006 /* BrowserCardContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000016 /* BrowserCardContentView.swift */; };
+		A300000000000000000000A1 /* FileBrowserCardContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A300000000000000000000B1 /* FileBrowserCardContentView.swift */; };
+		A300000000000000000000A2 /* GitCardContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A300000000000000000000B2 /* GitCardContentView.swift */; };
 		A30000000000000000000007 /* AgentTerminalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000017 /* AgentTerminalView.swift */; };
 		A30000000000000000000008 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000018 /* SettingsView.swift */; };
 		A40000000000000000000001 /* ConversationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000011 /* ConversationStore.swift */; };
@@ -99,6 +101,8 @@
 		A30000000000000000000014 /* TodoCardContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/TodoCardContentView.swift; sourceTree = "<group>"; };
 		A30000000000000000000015 /* BrowserWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/BrowserWebView.swift; sourceTree = "<group>"; };
 		A30000000000000000000016 /* BrowserCardContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/BrowserCardContentView.swift; sourceTree = "<group>"; };
+		A300000000000000000000B1 /* FileBrowserCardContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/FileBrowserCardContentView.swift; sourceTree = "<group>"; };
+		A300000000000000000000B2 /* GitCardContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/GitCardContentView.swift; sourceTree = "<group>"; };
 		A30000000000000000000017 /* AgentTerminalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/AgentTerminalView.swift; sourceTree = "<group>"; };
 		A30000000000000000000018 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/SettingsView.swift; sourceTree = "<group>"; };
 		A40000000000000000000011 /* ConversationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/ConversationStore.swift; sourceTree = "<group>"; };
@@ -223,6 +227,8 @@
 				A30000000000000000000014 /* TodoCardContentView.swift */,
 				A30000000000000000000015 /* BrowserWebView.swift */,
 				A30000000000000000000016 /* BrowserCardContentView.swift */,
+				A300000000000000000000B1 /* FileBrowserCardContentView.swift */,
+				A300000000000000000000B2 /* GitCardContentView.swift */,
 				A90000000000000000000011 /* BrowserLoadModel.swift */,
 				A30000000000000000000017 /* AgentTerminalView.swift */,
 				A20000000000000000000017 /* CardPalette.swift */,
@@ -343,6 +349,8 @@
 				A30000000000000000000004 /* TodoCardContentView.swift in Sources */,
 				A30000000000000000000005 /* BrowserWebView.swift in Sources */,
 				A30000000000000000000006 /* BrowserCardContentView.swift in Sources */,
+				A300000000000000000000A1 /* FileBrowserCardContentView.swift in Sources */,
+				A300000000000000000000A2 /* GitCardContentView.swift in Sources */,
 				A30000000000000000000007 /* AgentTerminalView.swift in Sources */,
 				A30000000000000000000008 /* SettingsView.swift in Sources */,
 				A40000000000000000000001 /* ConversationStore.swift in Sources */,
