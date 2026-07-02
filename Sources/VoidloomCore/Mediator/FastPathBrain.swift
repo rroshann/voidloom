@@ -72,9 +72,15 @@ public final class FastPathBrain: MediatorBrain {
         guard let first = words.first else { return nil }
         let count = Int(first) ?? numberWords[first] ?? 0
         guard count > 0 else { return nil }
-        let kind: MediatorAgentKind = words.contains("shell") ? .shell : .claudeCode
+
+        let nameMarker = words.firstIndex { $0 == "named" || $0 == "called" }
+        // Only words up to the name marker can name the process kind, so an
+        // agent NAMED "shell" no longer flips a claude agent to a shell (carry-over #5).
+        let kindScan = nameMarker.map { Array(words[..<$0]) } ?? words
+        let kind: MediatorAgentKind = kindScan.contains("shell") ? .shell : .claudeCode
+
         var names: [String]? = nil
-        if let namedIdx = words.firstIndex(where: { $0 == "named" || $0 == "called" }) {
+        if let namedIdx = nameMarker {
             let raw = words[(namedIdx + 1)...]
                 .flatMap { $0.split(separator: ",").map(String.init) }
                 .filter { $0 != "and" && !$0.isEmpty }

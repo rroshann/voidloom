@@ -61,4 +61,16 @@ final class FastPathBrainTests: XCTestCase {
             }
         }
     }
+
+    func testAgentLiterallyNamedShellStaysClaudeKind() async throws {
+        // "shell" as a NAME must not flip the process kind (carry-over #5).
+        let a = try await FastPathBrain().command(for: "spawn a claude agent named shell")
+        XCTAssertEqual(a, .spawnAgents(count: 1, kind: .claudeCode, names: ["shell"]))
+        // "shell" as the KIND word still selects a shell terminal.
+        let b = try await FastPathBrain().command(for: "spawn 2 shell terminals")
+        XCTAssertEqual(b, .spawnAgents(count: 2, kind: .shell, names: nil))
+        // Explicit shell kind AND a shell name together: kind shell, name preserved.
+        let c = try await FastPathBrain().command(for: "spawn a shell named shell")
+        XCTAssertEqual(c, .spawnAgents(count: 1, kind: .shell, names: ["shell"]))
+    }
 }

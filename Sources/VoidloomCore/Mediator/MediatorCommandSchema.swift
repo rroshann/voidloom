@@ -10,7 +10,7 @@ import Foundation
 public enum MediatorCommandSchema {
     public struct Parameter: Equatable, Sendable {
         public enum Kind: String, Sendable {
-            case string, integer, stringArray, arrangeStyle, cardKind, backgroundSpec
+            case string, integer, stringArray, agentKind, arrangeStyle, cardKind, backgroundSpec
         }
         public let name: String
         public let kind: Kind
@@ -33,7 +33,7 @@ public enum MediatorCommandSchema {
     public static let cases: [Case] = [
         Case(name: "spawnAgents", parameters: [
             Parameter(name: "count", kind: .integer, required: true),
-            Parameter(name: "kind", kind: .string, required: true),
+            Parameter(name: "kind", kind: .agentKind, required: true),
             Parameter(name: "names", kind: .stringArray, required: false),
         ]),
         Case(name: "sendPrompt", parameters: [
@@ -73,4 +73,8 @@ public enum MediatorCommandSchema {
         "switchSpace": #"{"switchSpace":{"name":"research"}}"#,
         "setBackground": ##"{"setBackground":{"spec":{"solid":{"hex":"#102030FF"}}}}"##,
     ]
+
+    /// Allowed values for `.agentKind` parameters — the grammar constrains
+    /// `spawnAgents.kind` to exactly these instead of an arbitrary string.
+    public static let agentKindValues: [String] = MediatorAgentKind.allCases.map(\.rawValue)
 }

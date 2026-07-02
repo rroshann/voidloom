@@ -59,3 +59,19 @@ final class MediatorCommandSchemaTests: XCTestCase {
         }
     }
 }
+
+final class SchemaAgentKindTests: XCTestCase {
+    func testSpawnKindParameterIsConstrainedToAgentKind() {
+        let spawn = MediatorCommandSchema.cases.first { $0.name == "spawnAgents" }
+        let kind = spawn?.parameters.first { $0.name == "kind" }
+        XCTAssertEqual(kind?.kind, .agentKind)
+    }
+
+    func testAgentKindEnumerationMatchesMediatorAgentKind() {
+        XCTAssertEqual(
+            MediatorCommandSchema.agentKindValues,
+            MediatorAgentKind.allCases.map(\.rawValue)
+        )
+        XCTAssertEqual(MediatorCommandSchema.agentKindValues, ["claude", "shell"])
+    }
+}
