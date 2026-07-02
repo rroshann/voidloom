@@ -213,18 +213,18 @@ struct SpaceBottomDock: View {
 
 /// The dock's single Liquid-Glass sheet. Uses Apple's real `.glassEffect` on
 /// macOS 26+, and a translucent frosted-material fallback (with a faint rim) on
-/// older systems. `.regular` glass is translucent enough to let the background
-/// bleed through while staying readable — the clear look "but not too much".
+/// older systems. `.clear` is the high-transparency variant, so the background
+/// bleeds strongly through the dock.
 private struct DockGlass<S: Shape>: ViewModifier {
     let shape: S
 
     func body(content: Content) -> some View {
         if #available(macOS 26.0, *) {
-            content.glassEffect(.regular, in: shape)
+            content.glassEffect(.clear, in: shape)
         } else {
             content
-                .background(shape.fill(.ultraThinMaterial))
-                .overlay(shape.stroke(.white.opacity(0.14), lineWidth: 1))
+                .background(shape.fill(.ultraThinMaterial).opacity(0.7))
+                .overlay(shape.stroke(.white.opacity(0.12), lineWidth: 1))
         }
     }
 }
@@ -243,8 +243,8 @@ private struct DockIconButton: View {
     var body: some View {
         Button(action: action) {
             Image(systemName: icon)
-                .font(.system(size: glyph, weight: .medium))
-                .foregroundStyle(.white.opacity(0.92))
+                .font(.system(size: glyph, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.95))
                 .frame(width: side, height: side)
                 .background(
                     Circle().fill(.white.opacity(hovering ? 0.16 : 0))
