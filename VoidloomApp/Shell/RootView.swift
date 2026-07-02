@@ -87,6 +87,18 @@ struct RootView: View {
                 if !(NSApp.keyWindow?.firstResponder is NSText) {
                     store.duplicateSelection()
                 }
+            case .setProjectFolder:
+                let panel = NSOpenPanel()
+                panel.canChooseDirectories = true
+                panel.canChooseFiles = false
+                panel.allowsMultipleSelection = false
+                panel.prompt = "Choose"
+                if let current = store.state.space?.folderPath, !current.isEmpty {
+                    panel.directoryURL = URL(fileURLWithPath: current)
+                }
+                if panel.runModal() == .OK, let url = panel.url {
+                    store.setSpaceFolder(url.path)
+                }
             case .zoomIn, .zoomOut, .resetViewport:
                 break   // handled by CanvasShellView, which owns the zoom anchor
             }

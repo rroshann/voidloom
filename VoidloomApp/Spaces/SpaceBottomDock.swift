@@ -30,6 +30,13 @@ struct SpaceBottomDock: View {
         store.library.workspaces.first { $0.id == store.library.selectedWorkspaceID }?.name ?? "Space"
     }
 
+    private var projectFolderLabel: String {
+        guard let path = store.state.space?.folderPath, !path.isEmpty else {
+            return "No project folder"
+        }
+        return URL(fileURLWithPath: path).lastPathComponent
+    }
+
     private var layoutMode: SpaceLayoutMode { store.state.space?.layoutMode ?? .pagedGrid }
 
     /// Effective column setting for the current space (0 = Auto). Falls back to the
@@ -149,6 +156,11 @@ struct SpaceBottomDock: View {
                         Text(ws.name)
                     }
                 }
+            }
+            Divider()
+            Text(projectFolderLabel).disabled(true)
+            Button("Set Project Folder…") {
+                MenuAction.setProjectFolder.post()
             }
             Divider()
             Button("New Space") {

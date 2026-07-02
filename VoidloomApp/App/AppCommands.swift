@@ -20,6 +20,7 @@ enum MenuAction {
     case cut
     case paste
     case duplicate
+    case setProjectFolder
 
     static let notification = Notification.Name("voidloom.menuAction")
 
@@ -73,6 +74,8 @@ struct VoidloomCommands: Commands {
                 .keyboardShortcut("l", modifiers: [.command, .shift])
             Button("Toggle Minimap") { MenuAction.toggleMinimap.post() }
                 .keyboardShortcut("m", modifiers: [.command, .shift])
+            Divider()
+            Button("Set Project Folder…") { MenuAction.setProjectFolder.post() }
             Divider()
             Button("Zoom In") { MenuAction.zoomIn.post() }
                 .keyboardShortcut("+", modifiers: .command)
