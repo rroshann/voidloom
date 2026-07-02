@@ -126,6 +126,12 @@ private struct AppearanceSettingsTab: View {
     @AppStorage("appearance.textSize") private var textSize: TextSize = .medium
     @AppStorage("appearance.monospacedMetadata") private var monospacedMetadata = true
 
+    /// Curated accent presets — one tap, no fighting the system color wheel.
+    private static let accentPresets = [
+        "#5EE6D3", "#38C6FF", "#5B8CFF", "#A56BFF",
+        "#FF6AC1", "#FF5A5F", "#FFB44A", "#7CE38B"
+    ]
+
     var body: some View {
         Form {
             Section("Theme") {
@@ -134,10 +140,22 @@ private struct AppearanceSettingsTab: View {
                 }
                 .pickerStyle(.segmented)
 
-                ColorPicker("Accent color", selection: Binding(
-                    get: { Color(hex: accentHex) },
-                    set: { accentHex = $0.toHex() }
-                ), supportsOpacity: false)
+                LabeledContent("Accent color") {
+                    HStack(spacing: 8) {
+                        ForEach(Self.accentPresets, id: \.self) { hex in
+                            AccentSwatch(
+                                hex: hex,
+                                isSelected: accentHex.caseInsensitiveCompare(hex) == .orderedSame
+                            ) { accentHex = hex }
+                        }
+                        ColorPicker("Custom accent color", selection: Binding(
+                            get: { Color(hex: accentHex) },
+                            set: { accentHex = $0.toHex() }
+                        ), supportsOpacity: false)
+                        .labelsHidden()
+                        .help("Custom…")
+                    }
+                }
 
                 Toggle("Reduce transparency in panels", isOn: $reduceTransparency)
             }
@@ -172,6 +190,30 @@ private struct AppearanceSettingsTab: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+/// A tappable accent preset. Shows a ring when it's the active accent.
+private struct AccentSwatch: View {
+    let hex: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Circle()
+                .fill(Color(hex: hex))
+                .frame(width: 22, height: 22)
+                .overlay(Circle().strokeBorder(.white.opacity(0.25), lineWidth: 1))
+                .overlay(
+                    Circle()
+                        .strokeBorder(Color.primary, lineWidth: 2)
+                        .padding(-3)
+                        .opacity(isSelected ? 1 : 0)
+                )
+        }
+        .buttonStyle(.plain)
+        .help("Use \(hex)")
     }
 }
 
