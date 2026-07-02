@@ -12,7 +12,7 @@ final class MediatorSessionTests: XCTestCase {
 
         XCTAssertEqual(
             machine.handle(.transcriptFinal("ask jerry to fix the build")),
-            [.stopCapture, .parse(transcript: "ask jerry to fix the build")]
+            [.stopCapture, .parse(transcript: "ask jerry to fix the build"), .scheduleTimeout(seconds: 10)]
         )
         XCTAssertEqual(machine.state, .parsing(transcript: "ask jerry to fix the build"))
     }
@@ -62,6 +62,16 @@ final class MediatorSessionTests: XCTestCase {
         XCTAssertEqual(machine.handle(.parseFailed("no valid command")),
                        [.narrate("Didn't catch that — try rephrasing.")])
         XCTAssertEqual(machine.state, .idle)
+    }
+
+    func testParsingTimesOutAndCanBeCancelled() {
+        var timedOut = MediatorSessionMachine.parsing("slow brain")
+        XCTAssertEqual(timedOut.handle(.timeout), [.narrate("Didn't catch that — try rephrasing.")])
+        XCTAssertEqual(timedOut.state, .idle)
+
+        var cancelled = MediatorSessionMachine.parsing("slow brain")
+        XCTAssertEqual(cancelled.handle(.cancelRequested), [])
+        XCTAssertEqual(cancelled.state, .idle)
     }
 
     func testOverlappingTriggerRestartsCaptureButNeverInterruptsExecution() {

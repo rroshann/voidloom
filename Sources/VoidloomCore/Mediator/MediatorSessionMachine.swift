@@ -37,6 +37,7 @@ public enum MediatorEffect: Equatable, Sendable {
 public struct MediatorSessionMachine: Equatable, Sendable {
     public static let captureTimeout: Double = 15
     public static let confirmationTimeout: Double = 10
+    public static let parseTimeout: Double = 10
     static let rephrasePrompt = "Didn't catch that — try rephrasing."
 
     public private(set) var state: MediatorState = .idle
@@ -66,7 +67,8 @@ public struct MediatorSessionMachine: Equatable, Sendable {
 
         case (.capturing, .transcriptFinal(let text)):
             state = .parsing(transcript: text)
-            return [.stopCapture, .parse(transcript: text)]
+            // The parse watchdog frees the machine if a brain call hangs.
+            return [.stopCapture, .parse(transcript: text), .scheduleTimeout(seconds: Self.parseTimeout)]
 
         case (.capturing, .timeout):
             state = .idle
@@ -83,6 +85,10 @@ public struct MediatorSessionMachine: Equatable, Sendable {
         case (.parsing, .parseFailed), (.parsing, .timeout):
             state = .idle
             return [.narrate(Self.rephrasePrompt)]
+
+        case (.parsing, .cancelRequested):
+            state = .idle
+            return []
 
         case (.executing, .executionFinished(let result)):
             return finish(result)
