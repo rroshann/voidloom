@@ -1,8 +1,8 @@
 import SwiftUI
 import VoidloomCore
 
-/// Launcher shown before a workspace is open: the brand, the five most recent
-/// workspaces (open / rename / delete), and Create Workspace. No animation.
+/// Launcher shown before a workspace is open: the brand, searchable workspace list
+/// (open / rename / delete), and Create Workspace. No animation.
 struct StartupView: View {
     @ObservedObject var store: WorkspaceStore
     @EnvironmentObject private var session: AppSession
@@ -11,9 +11,26 @@ struct StartupView: View {
     @State private var editingID: UUID?
     @State private var editingName = ""
     @State private var deleteCandidate: WorkspaceSummary?
+    @State private var searchText = ""
+    @State private var showAll = false
 
-    private var recent: [WorkspaceSummary] {
-        Array(store.library.workspaces.sorted { $0.updatedAt > $1.updatedAt }.prefix(5))
+    private var sorted: [WorkspaceSummary] {
+        store.library.workspaces.sorted { $0.updatedAt > $1.updatedAt }
+    }
+
+    private var isSearching: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    private var displayedWorkspaces: [WorkspaceSummary] {
+        let trimmed = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !trimmed.isEmpty {
+            return sorted.filter { $0.name.localizedCaseInsensitiveContains(trimmed) }
+        } else if showAll {
+            return sorted
+        } else {
+            return Array(sorted.prefix(5))
+        }
     }
 
     var body: some View {
@@ -27,7 +44,7 @@ struct StartupView: View {
             VStack(spacing: 28) {
                 header
 
-                if recent.isEmpty {
+                if sorted.isEmpty {
                     emptyState
                 } else {
                     workspaceList
@@ -67,10 +84,50 @@ struct StartupView: View {
         }
     }
 
+    private var searchField: some View {
+        TextField("Search workspaces", text: $searchText)
+            .textFieldStyle(.plain)
+            .foregroundStyle(.white.opacity(0.92))
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    .fill(.white.opacity(0.08))
+                    .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(.white.opacity(0.1), lineWidth: 1))
+            )
+    }
+
     private var workspaceList: some View {
         VStack(spacing: 8) {
-            ForEach(recent) { ws in
-                row(ws)
+            searchField
+
+            ScrollView {
+                VStack(spacing: 8) {
+                    ForEach(displayedWorkspaces) { ws in
+                        row(ws)
+                    }
+                }
+            }
+            .frame(maxHeight: 320)
+
+            if isSearching && displayedWorkspaces.isEmpty {
+                Text("No matching workspaces.")
+                    .font(.system(size: 13))
+                    .foregroundStyle(.white.opacity(0.55))
+            }
+
+            if !isSearching && !showAll && sorted.count > 5 {
+                Button("Show all (\(sorted.count))") { showAll = true }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.65))
+            }
+
+            if showAll && !isSearching {
+                Button("Show recent") { showAll = false }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(.white.opacity(0.65))
             }
         }
     }
