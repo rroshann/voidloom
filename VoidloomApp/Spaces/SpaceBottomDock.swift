@@ -134,8 +134,8 @@ struct SpaceBottomDock: View {
         } label: {
             HStack(spacing: 7) {
                 Text(activeName.uppercased())
-                    .font(.system(size: 12, weight: .semibold, design: .monospaced))
-                    .tracking(1.5)
+                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+                    .tracking(0.8)
                     .foregroundStyle(theme.accent)
                 Image(systemName: "chevron.up")
                     .font(.system(size: 10, weight: .bold))
@@ -225,11 +225,11 @@ private struct DockChip<S: Shape>: ViewModifier {
 
     func body(content: Content) -> some View {
         content
-            // Dark tint over frosted material → readable "smoked glass".
-            .background(shape.fill(Color(red: 0.04, green: 0.05, blue: 0.06).opacity(0.66)))
-            .background(shape.fill(.ultraThinMaterial))
-            // Glossy sheen along the top edge — reads as a designed, luxe surface.
-            .overlay(
+            // Sheen, tint and material are all BEHIND the content (as backgrounds,
+            // not overlays) so nothing washes over the glyphs/text — the earlier
+            // overlaid sheen hazed the content and hurt legibility. Back-to-front:
+            // frosted material → dark tint → glossy top sheen → content.
+            .background(
                 shape.fill(
                     LinearGradient(
                         colors: [.white.opacity(0.16), .clear],
@@ -237,6 +237,8 @@ private struct DockChip<S: Shape>: ViewModifier {
                     )
                 )
             )
+            .background(shape.fill(Color(red: 0.04, green: 0.05, blue: 0.06).opacity(0.72)))
+            .background(shape.fill(.ultraThinMaterial))
             // Border in the accent color: a crisp edge plus a soft blurred copy for glow.
             .overlay(
                 shape.stroke(
