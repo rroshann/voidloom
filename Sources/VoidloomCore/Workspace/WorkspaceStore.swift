@@ -151,12 +151,14 @@ public final class WorkspaceStore: ObservableObject {
     }
 
     public func clearSelection() {
-        // Clear whenever ANY selection is live — card, text, or a transient
-        // marquee set — so clicking empty canvas also de-highlights a selected
-        // text element immediately instead of only clearing card selection.
+        // Clear whenever ANY selection or focus is live — card, text, a transient
+        // marquee set, or an active (content-focused) card — so clicking empty
+        // canvas de-highlights everything, including a card made active by
+        // clicking into its content (which sets activeCardID but not selectedCardID).
         guard state.selectedCardID != nil
             || state.selectedTextID != nil
-            || !state.marqueeSelectedCardIDs.isEmpty else { return }
+            || !state.marqueeSelectedCardIDs.isEmpty
+            || state.activeCardID != nil else { return }
         state.clearSelection()
         schedulePersistence()
     }

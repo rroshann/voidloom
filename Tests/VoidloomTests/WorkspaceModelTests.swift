@@ -1626,6 +1626,29 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertNil(store.state.selectedCardID)
     }
 
+    // Clicking inside a card's content activates it (activeCardID set) WITHOUT
+    // selecting it. Clicking empty space must clear that active/focus state too,
+    // not just selection — otherwise the focus ring lingers after clicking away.
+    @MainActor
+    func testStoreClearSelectionClearsActiveCard() throws {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(state: WorkspaceState(), storageURL: url, persistenceDelay: 60)
+        store.addCard(kind: .agent)
+        let id = try XCTUnwrap(store.state.cards.first?.id)
+
+        store.activateCard(id: id)
+        XCTAssertEqual(store.state.activeCardID, id)
+        XCTAssertNil(store.state.selectedCardID, "activation drops selection")
+
+        store.clearSelection()
+
+        XCTAssertNil(store.state.activeCardID)
+    }
+
     @MainActor
     func testUpdateTextElementStylePersists() throws {
         let url = FileManager.default.temporaryDirectory
