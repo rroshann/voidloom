@@ -46,7 +46,6 @@ struct BrowserCardContentView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(Rectangle())
                             .onTapGesture {
-                                guard isSelected else { return }
                                 // Pre-populate draft with the live URL so the user edits what they see
                                 urlDraft = loadModel.currentURL?.absoluteString ?? content
                                 isEditingURL = true
