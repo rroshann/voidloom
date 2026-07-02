@@ -67,4 +67,59 @@ final class ModelAssetManagerTests: XCTestCase {
         XCTAssertEqual(m.sizeBytes, 396_705_472)
         XCTAssertEqual(m.license, "Apache-2.0")
     }
+
+    // MARK: coalescing + cancel (via a stalling URLProtocol — no real network)
+
+    private func stallingManager() -> (ModelAssetManager, LocalModelAsset) {
+        let config = URLSessionConfiguration.ephemeral
+        config.protocolClasses = [StallingURLProtocol.self]
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+        let mgr = ModelAssetManager(modelsDirectory: root, sessionConfiguration: config)
+        let asset = LocalModelAsset(
+            id: "stall", filename: "stall.gguf", url: URL(string: "stall://model/x")!,
+            sha256: String(repeating: "0", count: 64), sizeBytes: 1,
+            license: "Apache-2.0", displayName: "Stall")
+        return (mgr, asset)
+    }
+
+    private func poll(timeout: TimeInterval = 3, until cond: @MainActor () -> Bool) async throws {
+        let deadline = Date().addingTimeInterval(timeout)
+        while !cond() {
+            if Date() > deadline { XCTFail("poll timed out"); return }
+            try await Task.sleep(nanoseconds: 5_000_000)
+        }
+    }
+
+    func testConcurrentDownloadsCoalesceIntoASingleTask() async throws {
+        let (mgr, asset) = stallingManager()
+        async let a: Void = { try? await mgr.download(asset) }()
+        async let b: Void = { try? await mgr.download(asset) }()
+        try await poll { mgr.downloadTaskCreationCount == 1 }
+        mgr.cancel(asset)
+        _ = await (a, b)
+        XCTAssertEqual(mgr.downloadTaskCreationCount, 1)
+    }
+
+    func testCancelMidDownloadResolvesToMissingNotFailed() async throws {
+        let (mgr, asset) = stallingManager()
+        let dl = Task { try await mgr.download(asset) }
+        try await poll { mgr.downloadTaskCreationCount == 1 }
+        mgr.cancel(asset)
+        do { try await dl.value; XCTFail("expected cancellation to throw") } catch {}
+        XCTAssertEqual(mgr.state(of: asset), .missing)
+        XCTAssertNil(mgr.localURL(of: asset))
+    }
+}
+
+/// Intercepts `stall://` requests and never delivers data, so a download stays
+/// in flight until the task is cancelled — deterministic, and never touches the
+/// network.
+final class StallingURLProtocol: URLProtocol {
+    override class func canInit(with request: URLRequest) -> Bool {
+        request.url?.scheme == "stall"
+    }
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+    override func startLoading() { /* intentionally never completes */ }
+    override func stopLoading() { /* nothing to tear down */ }
 }
