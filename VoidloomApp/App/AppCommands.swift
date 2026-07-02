@@ -16,6 +16,10 @@ enum MenuAction {
     case goToLauncher
     case undo
     case redo
+    case copy
+    case cut
+    case paste
+    case duplicate
 
     static let notification = Notification.Name("voidloom.menuAction")
 
@@ -32,6 +36,20 @@ struct VoidloomCommands: Commands {
                 .keyboardShortcut("z", modifiers: .command)
             Button("Redo") { MenuAction.redo.post() }
                 .keyboardShortcut("z", modifiers: [.command, .shift])
+        }
+
+        CommandGroup(replacing: .pasteboard) {
+            Button("Cut") { MenuAction.cut.post() }
+                .keyboardShortcut("x", modifiers: .command)
+            Button("Copy") { MenuAction.copy.post() }
+                .keyboardShortcut("c", modifiers: .command)
+            Button("Paste") { MenuAction.paste.post() }
+                .keyboardShortcut("v", modifiers: .command)
+        }
+
+        CommandGroup(after: .pasteboard) {
+            Button("Duplicate") { MenuAction.duplicate.post() }
+                .keyboardShortcut("d", modifiers: .command)
         }
 
         CommandMenu("Cards") {

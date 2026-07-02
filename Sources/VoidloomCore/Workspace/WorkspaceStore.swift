@@ -20,6 +20,9 @@ public final class WorkspaceStore: ObservableObject {
     private var lastUndoKey: String?
     private var lastUndoAt: Date?
 
+    private var cardClipboard: [WorkspaceCard] = []
+    public var canPasteCards: Bool { !cardClipboard.isEmpty }
+
     private var isLibraryMode: Bool { libraryURL != nil }
 
     public init(
@@ -174,6 +177,90 @@ public final class WorkspaceStore: ObservableObject {
         recordUndo()
         state.deleteCards(ids: Set(present))
         persist()
+    }
+
+    // MARK: - Copy / cut / paste / duplicate
+
+    public func copyCards(ids: Set<UUID>) {
+        cardClipboard = state.cards.filter { ids.contains($0.id) }
+    }
+
+    @discardableResult
+    public func pasteCards() -> [UUID] {
+        guard !cardClipboard.isEmpty else { return [] }
+        recordUndo()
+        let clones = Self.cloneCards(cardClipboard)
+        state.cards.append(contentsOf: clones)
+        selectClonedCards(clones)
+        persist()
+        return clones.map(\.id)
+    }
+
+    @discardableResult
+    public func duplicateCards(ids: Set<UUID>) -> [UUID] {
+        let templates = state.cards.filter { ids.contains($0.id) }
+        guard !templates.isEmpty else { return [] }
+        recordUndo()
+        let clones = Self.cloneCards(templates)
+        state.cards.append(contentsOf: clones)
+        selectClonedCards(clones)
+        persist()
+        return clones.map(\.id)
+    }
+
+    public func cutCards(ids: Set<UUID>) {
+        copyCards(ids: ids)
+        deleteCards(ids: ids)
+    }
+
+    public func copySelection() {
+        let ids = currentSelectionCardIDs()
+        guard !ids.isEmpty else { return }
+        copyCards(ids: ids)
+    }
+
+    public func cutSelection() {
+        let ids = currentSelectionCardIDs()
+        guard !ids.isEmpty else { return }
+        cutCards(ids: ids)
+    }
+
+    public func duplicateSelection() {
+        let ids = currentSelectionCardIDs()
+        guard !ids.isEmpty else { return }
+        duplicateCards(ids: ids)
+    }
+
+    private func currentSelectionCardIDs() -> Set<UUID> {
+        if !state.marqueeSelectedCardIDs.isEmpty {
+            return state.marqueeSelectedCardIDs
+        }
+        if let id = state.selectedCardID {
+            return [id]
+        }
+        return []
+    }
+
+    private func selectClonedCards(_ clones: [WorkspaceCard]) {
+        let ids = clones.map(\.id)
+        state.marqueeSelectedCardIDs = Set(ids)
+        state.selectedCardID = ids.count == 1 ? ids[0] : nil
+        state.selectedTextID = nil
+        state.activeCardID = nil
+    }
+
+    private static let cardPasteOffset = CanvasVector(dx: 24, dy: 24)
+
+    private static func cloneCards(_ templates: [WorkspaceCard]) -> [WorkspaceCard] {
+        templates.map { template in
+            var card = template
+            card.id = UUID()
+            card.position = CanvasPoint(
+                x: template.position.x + cardPasteOffset.dx,
+                y: template.position.y + cardPasteOffset.dy
+            )
+            return card
+        }
     }
 
     public func resizeCard(id: UUID, to size: CardSize, position: CanvasPoint? = nil) {

@@ -65,6 +65,28 @@ struct RootView: View {
                 } else {
                     store.redo()
                 }
+            case .copy:
+                if NSApp.keyWindow?.firstResponder is NSText {
+                    NSApp.sendAction(Selector(("copy:")), to: nil, from: nil)
+                } else {
+                    store.copySelection()
+                }
+            case .cut:
+                if NSApp.keyWindow?.firstResponder is NSText {
+                    NSApp.sendAction(Selector(("cut:")), to: nil, from: nil)
+                } else {
+                    store.cutSelection()
+                }
+            case .paste:
+                if NSApp.keyWindow?.firstResponder is NSText {
+                    NSApp.sendAction(Selector(("paste:")), to: nil, from: nil)
+                } else {
+                    store.pasteCards()
+                }
+            case .duplicate:
+                if !(NSApp.keyWindow?.firstResponder is NSText) {
+                    store.duplicateSelection()
+                }
             case .zoomIn, .zoomOut, .resetViewport:
                 break   // handled by CanvasShellView, which owns the zoom anchor
             }

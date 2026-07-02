@@ -2677,6 +2677,109 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertFalse(store.canUndo)
     }
 
+    // MARK: - Copy / cut / paste / duplicate
+
+    @MainActor
+    func testCopySelectionPasteCards() throws {
+        let cardID = UUID()
+        let state = WorkspaceState(cards: [
+            makePositionedCard(cardID, x: 100, y: 200)
+        ])
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(state: state, storageURL: url, persistenceDelay: 60)
+        store.selectCard(id: cardID)
+        store.copySelection()
+        XCTAssertTrue(store.canPasteCards)
+
+        let newIDs = store.pasteCards()
+        XCTAssertEqual(newIDs.count, 1)
+        XCTAssertEqual(store.state.cards.count, 2)
+        XCTAssertNotEqual(newIDs[0], cardID)
+
+        let pasted = try XCTUnwrap(store.state.cards.first(where: { $0.id == newIDs[0] }))
+        assertPoint(pasted.position, 124, 224)
+        XCTAssertEqual(pasted.kind, .note)
+        XCTAssertEqual(pasted.title, "Card")
+        XCTAssertEqual(store.state.selectedCardID, newIDs[0])
+        XCTAssertTrue(store.canPasteCards)
+    }
+
+    @MainActor
+    func testDuplicateCardsUndo() {
+        let cardID = UUID()
+        let state = WorkspaceState(cards: [
+            makePositionedCard(cardID, x: 50, y: 80)
+        ])
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(state: state, storageURL: url, persistenceDelay: 60)
+        let newIDs = store.duplicateCards(ids: [cardID])
+
+        XCTAssertEqual(newIDs.count, 1)
+        XCTAssertEqual(store.state.cards.count, 2)
+        XCTAssertNotEqual(newIDs[0], cardID)
+        assertPoint(store.state.cards.first(where: { $0.id == newIDs[0] })!.position, 74, 104)
+
+        store.undo()
+        XCTAssertEqual(store.state.cards.count, 1)
+        XCTAssertEqual(store.state.cards[0].id, cardID)
+    }
+
+    @MainActor
+    func testCutSelectionPasteRestoresEquivalents() {
+        let cardID = UUID()
+        let state = WorkspaceState(cards: [
+            makePositionedCard(cardID, x: 10, y: 20)
+        ])
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(state: state, storageURL: url, persistenceDelay: 60)
+        store.selectCard(id: cardID)
+        store.cutSelection()
+
+        XCTAssertEqual(store.state.cards.count, 0)
+        XCTAssertTrue(store.canPasteCards)
+
+        let newIDs = store.pasteCards()
+        XCTAssertEqual(newIDs.count, 1)
+        XCTAssertEqual(store.state.cards.count, 1)
+        XCTAssertNotEqual(newIDs[0], cardID)
+
+        let restored = store.state.cards[0]
+        XCTAssertEqual(restored.kind, .note)
+        XCTAssertEqual(restored.title, "Card")
+        assertPoint(restored.position, 34, 44)
+    }
+
+    @MainActor
+    func testPasteCardsEmptyClipboardNoOp() {
+        let cardID = UUID()
+        let state = WorkspaceState(cards: [
+            makePositionedCard(cardID, x: 0, y: 0)
+        ])
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("json")
+        defer { try? FileManager.default.removeItem(at: url) }
+
+        let store = WorkspaceStore(state: state, storageURL: url, persistenceDelay: 60)
+        XCTAssertFalse(store.canPasteCards)
+
+        let newIDs = store.pasteCards()
+        XCTAssertTrue(newIDs.isEmpty)
+        XCTAssertEqual(store.state.cards.count, 1)
+    }
+
     @MainActor
     func testSwitchWorkspaceClearsUndoHistory() throws {
         let baseDirectory = FileManager.default.temporaryDirectory
