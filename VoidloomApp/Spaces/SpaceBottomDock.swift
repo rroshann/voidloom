@@ -57,9 +57,9 @@ struct SpaceBottomDock: View {
     }
 
     var body: some View {
-        // One unified macOS-style dock panel holding clear-glass icon tiles.
-        // Logical groups (switcher · space controls · card tools) are separated
-        // by wider spacing.
+        // A single Liquid-Glass sheet (the dock) with plain monochrome glyphs on
+        // top — never per-icon glass, per Apple's "no stacked glass" rule. Groups
+        // (switcher · space controls · card tools) separated by wider spacing.
         HStack(spacing: Self.groupGap) {
             spaceSwitcher
 
@@ -91,20 +91,17 @@ struct SpaceBottomDock: View {
             }
 
             if let errorMessage {
-                glyphTile("exclamationmark.triangle", tint: .orange)
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: Self.glyphSize, weight: .medium))
+                    .foregroundStyle(.orange)
+                    .frame(width: Self.iconSide, height: Self.iconSide)
                     .help(errorMessage)
             }
         }
-        .padding(.horizontal, 12)
-        .padding(.vertical, 10)
-        .background(
-            RoundedRectangle(cornerRadius: 30, style: .continuous).fill(.regularMaterial)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 30, style: .continuous)
-                .stroke(.white.opacity(0.14), lineWidth: 1)
-        )
-        .shadow(color: .black.opacity(0.35), radius: 22, x: 0, y: 12)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .modifier(DockGlass(shape: Capsule()))
+        .shadow(color: .black.opacity(0.25), radius: 14, x: 0, y: 6)
         .alert("Import failed", isPresented: $showImportError) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -112,11 +109,11 @@ struct SpaceBottomDock: View {
         }
     }
 
-    /// macOS-Dock-sized tile metrics.
-    private static let tileSide: CGFloat = 52
-    private static let tileCorner: CGFloat = 14
-    private static let iconGap: CGFloat = 6
-    private static let groupGap: CGFloat = 14
+    /// Compact metrics — a slim floating glass bar, not a chunky dock.
+    private static let iconSide: CGFloat = 34
+    private static let glyphSize: CGFloat = 18
+    private static let iconGap: CGFloat = 3
+    private static let groupGap: CGFloat = 12
 
     private var spaceSwitcher: some View {
         Menu {
@@ -139,35 +136,22 @@ struct SpaceBottomDock: View {
                 store.createWorkspace(named: n == 0 ? "Untitled" : "Untitled \(n + 1)")
             }
         } label: {
-            HStack(spacing: 7) {
+            HStack(spacing: 6) {
                 Text(activeName.uppercased())
-                    .font(.system(size: 13, weight: .bold, design: .monospaced))
+                    .font(.system(size: 12, weight: .bold, design: .monospaced))
                     .tracking(0.8)
                     .foregroundStyle(.white.opacity(0.95))
                 Image(systemName: "chevron.up")
-                    .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.7))
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.6))
             }
-            .padding(.horizontal, 16).frame(height: Self.tileSide)
-            .modifier(DockChip(shape: RoundedRectangle(cornerRadius: Self.tileCorner, style: .continuous)))
+            .padding(.horizontal, 12).frame(height: Self.iconSide)
         }
         .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
     }
 
     private func barButton(_ icon: String, help: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            glyphTile(icon)
-        }
-        .buttonStyle(.plain).help(help)
-    }
-
-    /// A single clear-glass dock tile with a monochrome glyph, at macOS-Dock size.
-    private func glyphTile(_ icon: String, tint: Color = .white.opacity(0.92)) -> some View {
-        Image(systemName: icon)
-            .font(.system(size: 23, weight: .medium))
-            .foregroundStyle(tint)
-            .frame(width: Self.tileSide, height: Self.tileSide)
-            .modifier(DockChip(shape: RoundedRectangle(cornerRadius: Self.tileCorner, style: .continuous)))
+        DockIconButton(icon: icon, help: help, side: Self.iconSide, glyph: Self.glyphSize, action: action)
     }
 
     @ViewBuilder private var backgroundPopover: some View {
@@ -227,37 +211,49 @@ struct SpaceBottomDock: View {
     }
 }
 
-/// A clear-glass dock tile in the spirit of the iOS/macOS 26 "clear" icon look:
-/// a translucent frosted pane with a soft top specular highlight and a bright
-/// glass rim — no color of its own. Kept behind the content so the glyph/text
-/// stays crisp. Generic over the silhouette.
-private struct DockChip<S: Shape>: ViewModifier {
+/// The dock's single Liquid-Glass sheet. Uses Apple's real `.glassEffect` on
+/// macOS 26+, and a translucent frosted-material fallback (with a faint rim) on
+/// older systems. `.regular` glass is translucent enough to let the background
+/// bleed through while staying readable — the clear look "but not too much".
+private struct DockGlass<S: Shape>: ViewModifier {
     let shape: S
 
     func body(content: Content) -> some View {
-        content
-            // Backgrounds only (behind content). Back-to-front: frosted material →
-            // faint lift (so the tile reads as its own glass on the dock panel) →
-            // top specular highlight.
-            .background(
-                shape.fill(
-                    LinearGradient(
-                        colors: [.white.opacity(0.22), .white.opacity(0.02), .clear],
-                        startPoint: .top, endPoint: .bottom
-                    )
+        if #available(macOS 26.0, *) {
+            content.glassEffect(.regular, in: shape)
+        } else {
+            content
+                .background(shape.fill(.ultraThinMaterial))
+                .overlay(shape.stroke(.white.opacity(0.14), lineWidth: 1))
+        }
+    }
+}
+
+/// A plain monochrome glyph button that lives directly on the dock glass (no
+/// glass of its own). A faint fill fades in on hover for affordance.
+private struct DockIconButton: View {
+    let icon: String
+    let help: String
+    let side: CGFloat
+    let glyph: CGFloat
+    let action: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: icon)
+                .font(.system(size: glyph, weight: .medium))
+                .foregroundStyle(.white.opacity(0.92))
+                .frame(width: side, height: side)
+                .background(
+                    Circle().fill(.white.opacity(hovering ? 0.16 : 0))
                 )
-            )
-            .background(shape.fill(.white.opacity(0.06)))
-            .background(shape.fill(.ultraThinMaterial))
-            // Glass rim: brighter along the top edge, faint below.
-            .overlay(
-                shape.stroke(
-                    LinearGradient(
-                        colors: [.white.opacity(0.45), .white.opacity(0.12)],
-                        startPoint: .top, endPoint: .bottom
-                    ),
-                    lineWidth: 1
-                )
-            )
+                .contentShape(Circle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovering)
+        .help(help)
     }
 }
