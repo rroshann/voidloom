@@ -1,4 +1,4 @@
-import AppKit
+import Foundation
 import SwiftUI
 import VoidloomCore
 
@@ -24,9 +24,7 @@ struct GitCardContentView: View {
             if let folderPath, !folderPath.isEmpty {
                 repoView(URL(fileURLWithPath: folderPath))
             } else {
-                DockFolderPrompt(accent: accent, message: "No folder chosen for this space.") {
-                    chooseFolder()
-                }
+                CardFolderMissing(message: "No project folder is set for this workspace.")
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -74,10 +72,6 @@ struct GitCardContentView: View {
                 Image(systemName: "arrow.clockwise").font(.system(size: 12))
             }
             .buttonStyle(.plain).foregroundStyle(.white.opacity(0.6)).help("Refresh")
-            Button(action: chooseFolder) {
-                Image(systemName: "folder.badge.gearshape").font(.system(size: 12))
-            }
-            .buttonStyle(.plain).foregroundStyle(.white.opacity(0.6)).help("Change folder")
         }
         .padding(.horizontal, 12).padding(.vertical, 7)
     }
@@ -178,17 +172,6 @@ struct GitCardContentView: View {
         }
     }
 
-    private func chooseFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.prompt = "Choose"
-        if let folderPath { panel.directoryURL = URL(fileURLWithPath: folderPath) }
-        if panel.runModal() == .OK, let url = panel.url {
-            store.setSpaceFolder(url.path)
-        }
-    }
 }
 
 /// One entry from `git status --porcelain`.

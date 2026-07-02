@@ -11,6 +11,8 @@ struct CanvasShellView: View {
     @ObservedObject var conversationStore: ConversationStore
     @ObservedObject var interaction: CanvasInteractionModel
 
+    @EnvironmentObject private var newWorkspace: NewWorkspaceCoordinator
+
     @AppStorage("app.mode") private var appMode: AppMode = .canvas
     @AppStorage("isWorkspaceSidebarVisible") private var isWorkspaceSidebarVisible = false
     @AppStorage("isMinimapVisible") private var isMinimapVisible = false
@@ -148,7 +150,7 @@ struct CanvasShellView: View {
                             store.switchWorkspace(id: id)
                         },
                         onCreateWorkspace: {
-                            WorkspaceFolder.createWorkspaceAndPromptForFolder(store: store)
+                            newWorkspace.present()
                         },
                         onRenameWorkspace: { id, name in
                             store.renameWorkspace(id: id, to: name)
@@ -526,7 +528,7 @@ struct CanvasShellView: View {
 
         // Workspaces
         commands.append(PaletteCommand(id: "new-workspace", title: "New Workspace", section: .workspaces, systemImage: "plus.rectangle.on.rectangle", keywords: ["add", "create"]) {
-            WorkspaceFolder.createWorkspaceAndPromptForFolder(store: store)
+            newWorkspace.present()
         })
         for workspace in store.library.workspaces where workspace.id != activeWorkspaceID {
             commands.append(PaletteCommand(id: "switch-\(workspace.id)", title: "Switch to \(workspace.name)", section: .workspaces, systemImage: "rectangle.on.rectangle", keywords: ["open", "go", "workspace"]) {
@@ -615,5 +617,6 @@ private struct DockHeightPreferenceKey: PreferenceKey {
         conversationStore: ConversationStore(),
         interaction: CanvasInteractionModel()
     )
+    .environmentObject(NewWorkspaceCoordinator())
     .frame(width: 1180, height: 760)
 }

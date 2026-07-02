@@ -3,8 +3,8 @@ import SwiftUI
 import VoidloomCore
 
 /// A lazily-expanding file tree rooted at the space's folder. Directories can be
-/// expanded inline; double-clicking a file opens it in the default app. If the
-/// space has no folder yet, offers a picker that sets it on the space.
+/// expanded inline; double-clicking a file opens it in the default app. The
+/// folder is fixed at workspace creation and can't be changed from here.
 struct FileBrowserCardContentView: View {
     @ObservedObject var store: WorkspaceStore
     let accent: Color
@@ -16,9 +16,9 @@ struct FileBrowserCardContentView: View {
             if let folderPath, !folderPath.isEmpty {
                 tree(for: URL(fileURLWithPath: folderPath))
             } else {
-                DockFolderPrompt(accent: accent, message: "No folder chosen for this space.") {
-                    chooseFolder()
-                }
+                CardFolderMissing(
+                    message: "No project folder is set for this workspace."
+                )
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -26,7 +26,7 @@ struct FileBrowserCardContentView: View {
 
     private func tree(for root: URL) -> some View {
         VStack(spacing: 0) {
-            FolderBar(url: root, accent: accent, onChange: chooseFolder)
+            FolderBar(url: root, accent: accent)
 
             Divider().overlay(.white.opacity(0.08))
 
@@ -47,18 +47,6 @@ struct FileBrowserCardContentView: View {
             .listStyle(.sidebar)
             .scrollContentBackground(.hidden)
             .tint(accent)
-        }
-    }
-
-    private func chooseFolder() {
-        let panel = NSOpenPanel()
-        panel.canChooseDirectories = true
-        panel.canChooseFiles = false
-        panel.allowsMultipleSelection = false
-        panel.prompt = "Choose"
-        if let folderPath { panel.directoryURL = URL(fileURLWithPath: folderPath) }
-        if panel.runModal() == .OK, let url = panel.url {
-            store.setSpaceFolder(url.path)
         }
     }
 }
@@ -97,11 +85,10 @@ struct FileNode: Identifiable, Hashable {
     func hash(into hasher: inout Hasher) { hasher.combine(url) }
 }
 
-/// The folder name + change-folder button shown atop a folder-backed card.
+/// The read-only folder name shown atop a folder-backed card.
 struct FolderBar: View {
     let url: URL
     let accent: Color
-    let onChange: () -> Void
 
     var body: some View {
         HStack(spacing: 6) {
@@ -111,38 +98,27 @@ struct FolderBar: View {
                 .foregroundStyle(.white.opacity(0.9))
                 .lineLimit(1).truncationMode(.middle)
             Spacer(minLength: 4)
-            Button(action: onChange) {
-                Image(systemName: "folder.badge.gearshape").font(.system(size: 12))
-            }
-            .buttonStyle(.plain)
-            .foregroundStyle(.white.opacity(0.6))
-            .help("Change folder")
         }
         .padding(.horizontal, 12).padding(.vertical, 7)
     }
 }
 
-/// Empty-state prompt shared by the file-browser and git cards when no space
-/// folder is set.
-struct DockFolderPrompt: View {
-    let accent: Color
+/// Read-only empty state shown by folder-backed cards when the workspace has no
+/// project folder (e.g. workspaces created before folders existed).
+struct CardFolderMissing: View {
     let message: String
-    let onChoose: () -> Void
 
     var body: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 10) {
             Image(systemName: "folder.badge.questionmark")
-                .font(.system(size: 30, weight: .light))
+                .font(.system(size: 28, weight: .light))
                 .foregroundStyle(.white.opacity(0.4))
             Text(message)
                 .font(.system(size: 12))
                 .foregroundStyle(.white.opacity(0.55))
                 .multilineTextAlignment(.center)
-            Button("Choose Folder…", action: onChoose)
-                .buttonStyle(.borderedProminent)
-                .tint(accent)
-                .controlSize(.small)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .padding(20)
     }
 }

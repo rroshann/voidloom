@@ -15,6 +15,8 @@ struct RootView: View {
     @AppStorage("isWorkspaceSidebarVisible") private var isWorkspaceSidebarVisible = false
     @AppStorage("isMinimapVisible") private var isMinimapVisible = false
 
+    @StateObject private var newWorkspace = NewWorkspaceCoordinator()
+
     var body: some View {
         ZStack {
             switch appMode {
@@ -30,6 +32,10 @@ struct RootView: View {
                 SpacesShellView(store: store, sessionManager: sessionManager)
                     .transition(.opacity)
             }
+        }
+        .environmentObject(newWorkspace)
+        .sheet(isPresented: $newWorkspace.isPresented) {
+            NewWorkspaceSheet(store: store)
         }
         .animation(.easeInOut(duration: 0.28), value: appMode)
         .onReceive(NotificationCenter.default.publisher(for: MenuAction.notification)) { note in
