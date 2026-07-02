@@ -335,8 +335,6 @@ private struct AISettingsTab: View {
     @AppStorage("ai.memory") private var memory: Memory = .session
     @AppStorage("ai.sendSelectedCard") private var sendSelectedCard = true
     @AppStorage("ai.customInstructions") private var customInstructions = ""
-    @State private var apiEndpoint = ""
-    @State private var apiKey = ""
     @State private var persistConversations = false
 
     var body: some View {
@@ -374,19 +372,13 @@ private struct AISettingsTab: View {
                 }
             }
 
-            Section("Connection") {
-                TextField("API endpoint", text: $apiEndpoint, prompt: Text("https://api.anthropic.com"))
-                    .disabled(true)
-
-                SecureField("API key", text: $apiKey, prompt: Text("••••••••"))
-                    .disabled(true)
-
-                Toggle("Persist conversations to disk", isOn: $persistConversations)
-                    .disabled(true)
-
-                Text("Conversations are session-only in this build.")
+            Section("Local AI") {
+                LabeledContent("Status", value: "Not yet available in this build")
+                Text("Voidloom's AI runs entirely on this Mac — no endpoints, no API keys. Model setup arrives with the mediator.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
+                Toggle("Persist conversations to disk", isOn: $persistConversations)
+                    .disabled(true)
             }
         }
         .formStyle(.grouped)
