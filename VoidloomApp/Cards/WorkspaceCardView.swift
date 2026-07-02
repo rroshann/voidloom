@@ -190,7 +190,12 @@ struct WorkspaceCardView: View {
     private var content: some View {
         switch card.kind {
         case .agent:
-            AgentTerminalView(cardID: card.id, accent: palette.accent, isSelected: isSelected)
+            AgentTerminalView(
+                cardID: card.id,
+                accent: palette.accent,
+                isSelected: isSelected,
+                workingDirectory: store.state.space?.folderPath
+            )
         case .browser:
             BrowserCardContentView(cardID: card.id, content: card.content, store: store, isSelected: isSelected)
         case .note:

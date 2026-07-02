@@ -8,6 +8,7 @@ struct AgentTerminalView: View {
     let cardID: UUID
     let accent: Color
     let isSelected: Bool
+    let workingDirectory: String?
 
     @Environment(\.theme) private var theme
     @EnvironmentObject private var agentSessionManager: AgentSessionManager
@@ -29,7 +30,7 @@ struct AgentTerminalView: View {
             }
         }
         .onAppear {
-            agentSessionManager.startSession(cardID: cardID)
+            agentSessionManager.startSession(cardID: cardID, workingDirectory: workingDirectory)
         }
     }
 
@@ -39,7 +40,7 @@ struct AgentTerminalView: View {
                 .font(.system(size: 13 * theme.fontScale, weight: .semibold, design: .monospaced))
                 .foregroundStyle(theme.ink(0.75))
             Button {
-                agentSessionManager.restartSession(cardID: cardID)
+                agentSessionManager.restartSession(cardID: cardID, workingDirectory: workingDirectory)
             } label: {
                 Label("New Shell", systemImage: "arrow.clockwise")
                     .font(.system(size: 12 * theme.fontScale, weight: .semibold))

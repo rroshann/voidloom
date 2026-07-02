@@ -20,7 +20,7 @@ final class AgentSessionManager: NSObject, ObservableObject {
 
     @Published private(set) var sessions: [UUID: Session] = [:]
 
-    func startSession(cardID: UUID) {
+    func startSession(cardID: UUID, workingDirectory: String? = nil) {
         guard sessions[cardID] == nil else { return }
 
         let terminal = LocalProcessTerminalView(frame: NSRect(x: 0, y: 0, width: 640, height: 400))
@@ -29,10 +29,18 @@ final class AgentSessionManager: NSObject, ObservableObject {
         terminal.nativeBackgroundColor = NSColor(srgbRed: 0.04, green: 0.05, blue: 0.08, alpha: 1)
         terminal.nativeForegroundColor = NSColor(srgbRed: 0.88, green: 0.91, blue: 0.94, alpha: 1)
 
-        // Login shell (the user's own), spawned from their home directory so
-        // the session matches Terminal.app expectations (PATH, rc files, CLIs).
+        // Login shell (the user's own), spawned from the workspace folder when
+        // set, else home — so PATH, rc files, and CLIs match Terminal.app.
         let shell = ProcessInfo.processInfo.environment["SHELL"] ?? "/bin/zsh"
-        FileManager.default.changeCurrentDirectoryPath(NSHomeDirectory())
+        let fm = FileManager.default
+        var isDir: ObjCBool = false
+        let dir: String
+        if let wd = workingDirectory, !wd.isEmpty, fm.fileExists(atPath: wd, isDirectory: &isDir), isDir.boolValue {
+            dir = wd
+        } else {
+            dir = NSHomeDirectory()
+        }
+        fm.changeCurrentDirectoryPath(dir)
         var environment = Terminal.getEnvironmentVariables(termName: "xterm-256color", trueColor: true)
         environment.append("SHELL=\(shell)")
         terminal.startProcess(executable: shell, args: ["-l"], environment: environment)
@@ -56,9 +64,9 @@ final class AgentSessionManager: NSObject, ObservableObject {
     }
 
     /// Tears down a dead (or stuck) session and spawns a fresh shell in place.
-    func restartSession(cardID: UUID) {
+    func restartSession(cardID: UUID, workingDirectory: String? = nil) {
         terminateSession(cardID: cardID)
-        startSession(cardID: cardID)
+        startSession(cardID: cardID, workingDirectory: workingDirectory)
     }
 
     func session(for cardID: UUID) -> Session? {
