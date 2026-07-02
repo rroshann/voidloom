@@ -505,7 +505,7 @@ final class WorkspaceModelTests: XCTestCase {
     }
 
     @MainActor
-    func testDeleteWorkspaceDoesNotRemoveLastWorkspace() throws {
+    func testDeleteWorkspaceCanRemoveTheLastOne() throws {
         let baseDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
         defer { try? FileManager.default.removeItem(at: baseDirectory) }
@@ -518,12 +518,21 @@ final class WorkspaceModelTests: XCTestCase {
             workspacesDirectoryURL: workspacesDirectory,
             legacyStorageURL: baseDirectory.appendingPathComponent("workspace.json")
         )
-        let workspaceID = store.library.selectedWorkspaceID
 
-        store.deleteWorkspace(id: workspaceID)
+        // Delete every workspace, including the final one.
+        for ws in store.library.workspaces {
+            store.deleteWorkspace(id: ws.id)
+        }
 
-        XCTAssertEqual(store.library.workspaces.count, 1)
-        XCTAssertEqual(store.library.selectedWorkspaceID, workspaceID)
+        XCTAssertTrue(store.library.workspaces.isEmpty)
+
+        // The empty library persists across reload (no workspace is resurrected).
+        let reopened = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: baseDirectory.appendingPathComponent("workspace.json")
+        )
+        XCTAssertTrue(reopened.library.workspaces.isEmpty)
     }
 
     @MainActor

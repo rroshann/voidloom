@@ -34,6 +34,11 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.28), value: appMode)
+        .onChange(of: store.library.workspaces.isEmpty) { _, isEmpty in
+            // Deleting the last workspace from inside the app returns to the launcher
+            // rather than leaving an empty canvas/space.
+            if isEmpty { session.isWorkspaceOpen = false }
+        }
         .onReceive(NotificationCenter.default.publisher(for: MenuAction.notification)) { note in
             guard let action = note.object as? MenuAction else { return }
             switch action {

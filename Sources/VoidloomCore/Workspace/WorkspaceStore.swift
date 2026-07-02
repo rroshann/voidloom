@@ -631,7 +631,6 @@ public final class WorkspaceStore: ObservableObject {
         guard isLibraryMode,
               let libraryURL,
               let workspacesDirectoryURL else { return }
-        guard library.workspaces.count > 1 else { return }
         guard let index = library.workspaces.firstIndex(where: { $0.id == id }) else { return }
 
         let wasActive = library.selectedWorkspaceID == id
@@ -644,6 +643,21 @@ public final class WorkspaceStore: ObservableObject {
 
         let workspaceFileURL = Self.workspaceURL(for: id, in: workspacesDirectoryURL)
         try? FileManager.default.removeItem(at: workspaceFileURL)
+
+        // Deleting the final workspace is allowed: every mode is gated behind an
+        // open workspace, so an empty library just shows the launcher's empty
+        // state. selectedWorkspaceID is left stale (harmless while nothing opens
+        // it); creating a workspace resets it.
+        if library.workspaces.isEmpty {
+            state = WorkspaceState()
+            do {
+                try Self.saveLibrary(library, to: libraryURL)
+                lastPersistenceError = nil
+            } catch {
+                lastPersistenceError = error.localizedDescription
+            }
+            return
+        }
 
         if wasActive {
             let replacementIndex = min(index, library.workspaces.count - 1)
