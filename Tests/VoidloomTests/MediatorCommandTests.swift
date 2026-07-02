@@ -36,3 +36,26 @@ final class MediatorCommandTests: XCTestCase {
         XCTAssertEqual(decoded, .sendPrompt(target: "jerry", text: "hi"))
     }
 }
+
+final class MediatorCommandSchemaTests: XCTestCase {
+    func testSchemaFreezesTheEightCommandCasesInOrder() {
+        XCTAssertEqual(
+            MediatorCommandSchema.cases.map(\.name),
+            ["spawnAgents", "sendPrompt", "readOutput", "closeTerminal",
+             "arrange", "createCard", "switchSpace", "setBackground"]
+        )
+    }
+
+    func testEverySchemaCaseHasADecodableSampleAndViceVersa() throws {
+        XCTAssertEqual(
+            Set(MediatorCommandSchema.cases.map(\.name)),
+            Set(MediatorCommandSchema.samples.keys)
+        )
+        for (name, json) in MediatorCommandSchema.samples {
+            let decoded = try JSONDecoder().decode(MediatorCommand.self, from: Data(json.utf8))
+            let reencoded = try JSONEncoder().encode(decoded)
+            let top = try XCTUnwrap(JSONSerialization.jsonObject(with: reencoded) as? [String: Any])
+            XCTAssertEqual(top.keys.first, name, "wire top-level key drifted for \(name)")
+        }
+    }
+}
