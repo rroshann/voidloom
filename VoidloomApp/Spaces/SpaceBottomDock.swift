@@ -19,6 +19,7 @@ struct SpaceBottomDock: View {
     @State private var showBackgroundPopover = false
     @State private var showLayoutPopover = false
     @State private var showImportError = false
+    @State private var showGitUnavailable = false
 
     @AppStorage("spaces.defaultColumns") private var defaultColumns = 0
     @AppStorage("spaces.defaultRows") private var defaultRows = 0
@@ -70,7 +71,7 @@ struct SpaceBottomDock: View {
                 barButton("checklist", help: "Add todo card") { onAddCard(.todo) }
                 barButton("safari", help: "Add browser card") { onAddCard(.browser) }
                 barButton("folder", help: "Add file browser card") { onAddCard(.fileBrowser) }
-                barButton("arrow.triangle.branch", help: "Add git card") { onAddCard(.git) }
+                barButton("arrow.triangle.branch", help: "Add git card") { addGitCard() }
             }
 
             // Space customization: layout mode, re-tile, layout, background.
@@ -111,6 +112,23 @@ struct SpaceBottomDock: View {
         } message: {
             Text("The selected image could not be imported. Make sure it is a valid PNG, JPEG, or HEIC file.")
         }
+        .alert("Not a git repository", isPresented: $showGitUnavailable) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("“\(activeName)” isn’t a git repository, so git tracking and diff are unavailable. Run `git init` in the workspace folder (or choose a folder that is a repo), then try again.")
+        }
+    }
+
+    /// Adds a git card, but first warns if the workspace folder isn't a git repo
+    /// (git tracking/diff would be unavailable). If no folder is set yet, the card
+    /// itself prompts to choose one.
+    private func addGitCard() {
+        if let folder = store.state.space?.folderPath, !folder.isEmpty,
+           !WorkspaceFolder.isGitRepository(folder) {
+            showGitUnavailable = true
+        } else {
+            onAddCard(.git)
+        }
     }
 
     /// Compact metrics — a slim floating glass bar, not a chunky dock.
@@ -136,8 +154,7 @@ struct SpaceBottomDock: View {
             }
             Divider()
             Button("New Space") {
-                let n = store.library.workspaces.filter { $0.name.hasPrefix("Untitled") }.count
-                store.createWorkspace(named: n == 0 ? "Untitled" : "Untitled \(n + 1)")
+                WorkspaceFolder.createWorkspaceAndPromptForFolder(store: store)
             }
         } label: {
             HStack(spacing: 6) {

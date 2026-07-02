@@ -148,9 +148,7 @@ struct CanvasShellView: View {
                             store.switchWorkspace(id: id)
                         },
                         onCreateWorkspace: {
-                            let untitledCount = store.library.workspaces.filter { $0.name.hasPrefix("Untitled") }.count
-                            let name = untitledCount == 0 ? "Untitled" : "Untitled \(untitledCount + 1)"
-                            store.createWorkspace(named: name)
+                            WorkspaceFolder.createWorkspaceAndPromptForFolder(store: store)
                         },
                         onRenameWorkspace: { id, name in
                             store.renameWorkspace(id: id, to: name)
@@ -528,9 +526,7 @@ struct CanvasShellView: View {
 
         // Workspaces
         commands.append(PaletteCommand(id: "new-workspace", title: "New Workspace", section: .workspaces, systemImage: "plus.rectangle.on.rectangle", keywords: ["add", "create"]) {
-            let untitledCount = store.library.workspaces.filter { $0.name.hasPrefix("Untitled") }.count
-            let name = untitledCount == 0 ? "Untitled" : "Untitled \(untitledCount + 1)"
-            store.createWorkspace(named: name)
+            WorkspaceFolder.createWorkspaceAndPromptForFolder(store: store)
         })
         for workspace in store.library.workspaces where workspace.id != activeWorkspaceID {
             commands.append(PaletteCommand(id: "switch-\(workspace.id)", title: "Switch to \(workspace.name)", section: .workspaces, systemImage: "rectangle.on.rectangle", keywords: ["open", "go", "workspace"]) {

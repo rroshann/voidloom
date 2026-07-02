@@ -41,7 +41,7 @@ struct GitCardContentView: View {
 
             switch status {
             case .notARepo:
-                message("Not a git repository.", icon: "xmark.seal")
+                message("This workspace isn't a git repository — git tracking and diff are unavailable.", icon: "xmark.seal")
             case .error(let e):
                 message(e, icon: "exclamationmark.triangle")
             case .ok where changes.isEmpty:
