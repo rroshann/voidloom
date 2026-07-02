@@ -16,7 +16,7 @@ public enum MediatorTargetResolver {
         _ spoken: String,
         in candidates: [(id: UUID, name: String)]
     ) -> TargetResolution {
-        let query = spoken.lowercased().trimmingCharacters(in: .whitespaces)
+        let query = spoken.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
         guard !candidates.isEmpty, !query.isEmpty else { return .none(suggestion: nil) }
 
         let exact = candidates.filter { $0.name.lowercased() == query }
@@ -41,7 +41,7 @@ public enum MediatorTargetResolver {
         return .none(suggestion: best.candidate.name)
     }
 
-    static func editDistance(_ a: String, _ b: String) -> Int {
+    private static func editDistance(_ a: String, _ b: String) -> Int {
         let a = Array(a), b = Array(b)
         if a.isEmpty { return b.count }
         if b.isEmpty { return a.count }

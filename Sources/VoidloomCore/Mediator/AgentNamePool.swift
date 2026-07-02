@@ -12,7 +12,9 @@ public struct AgentNamePool: Equatable, Sendable {
     private let names: [String]
 
     public init(names: [String] = AgentNamePool.defaultCallsigns) {
-        let cleaned = names.map { $0.lowercased() }
+        let cleaned = names
+            .map { $0.lowercased().trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
         self.names = cleaned.isEmpty ? Self.defaultCallsigns : cleaned
     }
 

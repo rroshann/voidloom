@@ -256,7 +256,7 @@ final class CommandExecutorTests: XCTestCase {
     func testCreateAgentCardRoutesThroughSpawnMachinery() {
         let store = makeStore(); let terminals = MockAgentTerminals()
         let result = makeExecutor(store, terminals).execute(.createCard(kind: .agent, content: nil))
-        XCTAssertEqual(result, .success(narration: "Spawned 1 claude agents: ember"))
+        XCTAssertEqual(result, .success(narration: "Spawned 1 claude agent: ember"))
         XCTAssertEqual(terminals.spawned.count, 1)
         XCTAssertEqual(store.state.cards.first?.title, "ember")
     }
@@ -303,5 +303,25 @@ final class CommandExecutorTests: XCTestCase {
         XCTAssertEqual(result, .success(narration: "Switched to research"))
         let selected = store.library.workspaces.first { $0.id == store.library.selectedWorkspaceID }
         XCTAssertEqual(selected?.name, "research")
+    }
+
+    func testSpawnCollisionCheckIsCaseInsensitiveAgainstRenamedCards() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        store.addTitledCard(kind: .agent, title: "Ember") // user renamed via UI
+        let result = makeExecutor(store, terminals).execute(.spawnAgents(count: 1, kind: .claudeCode, names: ["ember"]))
+        XCTAssertEqual(result, .needsClarification(question: "An agent named ember already exists — pick a different name."))
+    }
+}
+
+final class PreworkCleanupTests: XCTestCase {
+    func testWhitespaceOnlyPackFallsBackToDefaultsAndEntriesAreTrimmed() {
+        XCTAssertEqual(AgentNamePool(names: ["  ", ""]).nextNames(count: 1, existing: []), ["ember"])
+        XCTAssertEqual(AgentNamePool(names: [" Fox "]).nextNames(count: 1, existing: []), ["fox"])
+    }
+
+    func testResolverTrimsNewlinesFromTypedInput() {
+        let id = UUID()
+        let r = MediatorTargetResolver.resolve("ember\n", in: [(id, "ember")])
+        XCTAssertEqual(r, .match(id))
     }
 }

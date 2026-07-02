@@ -74,7 +74,7 @@ public final class CommandExecutor {
         guard Self.spawnLimit.contains(count) else {
             return .refused(reason: "I can spawn between \(Self.spawnLimit.lowerBound) and \(Self.spawnLimit.upperBound) agents at once.")
         }
-        let existing = Set(agentCards().map(\.name))
+        let existing = Set(agentCards().map { $0.name.lowercased() })
         var seen = Set<String>()
         let provided = (names ?? [])
             .map { $0.lowercased() }
@@ -92,7 +92,8 @@ public final class CommandExecutor {
             let id = store.addTitledCard(kind: .agent, title: name)
             terminals.spawn(cardID: id, kind: kind)
         }
-        return .success(narration: "Spawned \(count) \(kind.rawValue) agents: \(finalNames.joined(separator: ", "))")
+        let noun = count == 1 ? "agent" : "agents"
+        return .success(narration: "Spawned \(count) \(kind.rawValue) \(noun): \(finalNames.joined(separator: ", "))")
     }
 
     private func arrange(_ style: ArrangeStyle) -> ExecutionResult {

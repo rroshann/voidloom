@@ -47,10 +47,10 @@ public struct MediatorSessionMachine: Equatable, Sendable {
 
     public init() {}
     /// Test/coordination conveniences for entering mid-pipeline states.
-    public static func parsing(_ transcript: String) -> Self {
+    static func parsing(_ transcript: String) -> Self {
         var m = Self(); m.state = .parsing(transcript: transcript); return m
     }
-    public static func executing(_ command: MediatorCommand) -> Self {
+    static func executing(_ command: MediatorCommand) -> Self {
         var m = Self(); m.state = .executing(command); return m
     }
 
