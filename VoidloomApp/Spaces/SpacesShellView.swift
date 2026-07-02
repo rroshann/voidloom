@@ -46,7 +46,7 @@ struct SpacesShellView: View {
     /// traffic-light buttons of the hidden-titlebar window, so cards sit as high as
     /// looks balanced.
     private static let topPadding: CGFloat = 0
-    private static let bottomPadding: CGFloat = 24
+    private static let bottomPadding: CGFloat = 12
     private static let dockGap: CGFloat = 16
 
     private var topInset: Double { Double(Self.topPadding) }

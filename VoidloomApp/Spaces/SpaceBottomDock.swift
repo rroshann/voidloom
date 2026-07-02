@@ -57,54 +57,51 @@ struct SpaceBottomDock: View {
     }
 
     var body: some View {
-        HStack(spacing: 7) {
+        // No outer capsule: each control is its own frosted chip. Logical groups
+        // (switcher · space controls · card tools) are separated by wider spacing
+        // instead of dividers.
+        HStack(spacing: 16) {
             spaceSwitcher
 
-            barDivider
-
-            barButton(
-                layoutMode == .pagedGrid ? "rectangle.3.group" : "square.grid.2x2",
-                help: layoutMode == .pagedGrid ? "Free-arrange" : "Grid"
-            ) {
-                store.setSpaceLayoutMode(layoutMode == .pagedGrid ? .freeArrange : .pagedGrid)
-            }
-            barButton("rectangle.grid.2x2", help: "Re-tile", action: onReTile)
-            barButton("square.grid.3x3", help: "Layout") { showLayoutPopover = true }
-                .popover(isPresented: $showLayoutPopover, arrowEdge: .top) {
-                    layoutPopover.padding(16).frame(width: 240)
+            HStack(spacing: 8) {
+                barButton(
+                    layoutMode == .pagedGrid ? "rectangle.3.group" : "square.grid.2x2",
+                    help: layoutMode == .pagedGrid ? "Free-arrange" : "Grid"
+                ) {
+                    store.setSpaceLayoutMode(layoutMode == .pagedGrid ? .freeArrange : .pagedGrid)
                 }
-                .disabled(layoutMode == .freeArrange)
-                .opacity(layoutMode == .freeArrange ? 0.4 : 1)
-            barButton("photo", help: "Background") { showBackgroundPopover = true }
-                .popover(isPresented: $showBackgroundPopover, arrowEdge: .top) {
-                    backgroundPopover.padding(16).frame(width: 260)
+                barButton("rectangle.grid.2x2", help: "Re-tile", action: onReTile)
+                barButton("square.grid.3x3", help: "Layout") { showLayoutPopover = true }
+                    .popover(isPresented: $showLayoutPopover, arrowEdge: .top) {
+                        layoutPopover.padding(16).frame(width: 240)
+                    }
+                    .disabled(layoutMode == .freeArrange)
+                    .opacity(layoutMode == .freeArrange ? 0.4 : 1)
+                barButton("photo", help: "Background") { showBackgroundPopover = true }
+                    .popover(isPresented: $showBackgroundPopover, arrowEdge: .top) {
+                        backgroundPopover.padding(16).frame(width: 260)
+                    }
+                barButton("gearshape", help: "Settings") {
+                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
                 }
-            barButton("gearshape", help: "Settings") {
-                NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
             }
 
-            barDivider
-
-            barButton("terminal", help: "Add terminal card") { onAddCard(.agent) }
-            barButton("note.text", help: "Add note card") { onAddCard(.note) }
-            barButton("checklist", help: "Add todo card") { onAddCard(.todo) }
-            barButton("safari", help: "Add browser card") { onAddCard(.browser) }
+            HStack(spacing: 8) {
+                barButton("terminal", help: "Add terminal card") { onAddCard(.agent) }
+                barButton("note.text", help: "Add note card") { onAddCard(.note) }
+                barButton("checklist", help: "Add todo card") { onAddCard(.todo) }
+                barButton("safari", help: "Add browser card") { onAddCard(.browser) }
+            }
 
             if let errorMessage {
-                barDivider
                 Image(systemName: "exclamationmark.triangle")
-                    .font(.system(size: 15, weight: .semibold))
+                    .font(.system(size: 16, weight: .semibold))
                     .foregroundStyle(.orange)
-                    .frame(width: 36, height: 36)
-                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.08)))
+                    .frame(width: 40, height: 40)
+                    .modifier(DockChip())
                     .help(errorMessage)
             }
         }
-        .padding(.horizontal, 14).padding(.vertical, 10)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(.white.opacity(0.12), lineWidth: 1))
-        .shadow(color: .black.opacity(0.32), radius: 28, x: 0, y: 18)
-        .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
         .alert("Import failed", isPresented: $showImportError) {
             Button("OK", role: .cancel) {}
         } message: {
@@ -139,20 +136,17 @@ struct SpaceBottomDock: View {
                 Image(systemName: "chevron.up").font(.system(size: 10, weight: .semibold))
             }
             .foregroundStyle(.white.opacity(0.92))
-            .padding(.horizontal, 12).frame(height: 36)
+            .padding(.horizontal, 14).frame(height: 40)
+            .modifier(DockChip())
         }
         .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
     }
 
-    private var barDivider: some View {
-        RoundedRectangle(cornerRadius: 1).fill(.white.opacity(0.14)).frame(width: 1, height: 30)
-    }
-
     private func barButton(_ icon: String, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: icon).font(.system(size: 15, weight: .semibold))
-                .foregroundStyle(.white.opacity(0.86)).frame(width: 36, height: 36)
-                .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.08)))
+            Image(systemName: icon).font(.system(size: 16, weight: .semibold))
+                .foregroundStyle(.white.opacity(0.9)).frame(width: 40, height: 40)
+                .modifier(DockChip())
         }
         .buttonStyle(.plain).help(help)
     }
@@ -211,5 +205,20 @@ struct SpaceBottomDock: View {
                 showImportError = true
             }
         }
+    }
+}
+
+/// Frosted, self-contained chip background for a single dock control. Used per
+/// icon (and the switcher) now that the dock has no unifying capsule, so each
+/// control stays legible and lifted over any space background.
+private struct DockChip: ViewModifier {
+    var cornerRadius: CGFloat = 12
+
+    func body(content: Content) -> some View {
+        content
+            .background(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(.regularMaterial))
+            .overlay(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).stroke(.white.opacity(0.12), lineWidth: 1))
+            .shadow(color: .black.opacity(0.3), radius: 14, x: 0, y: 7)
+            .shadow(color: .black.opacity(0.16), radius: 4, x: 0, y: 2)
     }
 }
