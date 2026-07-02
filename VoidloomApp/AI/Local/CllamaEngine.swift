@@ -5,8 +5,10 @@ import llama
 /// Concrete `LlamaEngine` backed by the vendored llama.xcframework (pinned
 /// llama.cpp b9850). Lives in the app target only — the sole place that links
 /// libllama. Caps n_ctx per `Config` (mandatory). Model + context load once
-/// and stay resident; a persistent system-prompt KV cache is achieved by
-/// keeping the context alive across calls.
+/// and stay resident across calls, but each `complete`/`stream` is stateless:
+/// `evaluate` clears the KV memory and re-tokenizes the full prompt, so repeated
+/// calls cannot accumulate KV until n_ctx overflows. (A persistent system-prompt
+/// KV-cache optimization is possible later but deliberately not done here.)
 final class CllamaEngine: LlamaEngine, @unchecked Sendable {
     private var model: OpaquePointer?
     private var ctx: OpaquePointer?
@@ -15,6 +17,10 @@ final class CllamaEngine: LlamaEngine, @unchecked Sendable {
     private static let backendInit: Void = { llama_backend_init() }()
 
     init() { _ = Self.backendInit }
+
+    /// Uncontended at dealloc — no other reference can exist — so the lock-free
+    /// core teardown is called directly to release the resident model/context.
+    deinit { unloadLocked() }
 
     func load(modelPath: URL, config: LlamaEngineConfig) throws {
         lock.lock(); defer { lock.unlock() }
@@ -57,11 +63,15 @@ final class CllamaEngine: LlamaEngine, @unchecked Sendable {
         let sampler = llama_sampler_chain_init(llama_sampler_chain_default_params())
         defer { llama_sampler_free(sampler) }
         if let grammar {
-            grammar.withCString { g in
+            let grammarSampler = grammar.withCString { g in
                 "root".withCString { r in
-                    llama_sampler_chain_add(sampler, llama_sampler_init_grammar(vocab, g, r))
+                    llama_sampler_init_grammar(vocab, g, r)
                 }
             }
+            // NULL means the GBNF failed to parse; adding it would crash at sample
+            // time. Throw instead — `defer` frees the partially-built chain.
+            guard let grammarSampler else { throw LlamaEngineError.grammarLoadFailed }
+            llama_sampler_chain_add(sampler, grammarSampler)
         }
         llama_sampler_chain_add(sampler, llama_sampler_init_greedy())
 
@@ -105,11 +115,18 @@ final class CllamaEngine: LlamaEngine, @unchecked Sendable {
     // MARK: helpers
 
     private func evaluate(prompt: String, ctx: OpaquePointer, vocab: OpaquePointer) throws {
+        // Stateless per call: drop any KV from a prior call so re-tokenizing the
+        // full prompt (with BOS) starts from an empty context instead of growing
+        // past n_ctx across calls.
+        llama_memory_clear(llama_get_memory(ctx), true)
         var tokens = Self.tokenize(prompt, vocab: vocab, addBos: true)
-        tokens.withUnsafeMutableBufferPointer { buf in
+        let status = tokens.withUnsafeMutableBufferPointer { buf -> Int32 in
             let batch = llama_batch_get_one(buf.baseAddress, Int32(buf.count))
-            _ = llama_decode(ctx, batch)
+            return llama_decode(ctx, batch)
         }
+        // Nonzero means the prompt exceeded n_ctx (or decode failed) — fail loudly
+        // rather than sampling from a bad state and emitting garbage.
+        if status != 0 { throw LlamaEngineError.decodeFailed }
     }
 
     private static func tokenize(_ text: String, vocab: OpaquePointer, addBos: Bool) -> [llama_token] {
@@ -136,5 +153,5 @@ final class CllamaEngine: LlamaEngine, @unchecked Sendable {
 }
 
 enum LlamaEngineError: Error {
-    case modelLoadFailed(String), contextInitFailed, notLoaded, decodeFailed
+    case modelLoadFailed(String), contextInitFailed, notLoaded, decodeFailed, grammarLoadFailed
 }
