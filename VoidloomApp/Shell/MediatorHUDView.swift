@@ -18,6 +18,7 @@ struct MediatorHUDView: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 8)
                     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                    .frame(maxWidth: 420)
             }
             if case .awaitingConfirmation(let prompt, _) = mediator.state {
                 HStack(spacing: 10) {
@@ -29,6 +30,7 @@ struct MediatorHUDView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                .frame(maxWidth: 420)
             }
             HStack(spacing: 8) {
                 Image(systemName: stateIcon)
