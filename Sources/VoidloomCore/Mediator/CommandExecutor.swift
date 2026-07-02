@@ -54,6 +54,9 @@ public final class CommandExecutor {
         case .arrange(let style):
             return arrange(style)
         case .createCard(let kind, let content):
+            if kind == .agent {
+                return spawnAgents(count: 1, kind: .claudeCode, names: nil)
+            }
             store.addTitledCard(kind: kind, content: content ?? "")
             return .success(narration: "Created a \(kind.rawValue)")
         case .switchSpace(let name):
@@ -109,8 +112,12 @@ public final class CommandExecutor {
         let candidates = store.library.workspaces.map { (id: $0.id, name: $0.name) }
         switch MediatorTargetResolver.resolve(name, in: candidates) {
         case .match(let id):
+            let matched = candidates.first { $0.id == id }?.name ?? name
             store.switchWorkspace(id: id)
-            return .success(narration: "Switched to \(name)")
+            guard store.library.selectedWorkspaceID == id else {
+                return .refused(reason: "Couldn't switch to \(matched) — the workspace failed to load.")
+            }
+            return .success(narration: "Switched to \(matched)")
         case .ambiguous(let names):
             return .needsClarification(question: "There are \(names.count) spaces named \(name) — rename one to switch by voice.")
         case .none(let suggestion):

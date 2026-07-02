@@ -15,6 +15,7 @@ final class MediatorCommandTests: XCTestCase {
             .readOutput(target: "viper"),
             .closeTerminal(target: "omen"),
             .arrange(style: .grid),
+            .arrange(style: .retile),
             .arrange(style: .focus(target: "sage")),
             .createCard(kind: .note, content: "standup notes"),
             .createCard(kind: .todo, content: nil),

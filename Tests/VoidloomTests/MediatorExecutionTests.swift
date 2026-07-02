@@ -253,6 +253,14 @@ final class CommandExecutorTests: XCTestCase {
         XCTAssertEqual(executor.execute(.arrange(style: .retile)), .success(narration: "Re-tiled the space"))
     }
 
+    func testCreateAgentCardRoutesThroughSpawnMachinery() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let result = makeExecutor(store, terminals).execute(.createCard(kind: .agent, content: nil))
+        XCTAssertEqual(result, .success(narration: "Spawned 1 claude agents: ember"))
+        XCTAssertEqual(terminals.spawned.count, 1)
+        XCTAssertEqual(store.state.cards.first?.title, "ember")
+    }
+
     func testSwitchSpaceWithDuplicateNamesAsksForClarification() {
         // createWorkspace only mutates the library in library mode, so this
         // test needs a library-backed store (unlike makeStore()'s legacy
@@ -274,5 +282,26 @@ final class CommandExecutorTests: XCTestCase {
         XCTAssertEqual(result, .needsClarification(
             question: "There are 2 spaces named research — rename one to switch by voice."
         ))
+    }
+
+    func testSwitchSpaceVerifiesTheSwitchHappened() {
+        // library-backed store, same reasoning as
+        // testSwitchSpaceWithDuplicateNamesAsksForClarification: createWorkspace
+        // only mutates the library in library mode.
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: baseDirectory) }
+        let store = WorkspaceStore(
+            libraryURL: baseDirectory.appendingPathComponent("library.json"),
+            workspacesDirectoryURL: baseDirectory.appendingPathComponent("workspaces", isDirectory: true),
+            legacyStorageURL: baseDirectory.appendingPathComponent("workspace.json"),
+            persistenceDelay: 60
+        )
+        let terminals = MockAgentTerminals()
+        store.createWorkspace(named: "research")
+        let result = makeExecutor(store, terminals).execute(.switchSpace(name: "research"))
+        XCTAssertEqual(result, .success(narration: "Switched to research"))
+        let selected = store.library.workspaces.first { $0.id == store.library.selectedWorkspaceID }
+        XCTAssertEqual(selected?.name, "research")
     }
 }

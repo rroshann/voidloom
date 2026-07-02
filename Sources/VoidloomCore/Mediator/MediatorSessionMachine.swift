@@ -4,6 +4,8 @@ public enum MediatorState: Equatable, Sendable {
     case idle
     case capturing(transcript: String)
     case parsing(transcript: String)
+    /// No watchdog or cancel here by design: CommandExecutor runs synchronously
+    /// on the main actor. Revisit if execution ever becomes async.
     case executing(MediatorCommand)
     case awaitingConfirmation(prompt: String, pending: MediatorCommand)
 }
@@ -26,6 +28,7 @@ public enum MediatorEffect: Equatable, Sendable {
     case stopCapture
     case parse(transcript: String)
     case execute(MediatorCommand, confirmed: Bool)
+    /// Replaces any previously scheduled timeout — the coordinator keeps at most one timer.
     case scheduleTimeout(seconds: Double)
     case narrate(String)
 }
