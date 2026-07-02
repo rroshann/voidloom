@@ -33,9 +33,10 @@ struct CanvasShellView: View {
     /// move re-renders only `EraserSizePreview`, never this whole view.
     @State private var eraserPreview = EraserPreviewModel()
 
-    /// Gap between the dock capsule and the window bottom. Kept as a single
-    /// source of truth so the grid reserve below matches the actual padding.
+    /// Bottom inset reserved for the grid band and minimap corner padding.
     private static let bottomChromePadding: CGFloat = 24
+    /// Gap between the dock capsule and the window bottom (matches Spaces dock).
+    private static let dockBottomPadding: CGFloat = 12
     /// Breathing room between the bottom row of grid cards and the dock's top
     /// edge, so cards clear the dock comfortably rather than touching it.
     private static let dockClearanceGap: CGFloat = 16
@@ -319,7 +320,7 @@ struct CanvasShellView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, 24)
-                    .padding(.bottom, Self.bottomChromePadding)
+                    .padding(.bottom, Self.dockBottomPadding)
                     .animation(.easeInOut(duration: 0.22), value: store.lastPersistenceError)
                     .animation(.easeInOut(duration: 0.22), value: isCommandBarVisible)
                     .animation(.easeInOut(duration: 0.22), value: interaction.mode)
