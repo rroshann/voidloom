@@ -23,8 +23,6 @@ struct SpaceBottomDock: View {
     @AppStorage("spaces.defaultColumns") private var defaultColumns = 0
     @AppStorage("spaces.defaultRows") private var defaultRows = 0
 
-    @Environment(\.theme) private var theme
-
     private var activeName: String {
         store.library.workspaces.first { $0.id == store.library.selectedWorkspaceID }?.name ?? "Space"
     }
@@ -59,13 +57,13 @@ struct SpaceBottomDock: View {
     }
 
     var body: some View {
-        // No outer capsule: each control is its own frosted chip. Logical groups
-        // (switcher · space controls · card tools) are separated by wider spacing
-        // instead of dividers.
-        HStack(spacing: 16) {
+        // One unified macOS-style dock panel holding clear-glass icon tiles.
+        // Logical groups (switcher · space controls · card tools) are separated
+        // by wider spacing.
+        HStack(spacing: Self.groupGap) {
             spaceSwitcher
 
-            HStack(spacing: 8) {
+            HStack(spacing: Self.iconGap) {
                 barButton(
                     layoutMode == .pagedGrid ? "rectangle.3.group" : "square.grid.2x2",
                     help: layoutMode == .pagedGrid ? "Free-arrange" : "Grid"
@@ -83,12 +81,9 @@ struct SpaceBottomDock: View {
                     .popover(isPresented: $showBackgroundPopover, arrowEdge: .top) {
                         backgroundPopover.padding(16).frame(width: 260)
                     }
-                barButton("gearshape", help: "Settings") {
-                    NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
-                }
             }
 
-            HStack(spacing: 8) {
+            HStack(spacing: Self.iconGap) {
                 barButton("terminal", help: "Add terminal card") { onAddCard(.agent) }
                 barButton("note.text", help: "Add note card") { onAddCard(.note) }
                 barButton("checklist", help: "Add todo card") { onAddCard(.todo) }
@@ -96,20 +91,32 @@ struct SpaceBottomDock: View {
             }
 
             if let errorMessage {
-                Image(systemName: "exclamationmark.triangle")
-                    .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(.orange)
-                    .frame(width: 42, height: 42)
-                    .modifier(DockChip(shape: RoundedRectangle(cornerRadius: 15, style: .continuous)))
+                glyphTile("exclamationmark.triangle", tint: .orange)
                     .help(errorMessage)
             }
         }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 30, style: .continuous).fill(.regularMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 30, style: .continuous)
+                .stroke(.white.opacity(0.14), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.35), radius: 22, x: 0, y: 12)
         .alert("Import failed", isPresented: $showImportError) {
             Button("OK", role: .cancel) {}
         } message: {
             Text("The selected image could not be imported. Make sure it is a valid PNG, JPEG, or HEIC file.")
         }
     }
+
+    /// macOS-Dock-sized tile metrics.
+    private static let tileSide: CGFloat = 52
+    private static let tileCorner: CGFloat = 14
+    private static let iconGap: CGFloat = 6
+    private static let groupGap: CGFloat = 14
 
     private var spaceSwitcher: some View {
         Menu {
@@ -136,25 +143,31 @@ struct SpaceBottomDock: View {
                 Text(activeName.uppercased())
                     .font(.system(size: 13, weight: .bold, design: .monospaced))
                     .tracking(0.8)
-                    .foregroundStyle(theme.accent)
+                    .foregroundStyle(.white.opacity(0.95))
                 Image(systemName: "chevron.up")
                     .font(.system(size: 10, weight: .bold))
-                    .foregroundStyle(theme.accent)
+                    .foregroundStyle(.white.opacity(0.7))
             }
-            .padding(.horizontal, 16).frame(height: 42)
-            .modifier(DockChip(shape: RoundedRectangle(cornerRadius: 15, style: .continuous)))
+            .padding(.horizontal, 16).frame(height: Self.tileSide)
+            .modifier(DockChip(shape: RoundedRectangle(cornerRadius: Self.tileCorner, style: .continuous)))
         }
         .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
     }
 
     private func barButton(_ icon: String, help: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            Image(systemName: icon).font(.system(size: 16, weight: .semibold))
-                .foregroundStyle(theme.accent)
-                .frame(width: 42, height: 42)
-                .modifier(DockChip(shape: RoundedRectangle(cornerRadius: 15, style: .continuous)))
+            glyphTile(icon)
         }
         .buttonStyle(.plain).help(help)
+    }
+
+    /// A single clear-glass dock tile with a monochrome glyph, at macOS-Dock size.
+    private func glyphTile(_ icon: String, tint: Color = .white.opacity(0.92)) -> some View {
+        Image(systemName: icon)
+            .font(.system(size: 23, weight: .medium))
+            .foregroundStyle(tint)
+            .frame(width: Self.tileSide, height: Self.tileSide)
+            .modifier(DockChip(shape: RoundedRectangle(cornerRadius: Self.tileCorner, style: .continuous)))
     }
 
     @ViewBuilder private var backgroundPopover: some View {
@@ -214,41 +227,37 @@ struct SpaceBottomDock: View {
     }
 }
 
-/// Futuristic dock chip for a single control: a dark smoked-glass fill (frosted
-/// material under a dark tint, so bright glyphs stay high-contrast over any
-/// background), a glossy top sheen, and a border that glows in the Settings
-/// accent color. Generic over the silhouette; no drop shadow.
+/// A clear-glass dock tile in the spirit of the iOS/macOS 26 "clear" icon look:
+/// a translucent frosted pane with a soft top specular highlight and a bright
+/// glass rim — no color of its own. Kept behind the content so the glyph/text
+/// stays crisp. Generic over the silhouette.
 private struct DockChip<S: Shape>: ViewModifier {
     let shape: S
 
-    @Environment(\.theme) private var theme
-
     func body(content: Content) -> some View {
         content
-            // Sheen, tint and material are all BEHIND the content (as backgrounds,
-            // not overlays) so nothing washes over the glyphs/text — the earlier
-            // overlaid sheen hazed the content and hurt legibility. Back-to-front:
-            // frosted material → dark tint → glossy top sheen → content.
+            // Backgrounds only (behind content). Back-to-front: frosted material →
+            // faint lift (so the tile reads as its own glass on the dock panel) →
+            // top specular highlight.
             .background(
                 shape.fill(
                     LinearGradient(
-                        colors: [.white.opacity(0.16), .clear],
-                        startPoint: .top, endPoint: .center
+                        colors: [.white.opacity(0.22), .white.opacity(0.02), .clear],
+                        startPoint: .top, endPoint: .bottom
                     )
                 )
             )
-            .background(shape.fill(Color(red: 0.04, green: 0.05, blue: 0.06).opacity(0.72)))
+            .background(shape.fill(.white.opacity(0.06)))
             .background(shape.fill(.ultraThinMaterial))
-            // Border in the accent color: a crisp edge plus a soft blurred copy for glow.
+            // Glass rim: brighter along the top edge, faint below.
             .overlay(
                 shape.stroke(
                     LinearGradient(
-                        colors: [theme.accent.opacity(0.95), theme.accent.opacity(0.45)],
-                        startPoint: .topLeading, endPoint: .bottomTrailing
+                        colors: [.white.opacity(0.45), .white.opacity(0.12)],
+                        startPoint: .top, endPoint: .bottom
                     ),
                     lineWidth: 1
                 )
             )
-            .overlay(shape.stroke(theme.accent.opacity(0.5), lineWidth: 1).blur(radius: 2.5))
     }
 }
