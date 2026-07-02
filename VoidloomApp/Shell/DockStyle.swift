@@ -65,37 +65,56 @@ struct DockIconGlyph: View {
     }
 }
 
-/// Compact Canvas ⇄ Spaces segmented control for the bottom dock. Writes the
+/// Compact Canvas ⇄ Spaces menu for the bottom dock. Writes the
 /// persisted `app.mode` AppStorage key on tap; RootView observes the same key.
 struct DockModeSwitch: View {
     @AppStorage("app.mode") private var appMode: AppMode = .canvas
     @Environment(\.theme) private var theme
 
     var body: some View {
-        HStack(spacing: 2) {
-            segment(mode: .canvas, icon: "rectangle.on.rectangle", help: "Canvas")
-            segment(mode: .spaces, icon: "square.grid.2x2", help: "Spaces")
+        Menu {
+            modeItem(.canvas)
+            modeItem(.spaces)
+        } label: {
+            HStack(spacing: 6) {
+                Image(systemName: currentIcon)
+                    .font(.system(size: DockMetrics.glyphSize, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.92))
+                Text(appMode.label)
+                    .font(.system(size: 12, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.92))
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.6))
+            }
+            .padding(.horizontal, 12)
+            .frame(height: DockMetrics.iconSide)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(.white.opacity(0.08))
+            )
         }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .accessibilityLabel("View: \(appMode.label)")
     }
 
-    private func segment(mode: AppMode, icon: String, help: String) -> some View {
-        let isActive = appMode == mode
-        return Button { appMode = mode } label: {
-            Image(systemName: icon)
-                .font(.system(size: DockMetrics.glyphSize, weight: .semibold))
-                .foregroundStyle(isActive ? theme.accent : .white.opacity(0.6))
-                .frame(width: DockMetrics.iconSide, height: DockMetrics.iconSide)
-                .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .fill(.white.opacity(isActive ? 0.22 : 0))
-                )
-                .contentShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+    private var currentIcon: String {
+        appMode == .canvas ? "rectangle.on.rectangle" : "square.grid.2x2"
+    }
+
+    @ViewBuilder
+    private func modeItem(_ mode: AppMode) -> some View {
+        Button {
+            appMode = mode
+        } label: {
+            if appMode == mode {
+                Label(mode.label, systemImage: "checkmark")
+            } else {
+                Text(mode.label)
+            }
         }
-        .buttonStyle(.plain)
-        .help(help)
-        .accessibilityLabel(help)
-        .accessibilityAddTraits(isActive ? [.isButton, .isSelected] : .isButton)
-        .animation(.easeOut(duration: 0.12), value: isActive)
     }
 }
 
