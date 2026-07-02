@@ -57,6 +57,28 @@ final class MediatorGrammarTests: XCTestCase {
             XCTAssertFalse(recognizer.matches(json), "grammar should reject: \(reason)")
         }
     }
+
+    func testCommandsWithOptionalFieldsOmittedAreAccepted() throws {
+        // The optional params (`spawnAgents.names`, `createCard.content`) are
+        // omitted when nil (Swift's Codable drops the key); the grammar must
+        // still accept the object without them.
+        let recognizer = try GBNFRecognizer(grammar: MediatorGrammar.rootGrammar)
+        XCTAssertTrue(recognizer.matches(#"{"spawnAgents":{"count":4,"kind":"claude"}}"#),
+                      "grammar must accept spawnAgents without the optional names")
+        XCTAssertTrue(recognizer.matches(#"{"createCard":{"kind":"note"}}"#),
+                      "grammar must accept createCard without the optional content")
+    }
+
+    func testRecognizerRejectsGrammarWithNonGBNFEscape() {
+        // `\:` is not a valid GBNF escape; llama.cpp throws "unknown escape".
+        // The recognizer must fail to parse such a grammar rather than silently
+        // treating `\:` as a literal colon (which previously masked the bug).
+        XCTAssertThrowsError(try GBNFRecognizer(grammar: #"root ::= "\:""#)) { error in
+            guard case GBNFRecognizer.GBNFError.parse = error else {
+                return XCTFail("expected a parse error, got \(error)")
+            }
+        }
+    }
 }
 
 // MARK: - Test-only GBNF-subset recognizer
@@ -250,7 +272,7 @@ struct GBNFRecognizer {
                 if c == "\\" {
                     i += 1
                     guard i < chars.count else { throw GBNFError.parse("dangling escape in string") }
-                    out.append(unescape(chars[i]))
+                    out.append(try unescape(chars[i]))
                     i += 1
                 } else {
                     out.append(c)
@@ -286,7 +308,7 @@ struct GBNFRecognizer {
             if c == "\\" {
                 i += 1
                 guard i < chars.count else { throw GBNFError.parse("dangling escape in char class") }
-                let e = unescape(chars[i])
+                let e = try unescape(chars[i])
                 i += 1
                 return e
             }
@@ -313,12 +335,18 @@ struct GBNFRecognizer {
             while i < chars.count, chars[i] == " " || chars[i] == "\t" { i += 1 }
         }
 
-        private func unescape(_ c: Character) -> Character {
+        /// GBNF permits only a fixed escape set; llama.cpp throws "unknown escape"
+        /// on anything else (notably `\:` and `\,`, which are NOT special). This
+        /// rejects unknown escapes so the recognizer is a real oracle for escape
+        /// validity. `\x`/`\u`/`\U` hex escapes are valid GBNF but unused by this
+        /// generator, so they are intentionally out of this subset.
+        private func unescape(_ c: Character) throws -> Character {
             switch c {
             case "n": return "\n"
             case "t": return "\t"
             case "r": return "\r"
-            default: return c
+            case "\\", "\"", "[", "]": return c
+            default: throw GBNFError.parse("unknown GBNF escape \\\(c)")
             }
         }
     }

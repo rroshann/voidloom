@@ -39,8 +39,8 @@ public enum MediatorGrammar {
         let params = c.parameters
         var objectParts: [String] = []
         for (i, p) in params.enumerated() {
-            let sep = i == 0 ? "" : "\"\\,\" ws "
-            let keyLit = "\"\\\"\(p.name)\\\"\" ws \"\\:\" ws"
+            let sep = i == 0 ? "" : "\",\" ws "
+            let keyLit = "\"\\\"\(p.name)\\\"\" ws \":\" ws"
             let valueRule = valueGrammar(for: p.kind)
             let fragment = "\(sep)\(keyLit) \(valueRule)"
             if p.required {
@@ -51,7 +51,7 @@ public enum MediatorGrammar {
             }
         }
         let inner = objectParts.joined(separator: " ")
-        return "\"{\" ws \(key) ws \"\\:\" ws \"{\" ws \(inner) ws \"}\" ws \"}\""
+        return "\"{\" ws \(key) ws \":\" ws \"{\" ws \(inner) ws \"}\" ws \"}\""
     }
 
     private static func valueGrammar(for kind: MediatorCommandSchema.Parameter.Kind) -> String {
@@ -67,10 +67,10 @@ public enum MediatorGrammar {
             return "( \(alts.joined(separator: " | ")) )"
         case .arrangeStyle:
             // {"grid":{}} | {"retile":{}} | {"focus":{"target": string}}
-            return #"( "{" ws "\"grid\"" ws "\:" ws "{" ws "}" ws "}" | "{" ws "\"retile\"" ws "\:" ws "{" ws "}" ws "}" | "{" ws "\"focus\"" ws "\:" ws "{" ws "\"target\"" ws "\:" ws string ws "}" ws "}" )"#
+            return #"( "{" ws "\"grid\"" ws ":" ws "{" ws "}" ws "}" | "{" ws "\"retile\"" ws ":" ws "{" ws "}" ws "}" | "{" ws "\"focus\"" ws ":" ws "{" ws "\"target\"" ws ":" ws string ws "}" ws "}" )"#
         case .backgroundSpec:
             // {"atmosphere":{}} | {"solid":{"hex": string}}
-            return #"( "{" ws "\"atmosphere\"" ws "\:" ws "{" ws "}" ws "}" | "{" ws "\"solid\"" ws "\:" ws "{" ws "\"hex\"" ws "\:" ws string ws "}" ws "}" )"#
+            return #"( "{" ws "\"atmosphere\"" ws ":" ws "{" ws "}" ws "}" | "{" ws "\"solid\"" ws ":" ws "{" ws "\"hex\"" ws ":" ws string ws "}" ws "}" )"#
         }
     }
 }
