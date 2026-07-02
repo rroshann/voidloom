@@ -373,7 +373,7 @@ private struct AISettingsTab: View {
             }
 
             Section("Local AI") {
-                LabeledContent("Status", value: "Not yet available in this build")
+                LabeledContent("Status", value: "Typed commands — instant local parser")
                 Text("Voidloom's AI runs entirely on this Mac — no endpoints, no API keys. Model setup arrives with the mediator.")
                     .font(.callout)
                     .foregroundStyle(.secondary)

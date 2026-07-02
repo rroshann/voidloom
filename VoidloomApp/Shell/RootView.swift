@@ -10,8 +10,23 @@ struct RootView: View {
     @ObservedObject var sessionManager: AgentSessionManager
     @ObservedObject var conversationStore: ConversationStore
     @ObservedObject var interaction: CanvasInteractionModel
+    @StateObject private var mediator: MediatorSessionCoordinator
 
     @AppStorage("app.mode") private var appMode: AppMode = .canvas
+
+    init(store: WorkspaceStore,
+         sessionManager: AgentSessionManager,
+         conversationStore: ConversationStore,
+         interaction: CanvasInteractionModel) {
+        self.store = store
+        self.sessionManager = sessionManager
+        self.conversationStore = conversationStore
+        self.interaction = interaction
+        _mediator = StateObject(wrappedValue: MediatorSessionCoordinator(
+            brain: FastPathBrain(),
+            executor: CommandExecutor(store: store, terminals: sessionManager, namePool: AgentNamePool())
+        ))
+    }
 
     var body: some View {
         ZStack {
@@ -30,5 +45,9 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.28), value: appMode)
+        .overlay(alignment: .bottom) {
+            MediatorHUDView(mediator: mediator)
+                .padding(.bottom, 84)
+        }
     }
 }
