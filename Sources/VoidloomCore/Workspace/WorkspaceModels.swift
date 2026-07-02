@@ -897,4 +897,15 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         guard space?.freeFrames[id] != nil else { return }
         space?.freeFrames[id]?.origin = origin
     }
+
+    /// Resizes a free-arrange card, keeping its origin (bottom-right handle
+    /// semantics) and clamping to the card minimums so content stays usable.
+    /// No-op for a card without a seeded frame (unknown or grid-only).
+    public mutating func resizeSpaceCardFreely(id: UUID, to size: ScreenPoint) {
+        guard space?.freeFrames[id] != nil else { return }
+        space?.freeFrames[id]?.size = ScreenPoint(
+            x: max(size.x, CardSize.minimumWidth),
+            y: max(size.y, CardSize.minimumHeight)
+        )
+    }
 }

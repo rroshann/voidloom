@@ -462,6 +462,12 @@ public final class WorkspaceStore: ObservableObject {
         schedulePersistence()
     }
 
+    /// Debounced like `resizeCard` — a resize drag emits many sizes.
+    public func resizeSpaceCardFreely(id: UUID, to size: ScreenPoint) {
+        state.resizeSpaceCardFreely(id: id, to: size)
+        schedulePersistence()
+    }
+
     /// Directory holding imported background images, a sibling of the active
     /// workspace storage (so it lands in `…/Voidloom/backgrounds` in library mode
     /// and beside the test file in single-file mode).

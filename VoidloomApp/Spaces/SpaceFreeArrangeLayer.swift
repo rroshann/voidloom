@@ -21,6 +21,9 @@ struct SpaceFreeArrangeLayer: View {
     /// Frame origin captured when a drag starts, so the cumulative translation
     /// applies from a stable base instead of compounding per event.
     @State private var dragStartOrigin: ScreenPoint?
+    /// Card being resized via the corner handle, so its frame changes track
+    /// the cursor instead of riding the layout spring.
+    @State private var resizingCardID: UUID?
 
     /// Minimum visible strip of a card at every screen edge, so a drag can
     /// never strand a card fully off-screen.
@@ -53,12 +56,32 @@ struct SpaceFreeArrangeLayer: View {
                         }
                     )
                     .frame(width: frame.size.x, height: frame.size.y)
+                    .overlay {
+                        if store.state.selectedCardID == id
+                            || store.state.activeCardID == id
+                            || store.state.marqueeSelectedCardIDs.contains(id) {
+                            CardResizeHandles(
+                                cardSize: CardSize(width: frame.size.x, height: frame.size.y),
+                                cardPosition: CanvasPoint(x: frame.origin.x, y: frame.origin.y),
+                                viewportScale: 1,   // free frames live in screen points
+                                accentColor: CardPalette(kind: card.kind).accent,
+                                onResizeStart: { resizingCardID = id },
+                                onResize: { size, _ in
+                                    store.resizeSpaceCardFreely(
+                                        id: id,
+                                        to: ScreenPoint(x: size.width, y: size.height)
+                                    )
+                                },
+                                onResizeEnd: { resizingCardID = nil }
+                            )
+                        }
+                    }
                     .position(x: frame.origin.x + frame.size.x / 2,
                               y: frame.origin.y + frame.size.y / 2)
                     .zIndex(zIndex(for: id, at: index, isDragged: isDragged))
-                    // The dragged tile must track the cursor instantly, never
-                    // ride the frame-change spring below.
-                    .transaction { if isDragged { $0.animation = nil } }
+                    // Dragged/resized tiles must track the cursor instantly,
+                    // never ride the frame-change spring below.
+                    .transaction { if isDragged || id == resizingCardID { $0.animation = nil } }
                 }
             }
             .animation(

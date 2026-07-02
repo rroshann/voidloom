@@ -354,6 +354,35 @@ extension SpaceModelTests {
         XCTAssertEqual(state.space?.freeFrames[id]?.size, ScreenPoint(x: 300, y: 200))
     }
 
+    func testResizeSpaceCardFreelyUpdatesSizeKeepingOrigin() {
+        var state = stateWithCards(1)
+        let id = state.cards[0].id
+        state.setSpaceLayoutMode(.freeArrange)
+        state.seedMissingFreeFrames([id: SpaceFreeFrame(origin: ScreenPoint(x: 40, y: 50),
+                                                        size: ScreenPoint(x: 300, y: 200))])
+        state.resizeSpaceCardFreely(id: id, to: ScreenPoint(x: 500, y: 380))
+        XCTAssertEqual(state.space?.freeFrames[id]?.size, ScreenPoint(x: 500, y: 380))
+        XCTAssertEqual(state.space?.freeFrames[id]?.origin, ScreenPoint(x: 40, y: 50))
+    }
+
+    func testResizeSpaceCardFreelyClampsToCardMinimums() {
+        var state = stateWithCards(1)
+        let id = state.cards[0].id
+        state.setSpaceLayoutMode(.freeArrange)
+        state.seedMissingFreeFrames([id: SpaceFreeFrame(origin: ScreenPoint(x: 0, y: 0),
+                                                        size: ScreenPoint(x: 300, y: 200))])
+        state.resizeSpaceCardFreely(id: id, to: ScreenPoint(x: 10, y: 10))
+        XCTAssertEqual(state.space?.freeFrames[id]?.size.x ?? 0, CardSize.minimumWidth)
+        XCTAssertEqual(state.space?.freeFrames[id]?.size.y ?? 0, CardSize.minimumHeight)
+    }
+
+    func testResizeSpaceCardFreelyUnknownIDIsNoOp() {
+        var state = stateWithCards(1)
+        state.setSpaceLayoutMode(.freeArrange)
+        state.resizeSpaceCardFreely(id: UUID(), to: ScreenPoint(x: 400, y: 300))
+        XCTAssertTrue(state.space?.freeFrames.isEmpty ?? false)
+    }
+
     func testMoveSpaceCardFreelyUnknownIDIsNoOp() {
         var state = stateWithCards(1)
         state.setSpaceLayoutMode(.freeArrange)
