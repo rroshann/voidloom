@@ -57,6 +57,7 @@ struct GitCardContentView: View {
     private func header(_ root: URL) -> some View {
         HStack(spacing: 6) {
             Image(systemName: "arrow.triangle.branch").font(.system(size: 11)).foregroundStyle(accent)
+                .accessibilityHidden(true)
             Text(root.lastPathComponent)
                 .font(.system(size: 12, weight: .semibold)).foregroundStyle(.white.opacity(0.9))
                 .lineLimit(1).truncationMode(.middle)
@@ -72,6 +73,7 @@ struct GitCardContentView: View {
                 Image(systemName: "arrow.clockwise").font(.system(size: 12))
             }
             .buttonStyle(.plain).foregroundStyle(.white.opacity(0.6)).help("Refresh")
+            .accessibilityLabel("Refresh")
         }
         .padding(.horizontal, 12).padding(.vertical, 7)
     }
@@ -130,6 +132,7 @@ struct GitCardContentView: View {
     private func message(_ text: String, icon: String) -> some View {
         VStack(spacing: 10) {
             Image(systemName: icon).font(.system(size: 26, weight: .light)).foregroundStyle(.white.opacity(0.4))
+                .accessibilityHidden(true)
             Text(text).font(.system(size: 12)).foregroundStyle(.white.opacity(0.55))
                 .multilineTextAlignment(.center)
         }

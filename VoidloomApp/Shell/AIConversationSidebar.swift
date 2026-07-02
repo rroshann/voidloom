@@ -60,6 +60,7 @@ struct AIConversationSidebar: View {
                 Image(systemName: "sparkles")
                     .font(.system(size: 13, weight: .bold))
                     .foregroundStyle(theme.accent)
+                    .accessibilityHidden(true)
 
                 Text("Connect AI")
                     .font(.system(size: 13, weight: .bold, design: .rounded))
@@ -99,6 +100,7 @@ struct AIConversationSidebar: View {
             Image(systemName: "sparkles")
                 .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(theme.accent)
+                .accessibilityHidden(true)
 
             Text("Assistant")
                 .font(.system(size: 11, weight: .bold, design: .monospaced))
@@ -118,6 +120,7 @@ struct AIConversationSidebar: View {
             .buttonStyle(.plain)
             .pointerCursor()
             .help("Close conversation")
+            .accessibilityLabel("Close conversation")
         }
     }
 
@@ -184,6 +187,7 @@ struct AIConversationSidebar: View {
             .buttonStyle(.plain)
             .pointerCursor()
             .disabled(!canSubmit)
+            .accessibilityLabel("Send message")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)

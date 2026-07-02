@@ -93,6 +93,7 @@ struct FolderBar: View {
     var body: some View {
         HStack(spacing: 6) {
             Image(systemName: "folder.fill").font(.system(size: 11)).foregroundStyle(accent)
+                .accessibilityHidden(true)
             Text(url.lastPathComponent)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(.white.opacity(0.9))
@@ -113,6 +114,7 @@ struct CardFolderMissing: View {
             Image(systemName: "folder.badge.questionmark")
                 .font(.system(size: 28, weight: .light))
                 .foregroundStyle(.white.opacity(0.4))
+                .accessibilityHidden(true)
             Text(message)
                 .font(.system(size: 12))
                 .foregroundStyle(.white.opacity(0.55))

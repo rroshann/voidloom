@@ -93,6 +93,8 @@ struct DockModeSwitch: View {
         }
         .buttonStyle(.plain)
         .help(help)
+        .accessibilityLabel(help)
+        .accessibilityAddTraits(isActive ? [.isButton, .isSelected] : .isButton)
         .animation(.easeOut(duration: 0.12), value: isActive)
     }
 }
@@ -124,5 +126,6 @@ struct DockIconButton: View {
         .buttonStyle(.plain)
         .allowsHitTesting(isEnabled)
         .help(help)
+        .accessibilityLabel(help)
     }
 }

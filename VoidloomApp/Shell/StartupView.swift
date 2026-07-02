@@ -149,6 +149,9 @@ struct StartupView: View {
                         .font(.system(size: 11))
                         .foregroundStyle(.white.opacity(0.45))
                 }
+                .accessibilityLabel("Open \(ws.name)")
+                .accessibilityAddTraits(.isButton)
+                .accessibilityAction { open(ws) }
                 Spacer(minLength: 8)
                 rowButton("pencil", help: "Rename") { beginRename(ws) }
                 rowButton("trash", help: "Delete", danger: true) { deleteCandidate = ws }
@@ -175,6 +178,7 @@ struct StartupView: View {
         }
         .buttonStyle(.plain)
         .help(help)
+        .accessibilityLabel(help)
     }
 
     private var createButton: some View {

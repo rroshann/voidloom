@@ -249,6 +249,7 @@ private struct DockWorkspaceSegment: View {
         .onHover { isHovering = $0 }
         .pointerCursor()
         .help(isWorkspaceSidebarVisible ? "Hide workspaces" : "Show workspaces")
+        .accessibilityLabel(isWorkspaceSidebarVisible ? "Hide workspaces" : "Show workspaces")
     }
 }
 
@@ -267,6 +268,8 @@ private struct DockToolButton: View {
             .modifier(DockToolGesture(onSingle: onSingle, onDouble: onDouble))
             .pointerCursor()
             .help(label)
+            .accessibilityLabel(label)
+            .accessibilityAddTraits(isArmed ? .isSelected : [])
             .animation(.easeOut(duration: 0.12), value: isArmed)
     }
 }

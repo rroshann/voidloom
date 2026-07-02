@@ -73,6 +73,7 @@ struct WorkspaceCardView: View {
                     .foregroundStyle(palette.accent)
             }
             .frame(width: 20, height: 20)
+            .accessibilityHidden(true)
 
             HStack(alignment: .firstTextBaseline, spacing: 7) {
                 titleView
@@ -177,6 +178,7 @@ struct WorkspaceCardView: View {
         .buttonStyle(.plain)
         .pointerCursor()
         .help(label)
+        .accessibilityLabel(label)
         .highPriorityGesture(
             TapGesture().onEnded {
                 action()

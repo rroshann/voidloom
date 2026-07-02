@@ -136,6 +136,7 @@ private struct CanvasZoomButton: View {
         .allowsHitTesting(isEnabled)
         .modifier(ConditionalPointerCursor(isEnabled: isEnabled))
         .help(label)
+        .accessibilityLabel(label)
     }
 }
 
