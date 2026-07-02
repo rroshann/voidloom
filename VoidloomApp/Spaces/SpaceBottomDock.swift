@@ -3,12 +3,18 @@ import SwiftUI
 import UniformTypeIdentifiers
 import VoidloomCore
 
-/// Top-center space controls: space switcher, re-tile, and settings. Styled like
-/// the bottom ToolDock capsule. Tools live in the bottom dock, not here.
-struct SpaceTopBar: View {
+/// The single bottom-center dock for Spaces. One capsule that groups, left to
+/// right: the space switcher, the space-management controls (layout mode,
+/// re-tile, grid, background, settings), and the card-creation tools. Popovers
+/// and the switcher menu open upward since the dock sits at the bottom edge.
+struct SpaceBottomDock: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var sessionManager: AgentSessionManager
     let onReTile: () -> Void
+    /// Creates a card of the given kind (Spaces appends + handles the page jump).
+    let onAddCard: (CardKind) -> Void
+    /// Latest persistence error, surfaced as an inert warning glyph when present.
+    let errorMessage: String?
 
     @State private var showBackgroundPopover = false
     @State private var showLayoutPopover = false
@@ -52,37 +58,10 @@ struct SpaceTopBar: View {
 
     var body: some View {
         HStack(spacing: 7) {
-            Menu {
-                ForEach(store.library.workspaces) { ws in
-                    Button {
-                        guard ws.id != store.library.selectedWorkspaceID else { return }
-                        sessionManager.terminateAllSessions()
-                        store.switchWorkspace(id: ws.id)
-                    } label: {
-                        if ws.id == store.library.selectedWorkspaceID {
-                            Label(ws.name, systemImage: "checkmark")
-                        } else {
-                            Text(ws.name)
-                        }
-                    }
-                }
-                Divider()
-                Button("New Space") {
-                    let n = store.library.workspaces.filter { $0.name.hasPrefix("Untitled") }.count
-                    store.createWorkspace(named: n == 0 ? "Untitled" : "Untitled \(n + 1)")
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Text(activeName)
-                        .font(.system(size: 13, weight: .semibold, design: .rounded))
-                    Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold))
-                }
-                .foregroundStyle(.white.opacity(0.92))
-                .padding(.horizontal, 12).frame(height: 38)
-            }
-            .menuStyle(.borderlessButton).fixedSize()
+            spaceSwitcher
 
             barDivider
+
             barButton(
                 layoutMode == .pagedGrid ? "rectangle.3.group" : "square.grid.2x2",
                 help: layoutMode == .pagedGrid ? "Free-arrange" : "Grid"
@@ -91,28 +70,78 @@ struct SpaceTopBar: View {
             }
             barButton("rectangle.grid.2x2", help: "Re-tile", action: onReTile)
             barButton("square.grid.3x3", help: "Layout") { showLayoutPopover = true }
-                .popover(isPresented: $showLayoutPopover, arrowEdge: .bottom) {
+                .popover(isPresented: $showLayoutPopover, arrowEdge: .top) {
                     layoutPopover.padding(16).frame(width: 240)
                 }
                 .disabled(layoutMode == .freeArrange)
                 .opacity(layoutMode == .freeArrange ? 0.4 : 1)
             barButton("photo", help: "Background") { showBackgroundPopover = true }
-                .popover(isPresented: $showBackgroundPopover, arrowEdge: .bottom) {
+                .popover(isPresented: $showBackgroundPopover, arrowEdge: .top) {
                     backgroundPopover.padding(16).frame(width: 260)
                 }
             barButton("gearshape", help: "Settings") {
                 NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
             }
+
+            barDivider
+
+            barButton("terminal", help: "Add terminal card") { onAddCard(.agent) }
+            barButton("note.text", help: "Add note card") { onAddCard(.note) }
+            barButton("checklist", help: "Add todo card") { onAddCard(.todo) }
+            barButton("safari", help: "Add browser card") { onAddCard(.browser) }
+
+            if let errorMessage {
+                barDivider
+                Image(systemName: "exclamationmark.triangle")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(.orange)
+                    .frame(width: 36, height: 36)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white.opacity(0.08)))
+                    .help(errorMessage)
+            }
         }
-        .padding(.horizontal, 12).padding(.vertical, 8)
-        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-        .overlay(RoundedRectangle(cornerRadius: 18, style: .continuous).stroke(.white.opacity(0.12), lineWidth: 1))
-        .shadow(color: .black.opacity(0.3), radius: 20, y: 12)
+        .padding(.horizontal, 14).padding(.vertical, 10)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay(RoundedRectangle(cornerRadius: 20, style: .continuous).stroke(.white.opacity(0.12), lineWidth: 1))
+        .shadow(color: .black.opacity(0.32), radius: 28, x: 0, y: 18)
+        .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
         .alert("Import failed", isPresented: $showImportError) {
             Button("OK", role: .cancel) {}
         } message: {
             Text("The selected image could not be imported. Make sure it is a valid PNG, JPEG, or HEIC file.")
         }
+    }
+
+    private var spaceSwitcher: some View {
+        Menu {
+            ForEach(store.library.workspaces) { ws in
+                Button {
+                    guard ws.id != store.library.selectedWorkspaceID else { return }
+                    sessionManager.terminateAllSessions()
+                    store.switchWorkspace(id: ws.id)
+                } label: {
+                    if ws.id == store.library.selectedWorkspaceID {
+                        Label(ws.name, systemImage: "checkmark")
+                    } else {
+                        Text(ws.name)
+                    }
+                }
+            }
+            Divider()
+            Button("New Space") {
+                let n = store.library.workspaces.filter { $0.name.hasPrefix("Untitled") }.count
+                store.createWorkspace(named: n == 0 ? "Untitled" : "Untitled \(n + 1)")
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text(activeName)
+                    .font(.system(size: 13, weight: .semibold, design: .rounded))
+                Image(systemName: "chevron.up").font(.system(size: 10, weight: .semibold))
+            }
+            .foregroundStyle(.white.opacity(0.92))
+            .padding(.horizontal, 12).frame(height: 36)
+        }
+        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
     }
 
     private var barDivider: some View {

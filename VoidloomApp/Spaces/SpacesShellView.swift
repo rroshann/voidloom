@@ -6,11 +6,6 @@ struct SpacesShellView: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var sessionManager: AgentSessionManager
 
-    /// Dedicated interaction model for the Spaces dock. The dock requires a
-    /// CanvasInteractionModel to satisfy its initializer, but in .spaces mode all
-    /// interaction-driven controls are hidden, so this object stays effectively idle.
-    @StateObject private var dockInteraction = CanvasInteractionModel()
-
     @AppStorage("spaces.defaultColumns") private var defaultColumns = 0
     @AppStorage("spaces.defaultRows") private var defaultRows = 0
 
@@ -21,7 +16,6 @@ struct SpacesShellView: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
-    @State private var topBarHeight: CGFloat = 0
     @State private var dockHeight: CGFloat = 0
     /// Current global frame of the shell, updated continuously via a background
     /// GeometryReader so drop hit-tests always use up-to-date geometry even if
@@ -47,11 +41,15 @@ struct SpacesShellView: View {
     @State private var marqueeBase: Set<UUID> = []
     @State private var marqueeAdditive = false
 
-    private static let topPadding: CGFloat = 16
+    /// Extra top clearance above the tiling margin. Zero makes the top gap equal the
+    /// side margin (symmetric card field); the tiling margin alone already clears the
+    /// traffic-light buttons of the hidden-titlebar window, so cards sit as high as
+    /// looks balanced.
+    private static let topPadding: CGFloat = 0
     private static let bottomPadding: CGFloat = 24
     private static let dockGap: CGFloat = 16
 
-    private var topInset: Double { Double(topBarHeight + Self.topPadding) }
+    private var topInset: Double { Double(Self.topPadding) }
     private var bottomInset: Double { Double(dockHeight + Self.bottomPadding + Self.dockGap) }
     private var isPagedGrid: Bool { (store.state.space?.layoutMode ?? .pagedGrid) == .pagedGrid }
 
@@ -239,35 +237,15 @@ struct SpacesShellView: View {
                         .allowsHitTesting(false)
                 }
 
-                VStack {
-                    SpaceTopBar(store: store, sessionManager: sessionManager, onReTile: {
-                        reTile(orderedIDs: orderedIDs, tiling: tiling, viewport: geo.size)
-                    })
-                        .background(GeometryReader { p in
-                            Color.clear.preference(key: SpacesTopBarHeightKey.self, value: p.size.height)
-                        })
-                        .padding(.top, Self.topPadding)
-                    Spacer()
-                }
-
                 VStack(spacing: 12) {
                     Spacer()
                     if layoutMode == .pagedGrid, paged.pageCount > 1 { pager(paged) }
-                    ToolDock(
+                    SpaceBottomDock(
                         store: store,
-                        interaction: dockInteraction,
-                        errorMessage: store.lastPersistenceError,
-                        isAIHintActive: false,
-                        onToggleAIHint: {},
-                        zoomScale: 1,
-                        onZoomIn: {},
-                        onZoomOut: {},
-                        isCardFocused: false,
-                        isCardSelected: store.state.selectedCardID != nil,
-                        onToggleCardFocus: nil,
-                        workspaceName: "",
-                        isWorkspaceSidebarVisible: false,
-                        onToggleWorkspaceSidebar: {},
+                        sessionManager: sessionManager,
+                        onReTile: {
+                            reTile(orderedIDs: orderedIDs, tiling: tiling, viewport: geo.size)
+                        },
                         onAddCard: { kind in
                             store.addCard(kind: kind)
                             // Free-arrange: the card is seeded a frame by the
@@ -296,8 +274,7 @@ struct SpacesShellView: View {
                                 }
                             }
                         },
-                        onAddText: {},
-                        variant: .spaces
+                        errorMessage: store.lastPersistenceError
                     )
                     .background(GeometryReader { p in
                         Color.clear.preference(key: SpacesDockHeightKey.self, value: p.size.height)
@@ -330,7 +307,6 @@ struct SpacesShellView: View {
         .background(CanvasKeyMonitor(onKeyDown: handleSpacesKey))
         .preferredColorScheme(.dark)
         .onPreferenceChange(ShellFrameKey.self) { shellFrame = $0 }
-        .onPreferenceChange(SpacesTopBarHeightKey.self) { topBarHeight = $0 }
         .onPreferenceChange(SpacesDockHeightKey.self) { dockHeight = $0 }
     }
 
@@ -613,11 +589,6 @@ struct SpacesShellView: View {
 struct ShellFrameKey: PreferenceKey {
     static let defaultValue: CGRect = .zero
     static func reduce(value: inout CGRect, nextValue: () -> CGRect) { value = nextValue() }
-}
-
-struct SpacesTopBarHeightKey: PreferenceKey {
-    static let defaultValue: CGFloat = 0
-    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
 struct SpacesDockHeightKey: PreferenceKey {
