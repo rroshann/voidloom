@@ -55,37 +55,37 @@ struct RootView: View {
             case .goToLauncher:
                 session.isWorkspaceOpen = false
             case .undo:
-                if NSApp.keyWindow?.firstResponder is NSText {
+                if isTypingResponder(NSApp.keyWindow?.firstResponder) {
                     NSApp.sendAction(Selector(("undo:")), to: nil, from: nil)
                 } else {
                     store.undo()
                 }
             case .redo:
-                if NSApp.keyWindow?.firstResponder is NSText {
+                if isTypingResponder(NSApp.keyWindow?.firstResponder) {
                     NSApp.sendAction(Selector(("redo:")), to: nil, from: nil)
                 } else {
                     store.redo()
                 }
             case .copy:
-                if NSApp.keyWindow?.firstResponder is NSText {
+                if isTypingResponder(NSApp.keyWindow?.firstResponder) {
                     NSApp.sendAction(Selector(("copy:")), to: nil, from: nil)
                 } else {
                     store.copySelection()
                 }
             case .cut:
-                if NSApp.keyWindow?.firstResponder is NSText {
+                if isTypingResponder(NSApp.keyWindow?.firstResponder) {
                     NSApp.sendAction(Selector(("cut:")), to: nil, from: nil)
                 } else {
                     store.cutSelection()
                 }
             case .paste:
-                if NSApp.keyWindow?.firstResponder is NSText {
+                if isTypingResponder(NSApp.keyWindow?.firstResponder) {
                     NSApp.sendAction(Selector(("paste:")), to: nil, from: nil)
                 } else {
                     store.pasteCards()
                 }
             case .duplicate:
-                if !(NSApp.keyWindow?.firstResponder is NSText) {
+                if !(isTypingResponder(NSApp.keyWindow?.firstResponder)) {
                     store.duplicateSelection()
                 }
             case .setProjectFolder:

@@ -622,7 +622,7 @@ public final class WorkspaceStore: ObservableObject {
 
     /// Debounced like `moveCard` — a free-arrange drag emits many origins.
     public func moveSpaceCardFreely(id: UUID, to origin: ScreenPoint) {
-        recordUndo("fresize:\(id)")
+        recordUndo("fmove:\(id)")
         state.moveSpaceCardFreely(id: id, to: origin)
         schedulePersistence()
     }

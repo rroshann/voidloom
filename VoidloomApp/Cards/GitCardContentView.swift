@@ -179,7 +179,9 @@ struct GitCardContentView: View {
 
 /// One entry from `git status --porcelain`.
 struct GitChange: Identifiable, Equatable {
-    let id = UUID()
+    // Stable id (the path) so the selected file survives a reload/refresh —
+    // git status lists each path once.
+    var id: String { path }
     let code: String    // two-char XY status
     let path: String
 

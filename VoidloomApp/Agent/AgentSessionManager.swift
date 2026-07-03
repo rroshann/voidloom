@@ -40,10 +40,14 @@ final class AgentSessionManager: NSObject, ObservableObject {
         } else {
             dir = NSHomeDirectory()
         }
+        // The child inherits the process cwd at spawn time. Set it just for the
+        // spawn, then restore, so this global mutable state isn't left changed.
+        let previousDir = fm.currentDirectoryPath
         fm.changeCurrentDirectoryPath(dir)
         var environment = Terminal.getEnvironmentVariables(termName: "xterm-256color", trueColor: true)
         environment.append("SHELL=\(shell)")
         terminal.startProcess(executable: shell, args: ["-l"], environment: environment)
+        fm.changeCurrentDirectoryPath(previousDir)
 
         sessions[cardID] = Session(terminal: terminal)
     }
