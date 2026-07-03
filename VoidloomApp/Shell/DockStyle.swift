@@ -1,4 +1,5 @@
 import SwiftUI
+import VoidloomCore
 
 /// Shared sizing for bottom docks — slim floating glass bars.
 enum DockMetrics {
@@ -62,6 +63,66 @@ struct DockIconGlyph: View {
             .onHover { hovering = $0 }
             .animation(.easeOut(duration: 0.12), value: hovering)
             .animation(.easeOut(duration: 0.12), value: isActive)
+    }
+}
+
+/// Workspace switcher menu shared by Canvas and Spaces docks.
+struct DockWorkspaceMenu: View {
+    @ObservedObject var store: WorkspaceStore
+    @ObservedObject var sessionManager: AgentSessionManager
+    @EnvironmentObject private var session: AppSession
+
+    private var activeName: String {
+        store.library.workspaces.first { $0.id == store.library.selectedWorkspaceID }?.name ?? "Space"
+    }
+
+    private var projectFolderLabel: String {
+        guard let path = store.state.space?.folderPath, !path.isEmpty else {
+            return "No project folder"
+        }
+        return URL(fileURLWithPath: path).lastPathComponent
+    }
+
+    var body: some View {
+        Menu {
+            ForEach(store.library.workspaces) { ws in
+                Button {
+                    guard ws.id != store.library.selectedWorkspaceID else { return }
+                    sessionManager.terminateAllSessions()
+                    store.switchWorkspace(id: ws.id)
+                } label: {
+                    if ws.id == store.library.selectedWorkspaceID {
+                        Label(ws.name, systemImage: "checkmark")
+                    } else {
+                        Text(ws.name)
+                    }
+                }
+            }
+            Divider()
+            Text(projectFolderLabel).disabled(true)
+            Button("Set Project Folder…") {
+                MenuAction.setProjectFolder.post()
+            }
+            Divider()
+            Button("New Space") {
+                session.present()
+            }
+            Button("Back to Launcher") {
+                session.isWorkspaceOpen = false
+            }
+        } label: {
+            HStack(spacing: 6) {
+                Text(activeName.uppercased())
+                    .font(.system(size: 12, weight: .bold, design: .monospaced))
+                    .tracking(0.8)
+                    .foregroundStyle(.white.opacity(0.95))
+                Image(systemName: "chevron.up")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundStyle(.white.opacity(0.6))
+            }
+            .padding(.horizontal, 12).frame(height: DockMetrics.iconSide)
+        }
+        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
     }
 }
 

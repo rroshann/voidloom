@@ -15,7 +15,6 @@ struct RootView: View {
     @EnvironmentObject private var session: AppSession
 
     @AppStorage("app.mode") private var appMode: AppMode = .canvas
-    @AppStorage("isWorkspaceSidebarVisible") private var isWorkspaceSidebarVisible = false
     @AppStorage("isMinimapVisible") private var isMinimapVisible = false
 
     var body: some View {
@@ -49,8 +48,6 @@ struct RootView: View {
             switch action {
             case .toggleAppMode:
                 appMode = appMode == .canvas ? .spaces : .canvas
-            case .toggleWorkspaceSidebar:
-                isWorkspaceSidebarVisible.toggle()
             case .toggleMinimap:
                 isMinimapVisible.toggle()
             case .addCard(let kind):

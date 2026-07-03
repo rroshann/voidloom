@@ -24,7 +24,6 @@
 		A20000000000000000000005 /* DraggableWorkspaceCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000015 /* DraggableWorkspaceCard.swift */; };
 		A20000000000000000000006 /* CanvasGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000016 /* CanvasGrid.swift */; };
 		A20000000000000000000007 /* CardPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000017 /* CardPalette.swift */; };
-		A20000000000000000000008 /* WorkspaceSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000018 /* WorkspaceSidebar.swift */; };
 		A20000000000000000000009 /* CanvasZoomControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000019 /* CanvasZoomControls.swift */; };
 		A30000000000000000000001 /* AgentSessionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A30000000000000000000011 /* AgentSessionManager.swift */; };
 		A80000000000000000000009 /* TerminalHostView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000019 /* TerminalHostView.swift */; };
@@ -96,7 +95,6 @@
 		A20000000000000000000015 /* DraggableWorkspaceCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/DraggableWorkspaceCard.swift; sourceTree = "<group>"; };
 		A20000000000000000000016 /* CanvasGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/CanvasGrid.swift; sourceTree = "<group>"; };
 		A20000000000000000000017 /* CardPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/CardPalette.swift; sourceTree = "<group>"; };
-		A20000000000000000000018 /* WorkspaceSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/WorkspaceSidebar.swift; sourceTree = "<group>"; };
 		A20000000000000000000019 /* CanvasZoomControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/CanvasZoomControls.swift; sourceTree = "<group>"; };
 		A30000000000000000000011 /* AgentSessionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Agent/AgentSessionManager.swift; sourceTree = "<group>"; };
 		A80000000000000000000019 /* TerminalHostView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Agent/TerminalHostView.swift; sourceTree = "<group>"; };
@@ -197,7 +195,6 @@
 				A100000000000000000000F1 /* CanvasKeyMonitor.swift */,
 				A8000000000000000000001C /* ContentClickMonitor.swift */,
 				A20000000000000000000011 /* AtmosphereBackground.swift */,
-				A20000000000000000000018 /* WorkspaceSidebar.swift */,
 				A40000000000000000000012 /* AIConversationSidebar.swift */,
 				A50000000000000000000011 /* CommandPaletteModel.swift */,
 				A50000000000000000000012 /* CommandPaletteView.swift */,
@@ -352,7 +349,6 @@
 				A20000000000000000000006 /* CanvasGrid.swift in Sources */,
 				A10000000000000000000004 /* WorkspaceCardView.swift in Sources */,
 				A20000000000000000000007 /* CardPalette.swift in Sources */,
-				A20000000000000000000008 /* WorkspaceSidebar.swift in Sources */,
 				A20000000000000000000009 /* CanvasZoomControls.swift in Sources */,
 				A30000000000000000000001 /* AgentSessionManager.swift in Sources */,
 				A80000000000000000000009 /* TerminalHostView.swift in Sources */,

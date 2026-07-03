@@ -23,7 +23,6 @@ struct SpaceBottomDock: View {
     @State private var showImportError = false
     @State private var showGitUnavailable = false
 
-    @EnvironmentObject private var newWorkspace: AppSession
     @Environment(\.theme) private var theme
 
     @AppStorage("spaces.defaultColumns") private var defaultColumns = 0
@@ -31,13 +30,6 @@ struct SpaceBottomDock: View {
 
     private var activeName: String {
         store.library.workspaces.first { $0.id == store.library.selectedWorkspaceID }?.name ?? "Space"
-    }
-
-    private var projectFolderLabel: String {
-        guard let path = store.state.space?.folderPath, !path.isEmpty else {
-            return "No project folder"
-        }
-        return URL(fileURLWithPath: path).lastPathComponent
     }
 
     private var layoutMode: SpaceLayoutMode { store.state.space?.layoutMode ?? .pagedGrid }
@@ -76,7 +68,7 @@ struct SpaceBottomDock: View {
         HStack(spacing: DockMetrics.groupGap) {
             DockModeSwitch()
 
-            spaceSwitcher
+            DockWorkspaceMenu(store: store, sessionManager: sessionManager)
 
             // Card-creation tools: terminal, notes, todo, browser, files, git.
             HStack(spacing: DockMetrics.iconGap) {
@@ -151,48 +143,6 @@ struct SpaceBottomDock: View {
         } else {
             onAddCard(.git)
         }
-    }
-
-    private var spaceSwitcher: some View {
-        Menu {
-            ForEach(store.library.workspaces) { ws in
-                Button {
-                    guard ws.id != store.library.selectedWorkspaceID else { return }
-                    sessionManager.terminateAllSessions()
-                    store.switchWorkspace(id: ws.id)
-                } label: {
-                    if ws.id == store.library.selectedWorkspaceID {
-                        Label(ws.name, systemImage: "checkmark")
-                    } else {
-                        Text(ws.name)
-                    }
-                }
-            }
-            Divider()
-            Text(projectFolderLabel).disabled(true)
-            Button("Set Project Folder…") {
-                MenuAction.setProjectFolder.post()
-            }
-            Divider()
-            Button("New Space") {
-                newWorkspace.present()
-            }
-            Button("Back to Launcher") {
-                newWorkspace.isWorkspaceOpen = false
-            }
-        } label: {
-            HStack(spacing: 6) {
-                Text(activeName.uppercased())
-                    .font(.system(size: 12, weight: .bold, design: .monospaced))
-                    .tracking(0.8)
-                    .foregroundStyle(.white.opacity(0.95))
-                Image(systemName: "chevron.up")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.6))
-            }
-            .padding(.horizontal, 12).frame(height: DockMetrics.iconSide)
-        }
-        .menuStyle(.borderlessButton).menuIndicator(.hidden).fixedSize()
     }
 
     private func barButton(_ icon: String, help: String, action: @escaping () -> Void) -> some View {

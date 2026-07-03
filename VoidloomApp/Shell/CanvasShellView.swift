@@ -14,7 +14,6 @@ struct CanvasShellView: View {
     @EnvironmentObject private var newWorkspace: AppSession
 
     @AppStorage("app.mode") private var appMode: AppMode = .canvas
-    @AppStorage("isWorkspaceSidebarVisible") private var isWorkspaceSidebarVisible = false
     @AppStorage("isMinimapVisible") private var isMinimapVisible = false
     @State private var isCommandBarVisible = false
     @State private var isAIConversationVisible = false
@@ -59,12 +58,6 @@ struct CanvasShellView: View {
         guard let id = store.state.selectedCardID else { return nil }
         let s = store.state.linkedContext(for: id)
         return s.isEmpty ? nil : s
-    }
-
-    private var activeWorkspaceName: String {
-        store.library.workspaces
-            .first(where: { $0.id == store.library.selectedWorkspaceID })?
-            .name ?? "Workspace"
     }
 
     /// Handles a Delete/Backspace key press for the canvas. Removes, in priority
@@ -142,36 +135,6 @@ struct CanvasShellView: View {
                 )
                     .ignoresSafeArea()
 
-                if isWorkspaceSidebarVisible {
-                    WorkspaceSidebar(
-                        library: store.library,
-                        activeWorkspaceID: store.library.selectedWorkspaceID,
-                        onSelectWorkspace: { id in
-                            sessionManager.terminateAllSessions()
-                            store.switchWorkspace(id: id)
-                        },
-                        onCreateWorkspace: {
-                            newWorkspace.present()
-                        },
-                        onRenameWorkspace: { id, name in
-                            store.renameWorkspace(id: id, to: name)
-                        },
-                        onDeleteWorkspace: { id in
-                            store.deleteWorkspace(id: id)
-                        },
-                        onMoveWorkspace: { draggedID, targetID in
-                            store.moveWorkspace(id: draggedID, toPositionOf: targetID)
-                        },
-                        onCloseSidebar: {
-                            withAnimation(.easeInOut(duration: 0.24)) {
-                                isWorkspaceSidebarVisible = false
-                            }
-                        }
-                    )
-                    .transition(.move(edge: .leading).combined(with: .opacity))
-                    .zIndex(1)
-                }
-
                 if isAIConversationVisible {
                     AIConversationSidebar(
                         messages: conversationStore.messages(for: activeWorkspaceID),
@@ -239,6 +202,7 @@ struct CanvasShellView: View {
 
                         ToolDock(
                             store: store,
+                            sessionManager: sessionManager,
                             interaction: interaction,
                             errorMessage: store.lastPersistenceError,
                             isAIHintActive: isCommandBarVisible || isAIConversationVisible,
@@ -264,13 +228,6 @@ struct CanvasShellView: View {
                             isCardSelected: store.state.selectedCardID != nil,
                             onToggleCardFocus: {
                                 toggleCardFocus(in: geometry.size)
-                            },
-                            workspaceName: activeWorkspaceName,
-                            isWorkspaceSidebarVisible: isWorkspaceSidebarVisible,
-                            onToggleWorkspaceSidebar: {
-                                withAnimation(.easeInOut(duration: 0.24)) {
-                                    isWorkspaceSidebarVisible.toggle()
-                                }
                             },
                             onAddCard: { kind in
                                 let viewportSize = ScreenPoint(
@@ -401,7 +358,6 @@ struct CanvasShellView: View {
                 }
             }
             .animation(.easeInOut(duration: 0.15), value: isCommandPaletteVisible)
-            .animation(.easeInOut(duration: 0.24), value: isWorkspaceSidebarVisible)
             .animation(.easeInOut(duration: 0.24), value: isAIConversationVisible)
             .animation(.easeInOut(duration: 0.22), value: isMinimapVisible)
             .onPreferenceChange(DockHeightPreferenceKey.self) { height in
@@ -589,16 +545,6 @@ struct CanvasShellView: View {
         // App
         commands.append(PaletteCommand(id: "open-settings", title: "Open Settings", section: .app, systemImage: "gearshape", keywords: ["preferences"]) {
             openSettings()
-        })
-        commands.append(PaletteCommand(
-            id: "toggle-workspaces",
-            title: isWorkspaceSidebarVisible ? "Hide Workspaces Sidebar" : "Show Workspaces Sidebar",
-            section: .app,
-            systemImage: "sidebar.left"
-        ) {
-            withAnimation(.easeInOut(duration: 0.24)) {
-                isWorkspaceSidebarVisible.toggle()
-            }
         })
         commands.append(PaletteCommand(id: "open-ai", title: "Open AI Conversation", section: .app, systemImage: "bubble.left.and.bubble.right", keywords: ["chat", "assistant"]) {
             withAnimation(.easeInOut(duration: 0.24)) {

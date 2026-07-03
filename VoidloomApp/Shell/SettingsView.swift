@@ -64,8 +64,6 @@ private struct GeneralSettingsTab: View {
     }
 
     // Preserved existing key.
-    @AppStorage("isWorkspaceSidebarVisible") private var isWorkspaceSidebarVisible = false
-
     @AppStorage("general.launchBehavior") private var launchBehavior: LaunchBehavior = .reopenLast
     @AppStorage("general.defaultCard") private var defaultCard: DefaultCard = .note
     @AppStorage("general.confirmDelete") private var confirmDelete = true
@@ -91,7 +89,6 @@ private struct GeneralSettingsTab: View {
             }
 
             Section("Sidebars") {
-                Toggle("Show workspaces sidebar", isOn: $isWorkspaceSidebarVisible)
                 Toggle("Show AI conversation sidebar", isOn: $showAISidebar)
                 Toggle("Remember sidebar widths", isOn: $rememberSidebarWidths)
             }

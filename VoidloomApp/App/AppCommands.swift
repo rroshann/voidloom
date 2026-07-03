@@ -7,7 +7,6 @@ import VoidloomCore
 /// the zoom anchor needs).
 enum MenuAction {
     case toggleAppMode
-    case toggleWorkspaceSidebar
     case toggleMinimap
     case addCard(CardKind)
     case zoomIn
@@ -70,8 +69,6 @@ struct VoidloomCommands: Commands {
                 .keyboardShortcut("l", modifiers: [.command, .shift, .option])
             Button("Toggle Spaces / Canvas") { MenuAction.toggleAppMode.post() }
                 .keyboardShortcut("s", modifiers: [.command, .shift])
-            Button("Toggle Workspace Sidebar") { MenuAction.toggleWorkspaceSidebar.post() }
-                .keyboardShortcut("l", modifiers: [.command, .shift])
             Button("Toggle Minimap") { MenuAction.toggleMinimap.post() }
                 .keyboardShortcut("m", modifiers: [.command, .shift])
             Divider()

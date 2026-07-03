@@ -5,6 +5,7 @@ enum ToolDockVariant { case canvas, spaces }
 
 struct ToolDock: View {
     @ObservedObject var store: WorkspaceStore
+    @ObservedObject var sessionManager: AgentSessionManager
     @ObservedObject var interaction: CanvasInteractionModel
     let errorMessage: String?
     let isAIHintActive: Bool
@@ -18,9 +19,6 @@ struct ToolDock: View {
     let isCardFocused: Bool
     let isCardSelected: Bool
     let onToggleCardFocus: (() -> Void)?
-    let workspaceName: String
-    let isWorkspaceSidebarVisible: Bool
-    let onToggleWorkspaceSidebar: () -> Void
     /// Double-click: instant create at the visible center.
     let onAddCard: (CardKind) -> Void
     /// Double-click on the Text tool: instant text element at the visible center.
@@ -45,12 +43,7 @@ struct ToolDock: View {
         HStack(spacing: DockMetrics.groupGap) {
             DockModeSwitch()
 
-            DockWorkspaceSegment(
-                workspaceName: workspaceName,
-                cardCount: store.state.cards.count,
-                isWorkspaceSidebarVisible: isWorkspaceSidebarVisible,
-                onToggle: onToggleWorkspaceSidebar
-            )
+            DockWorkspaceMenu(store: store, sessionManager: sessionManager)
 
             HStack(spacing: DockMetrics.iconGap) {
                 DockToolButton(
@@ -203,53 +196,6 @@ struct ToolDock: View {
         )
         .shadow(color: .black.opacity(0.32), radius: 28, x: 0, y: 18)
         .shadow(color: .black.opacity(0.18), radius: 6, x: 0, y: 3)
-    }
-}
-
-private struct DockWorkspaceSegment: View {
-    let workspaceName: String
-    let cardCount: Int
-    let isWorkspaceSidebarVisible: Bool
-    let onToggle: () -> Void
-
-    @State private var isHovering = false
-
-    private var restingFill: Double {
-        if isWorkspaceSidebarVisible { return 0.14 }
-        return isHovering ? 0.10 : 0
-    }
-
-    var body: some View {
-        Button(action: onToggle) {
-            VStack(alignment: .center, spacing: 1) {
-                Text(workspaceName)
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.95))
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-
-                Text("\(cardCount) \(cardCount == 1 ? "card" : "cards")")
-                    .font(.system(size: 9, weight: .medium, design: .rounded))
-                    .foregroundStyle(.white.opacity(0.55))
-                    .monospacedDigit()
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: 140, alignment: .center)
-            .padding(.horizontal, 10)
-            .frame(height: DockMetrics.iconSide)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(.white.opacity(restingFill))
-            )
-            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .animation(.easeOut(duration: 0.12), value: isHovering)
-            .animation(.easeOut(duration: 0.12), value: isWorkspaceSidebarVisible)
-        }
-        .buttonStyle(.plain)
-        .onHover { isHovering = $0 }
-        .pointerCursor()
-        .help(isWorkspaceSidebarVisible ? "Hide workspaces" : "Show workspaces")
-        .accessibilityLabel(isWorkspaceSidebarVisible ? "Hide workspaces" : "Show workspaces")
     }
 }
 
