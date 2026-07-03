@@ -3,33 +3,35 @@ import VoidloomAI
 import VoidloomCore
 
 /// Assembles the mediator brain for the current tier. Fast path always;
-/// LLM fallback only when the command model is verified-ready on disk.
-/// Engine loads lazily on first LLM use (cold Metal load ~0.66 s, narrated
-/// as "warming up" by the HUD state), then stays resident.
+/// LLM fallback when the command model is ready, or while it is downloading
+/// (unparseable utterances surface download progress). Engine loads lazily on
+/// first real LLM use (cold Metal load ~0.66 s), then stays resident.
 @MainActor
 enum MediatorBrainFactory {
     static func makeBrain(assets: ModelAssetManager) -> MediatorBrain {
         let fast = FastPathBrain()
         let asset = LocalModelManifest.commandModel
         let state = assets.state(of: asset)
-        let tier = MediatorTierResolver.resolve(
-            capabilities: .init(commandModelReady: state == .ready))
-        switch tier {
-        case .fastPathOnly:
-            return fast
-        case .fastPathWithLLM:
-            let modelURL = assets.localURL(of: asset)
-            let downloadingMessage: String? = {
-                if case .downloading(let progress) = state {
-                    return "Local model downloading (\(Int(progress * 100))%) — try again shortly."
-                }
-                return nil
-            }()
-            let engine = LazyLoadingEngine(
-                modelURL: modelURL,
-                downloadingMessage: downloadingMessage,
-                config: LlamaEngineConfig(contextLength: 2048))
+        let config = LlamaEngineConfig(contextLength: 2048)
+
+        switch state {
+        case .downloading(let progress):
+            let message = "Local model downloading (\(Int(progress * 100))%) — try again shortly."
+            let engine = LazyLoadingEngine(modelURL: nil, downloadingMessage: message, config: config)
             return TieredBrain(fast: fast, fallback: LlamaBrain(engine: engine))
+        case .ready:
+            switch MediatorTierResolver.resolve(
+                capabilities: .init(commandModelReady: true)) {
+            case .fastPathOnly:
+                return fast
+            case .fastPathWithLLM:
+                let engine = LazyLoadingEngine(
+                    modelURL: assets.localURL(of: asset),
+                    config: config)
+                return TieredBrain(fast: fast, fallback: LlamaBrain(engine: engine))
+            }
+        default:
+            return fast
         }
     }
 }
