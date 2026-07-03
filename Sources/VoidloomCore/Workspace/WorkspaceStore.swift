@@ -66,8 +66,11 @@ public final class WorkspaceStore: ObservableObject {
         self.workspacesDirectoryURL = nil
         self.storageURL = storageURL
         self.persistenceDelay = persistenceDelay
-        self.shutdownMarkerURL = storageURL.deletingLastPathComponent()
-            .appendingPathComponent("shutdown.json")
+        // Scope the shutdown marker to this storage file rather than a
+        // directory-shared "shutdown.json", so single-file stores rooted in the
+        // same directory (e.g. the temp dir in tests) never race on one sidecar.
+        self.shutdownMarkerURL = storageURL.deletingPathExtension()
+            .appendingPathExtension("shutdown.json")
         let workspaceID = UUID()
         self.library = WorkspaceLibrary(
             selectedWorkspaceID: workspaceID,
@@ -81,6 +84,12 @@ public final class WorkspaceStore: ObservableObject {
         )
         self.state = state
         Self.writeShutdownMarker(false, to: shutdownMarkerURL)
+    }
+
+    deinit {
+        // A torn-down store must not perform a scheduled write: cancel any
+        // debounced persistence so it can never fire after the owner is gone.
+        pendingPersistenceTask?.cancel()
     }
 
     // MARK: - Undo / Redo

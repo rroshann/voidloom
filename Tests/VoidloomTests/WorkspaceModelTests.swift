@@ -183,6 +183,28 @@ final class WorkspaceModelTests: XCTestCase {
     }
 
     @MainActor
+    func testSingleFileStoreScopesShutdownMarkerToStorageFile() {
+        // Regression: the single-file store derived its shutdown marker as
+        // "<dir>/shutdown.json" — a path shared by every store rooted in the
+        // same directory (e.g. the shared system temp dir the tests use). Two
+        // stores then raced on that one file. The marker must be unique to the
+        // storage file so concurrent stores never touch the same sidecar.
+        let dir = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+
+        let url = dir.appendingPathComponent(UUID().uuidString).appendingPathExtension("json")
+        _ = WorkspaceStore(state: WorkspaceState(), storageURL: url, persistenceDelay: 60)
+
+        let sharedMarker = dir.appendingPathComponent("shutdown.json")
+        XCTAssertFalse(
+            FileManager.default.fileExists(atPath: sharedMarker.path),
+            "shutdown marker must be scoped to the storage file, not a directory-shared sibling"
+        )
+    }
+
+    @MainActor
     func testPanPersistsWorkspaceStateAfterDebounce() async throws {
         let state = WorkspaceState(
             viewport: CanvasViewport(origin: .zero, scale: 1),
