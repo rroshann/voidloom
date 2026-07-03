@@ -24,6 +24,8 @@ public final class LlamaBrain: MediatorBrain, @unchecked Sendable {
         do {
             raw = try engine.complete(systemPrompt: systemPrompt, userPrompt: utterance,
                                       grammar: MediatorGrammar.rootGrammar, maxTokens: maxTokens)
+        } catch let error as BrainError {
+            throw error
         } catch {
             throw BrainError.backendFailure("The local model failed to respond.")
         }

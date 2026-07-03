@@ -35,6 +35,11 @@ final class LlamaBrainTests: XCTestCase {
         catch let e as BrainError { if case .backendFailure = e {} else { XCTFail("got \(e)") } }
         catch { XCTFail("wrong type") }
     }
+
+    func testEngineBrainErrorPassesThroughUnchanged() async {
+        let brain = LlamaBrain(engine: FakeEngine(.failure(BrainError.modelNotReady("not on disk"))))
+        await XCTAssertThrowsBrainError(.modelNotReady("")) { try await brain.command(for: "x") }
+    }
 }
 
 enum LlamaBrainStubError: Error { case boom }
