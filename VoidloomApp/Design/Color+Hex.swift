@@ -10,7 +10,12 @@ extension Color {
     }
     func toHex() -> String {
         let ns = NSColor(self).usingColorSpace(.sRGB) ?? .white
+        // Clamp (wide-gamut components can fall outside 0...1) and ROUND rather
+        // than truncate: truncation always biases down, so a get/set round-trip
+        // through the ColorPicker binding would darken the color every drag frame
+        // and drift to black. Rounding lands on a stable 1/255 grid value.
+        func channel(_ v: CGFloat) -> Int { Int((min(max(v, 0), 1) * 255).rounded()) }
         return String(format: "#%02X%02X%02X",
-                      Int(ns.redComponent * 255), Int(ns.greenComponent * 255), Int(ns.blueComponent * 255))
+                      channel(ns.redComponent), channel(ns.greenComponent), channel(ns.blueComponent))
     }
 }

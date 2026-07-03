@@ -11,8 +11,9 @@ struct CanvasShellView: View {
     @ObservedObject var conversationStore: ConversationStore
     @ObservedObject var interaction: CanvasInteractionModel
 
+    @EnvironmentObject private var newWorkspace: AppSession
+
     @AppStorage("app.mode") private var appMode: AppMode = .canvas
-    @AppStorage("isWorkspaceSidebarVisible") private var isWorkspaceSidebarVisible = false
     @AppStorage("isMinimapVisible") private var isMinimapVisible = false
     @State private var isCommandBarVisible = false
     @State private var isAIConversationVisible = false
@@ -31,9 +32,10 @@ struct CanvasShellView: View {
     /// move re-renders only `EraserSizePreview`, never this whole view.
     @State private var eraserPreview = EraserPreviewModel()
 
-    /// Gap between the dock capsule and the window bottom. Kept as a single
-    /// source of truth so the grid reserve below matches the actual padding.
+    /// Bottom inset reserved for the grid band and minimap corner padding.
     private static let bottomChromePadding: CGFloat = 24
+    /// Gap between the dock capsule and the window bottom (matches Spaces dock).
+    private static let dockBottomPadding: CGFloat = 12
     /// Breathing room between the bottom row of grid cards and the dock's top
     /// edge, so cards clear the dock comfortably rather than touching it.
     private static let dockClearanceGap: CGFloat = 16
@@ -58,12 +60,6 @@ struct CanvasShellView: View {
         return s.isEmpty ? nil : s
     }
 
-    private var activeWorkspaceName: String {
-        store.library.workspaces
-            .first(where: { $0.id == store.library.selectedWorkspaceID })?
-            .name ?? "Workspace"
-    }
-
     /// Handles a Delete/Backspace key press for the canvas. Removes, in priority
     /// order, the selected connection edge, the marquee-selected card group, or
     /// the single selected card. Returns whether the event was consumed.
@@ -78,7 +74,7 @@ struct CanvasShellView: View {
 
         guard interaction.editingTextID == nil,
               interaction.editingCardTitleID == nil else { return false }
-        if event.window?.firstResponder is NSText { return false }
+        if isTypingResponder(event.window?.firstResponder) { return false }
 
         if let id = interaction.selectedConnectionID {
             store.deleteConnection(id: id)
@@ -138,38 +134,6 @@ struct CanvasShellView: View {
                     }
                 )
                     .ignoresSafeArea()
-
-                if isWorkspaceSidebarVisible {
-                    WorkspaceSidebar(
-                        library: store.library,
-                        activeWorkspaceID: store.library.selectedWorkspaceID,
-                        onSelectWorkspace: { id in
-                            sessionManager.terminateAllSessions()
-                            store.switchWorkspace(id: id)
-                        },
-                        onCreateWorkspace: {
-                            let untitledCount = store.library.workspaces.filter { $0.name.hasPrefix("Untitled") }.count
-                            let name = untitledCount == 0 ? "Untitled" : "Untitled \(untitledCount + 1)"
-                            store.createWorkspace(named: name)
-                        },
-                        onRenameWorkspace: { id, name in
-                            store.renameWorkspace(id: id, to: name)
-                        },
-                        onDeleteWorkspace: { id in
-                            store.deleteWorkspace(id: id)
-                        },
-                        onMoveWorkspace: { draggedID, targetID in
-                            store.moveWorkspace(id: draggedID, toPositionOf: targetID)
-                        },
-                        onCloseSidebar: {
-                            withAnimation(.easeInOut(duration: 0.24)) {
-                                isWorkspaceSidebarVisible = false
-                            }
-                        }
-                    )
-                    .transition(.move(edge: .leading).combined(with: .opacity))
-                    .zIndex(1)
-                }
 
                 if isAIConversationVisible {
                     AIConversationSidebar(
@@ -238,6 +202,7 @@ struct CanvasShellView: View {
 
                         ToolDock(
                             store: store,
+                            sessionManager: sessionManager,
                             interaction: interaction,
                             errorMessage: store.lastPersistenceError,
                             isAIHintActive: isCommandBarVisible || isAIConversationVisible,
@@ -263,13 +228,6 @@ struct CanvasShellView: View {
                             isCardSelected: store.state.selectedCardID != nil,
                             onToggleCardFocus: {
                                 toggleCardFocus(in: geometry.size)
-                            },
-                            workspaceName: activeWorkspaceName,
-                            isWorkspaceSidebarVisible: isWorkspaceSidebarVisible,
-                            onToggleWorkspaceSidebar: {
-                                withAnimation(.easeInOut(duration: 0.24)) {
-                                    isWorkspaceSidebarVisible.toggle()
-                                }
                             },
                             onAddCard: { kind in
                                 let viewportSize = ScreenPoint(
@@ -319,7 +277,7 @@ struct CanvasShellView: View {
                     }
                     .frame(maxWidth: .infinity)
                     .padding(.horizontal, 24)
-                    .padding(.bottom, Self.bottomChromePadding)
+                    .padding(.bottom, Self.dockBottomPadding)
                     .animation(.easeInOut(duration: 0.22), value: store.lastPersistenceError)
                     .animation(.easeInOut(duration: 0.22), value: isCommandBarVisible)
                     .animation(.easeInOut(duration: 0.22), value: interaction.mode)
@@ -388,8 +346,18 @@ struct CanvasShellView: View {
             // Backspace keeps reaching the editor).
             .coordinateSpace(.named("rootSpace"))
             .background(CanvasKeyMonitor(onKeyDown: handleDeleteKey))
+            .onReceive(NotificationCenter.default.publisher(for: MenuAction.notification)) { note in
+                guard let action = note.object as? MenuAction else { return }
+                let anchor = ScreenPoint(x: Double(geometry.size.width) / 2,
+                                         y: Double(geometry.size.height) / 2)
+                switch action {
+                case .zoomIn: store.zoomStep(by: 1.15, anchoredAt: anchor)
+                case .zoomOut: store.zoomStep(by: 1 / 1.15, anchoredAt: anchor)
+                case .resetViewport: store.resetViewport()
+                default: break   // store/AppStorage actions live in RootView
+                }
+            }
             .animation(.easeInOut(duration: 0.15), value: isCommandPaletteVisible)
-            .animation(.easeInOut(duration: 0.24), value: isWorkspaceSidebarVisible)
             .animation(.easeInOut(duration: 0.24), value: isAIConversationVisible)
             .animation(.easeInOut(duration: 0.22), value: isMinimapVisible)
             .onPreferenceChange(DockHeightPreferenceKey.self) { height in
@@ -517,9 +485,7 @@ struct CanvasShellView: View {
 
         // Workspaces
         commands.append(PaletteCommand(id: "new-workspace", title: "New Workspace", section: .workspaces, systemImage: "plus.rectangle.on.rectangle", keywords: ["add", "create"]) {
-            let untitledCount = store.library.workspaces.filter { $0.name.hasPrefix("Untitled") }.count
-            let name = untitledCount == 0 ? "Untitled" : "Untitled \(untitledCount + 1)"
-            store.createWorkspace(named: name)
+            newWorkspace.present()
         })
         for workspace in store.library.workspaces where workspace.id != activeWorkspaceID {
             commands.append(PaletteCommand(id: "switch-\(workspace.id)", title: "Switch to \(workspace.name)", section: .workspaces, systemImage: "rectangle.on.rectangle", keywords: ["open", "go", "workspace"]) {
@@ -550,19 +516,35 @@ struct CanvasShellView: View {
             })
         }
 
+        // Go to (current workspace cards)
+        let viewportSize = ScreenPoint(x: size.width, y: size.height)
+        for card in store.state.cards {
+            let palette = CardPalette(kind: card.kind)
+            let trimmedTitle = card.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let title = trimmedTitle.isEmpty ? palette.eyebrow : trimmedTitle
+            let contentSnippet = String(card.content.prefix(80))
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+                .replacingOccurrences(of: "\n", with: " ")
+            let center = CanvasPoint(
+                x: card.position.x + card.size.width / 2,
+                y: card.position.y + card.size.height / 2
+            )
+            let cardID = card.id
+            commands.append(PaletteCommand(
+                id: "goto-card-\(card.id)",
+                title: title,
+                section: .cards,
+                systemImage: palette.symbol,
+                keywords: [trimmedTitle, palette.eyebrow, contentSnippet, "go", "card"].filter { !$0.isEmpty }
+            ) {
+                store.selectCard(id: cardID)
+                store.centerViewport(on: center, viewportSize: viewportSize)
+            })
+        }
+
         // App
         commands.append(PaletteCommand(id: "open-settings", title: "Open Settings", section: .app, systemImage: "gearshape", keywords: ["preferences"]) {
             openSettings()
-        })
-        commands.append(PaletteCommand(
-            id: "toggle-workspaces",
-            title: isWorkspaceSidebarVisible ? "Hide Workspaces Sidebar" : "Show Workspaces Sidebar",
-            section: .app,
-            systemImage: "sidebar.left"
-        ) {
-            withAnimation(.easeInOut(duration: 0.24)) {
-                isWorkspaceSidebarVisible.toggle()
-            }
         })
         commands.append(PaletteCommand(id: "open-ai", title: "Open AI Conversation", section: .app, systemImage: "bubble.left.and.bubble.right", keywords: ["chat", "assistant"]) {
             withAnimation(.easeInOut(duration: 0.24)) {
@@ -608,5 +590,6 @@ private struct DockHeightPreferenceKey: PreferenceKey {
         conversationStore: ConversationStore(),
         interaction: CanvasInteractionModel()
     )
+    .environmentObject(AppSession())
     .frame(width: 1180, height: 760)
 }

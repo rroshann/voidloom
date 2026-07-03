@@ -29,6 +29,16 @@ struct CardPalette {
             symbol = "safari"
             eyebrow = "preview"
             shadow = Color(red: 0.05, green: 0.27, blue: 0.58).opacity(0.22)
+        case .fileBrowser:
+            accent = Color(red: 0.62, green: 0.82, blue: 0.62)
+            symbol = "folder"
+            eyebrow = "files"
+            shadow = Color(red: 0.16, green: 0.40, blue: 0.16).opacity(0.22)
+        case .git:
+            accent = Color(red: 0.98, green: 0.58, blue: 0.40)
+            symbol = "arrow.triangle.branch"
+            eyebrow = "git"
+            shadow = Color(red: 0.55, green: 0.22, blue: 0.10).opacity(0.22)
         }
     }
 }

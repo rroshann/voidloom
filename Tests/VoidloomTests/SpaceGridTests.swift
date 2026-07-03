@@ -128,4 +128,153 @@ final class SpaceGridTests: XCTestCase {
         )
         XCTAssertEqual(l2.columns, 3, "columns=100 with 3 cards should clamp to cardCount")
     }
+
+    private func paged(_ n: Int, _ tiling: SpaceTiling, page: Int) -> SpaceGrid.PagedLayout {
+        SpaceGrid.pagedLayout(cardCount: n, viewportSize: viewport,
+                              topInset: topInset, bottomInset: bottomInset, tiling: tiling, page: page)
+    }
+
+    func testPagedLayoutSinglePageMatchesLayoutForAuto() {
+        let l = layout(7)
+        let p = paged(7, SpaceTiling(), page: 0)
+        XCTAssertEqual(p.pageCount, 1)
+        XCTAssertEqual(p.page, 0)
+        XCTAssertEqual(p.cardRange, 0..<7)
+        XCTAssertEqual(p.columns, l.columns)
+        XCTAssertEqual(p.rows, l.rows)
+        XCTAssertEqual(p.tileSize, l.tileSize)
+        XCTAssertEqual(p.tileOrigins, l.tileOrigins)
+    }
+
+    func testPagedLayoutSinglePageMatchesLayoutForFixedColumns() {
+        let tiling = SpaceTiling(mode: .fixedColumns, columns: 3)   // no maxRows
+        let l = SpaceGrid.layout(cardCount: 5, viewportSize: viewport,
+                                 topInset: topInset, bottomInset: bottomInset, tiling: tiling)
+        let p = paged(5, tiling, page: 0)
+        XCTAssertEqual(p.pageCount, 1)
+        XCTAssertEqual(p.tileOrigins, l.tileOrigins)
+        XCTAssertEqual(p.tileSize, l.tileSize)
+    }
+
+    func testPagedLayoutPaginatesFixedGrid() {
+        let tiling = SpaceTiling(mode: .fixedColumns, columns: 3, maxRows: 2)   // capacity 6
+        let p0 = paged(8, tiling, page: 0)
+        let p1 = paged(8, tiling, page: 1)
+        XCTAssertEqual(p0.pageCount, 2)
+        XCTAssertEqual(p0.page, 0)
+        XCTAssertEqual(p0.cardRange, 0..<6)
+        XCTAssertEqual(p0.tileOrigins.count, 6)
+        XCTAssertEqual(p1.page, 1)
+        XCTAssertEqual(p1.cardRange, 6..<8)
+        XCTAssertEqual(p1.tileOrigins.count, 2)
+        // A full page uses the full caps grid…
+        XCTAssertEqual(p0.columns, 3)
+        XCTAssertEqual(p0.rows, 2)
+        // …while an underfilled page expands its tiles to fill the space
+        // (2 cards → side-by-side halves, full usable height).
+        XCTAssertEqual(p1.columns, 2)
+        XCTAssertEqual(p1.rows, 1)
+        XCTAssertGreaterThan(p1.tileSize.x, p0.tileSize.x)
+        XCTAssertGreaterThan(p1.tileSize.y, p0.tileSize.y)
+    }
+
+    // Columns × Rows are CAPS on page capacity, not a literal grid: pages with
+    // fewer cards re-solve the aspect-optimal grid within the caps so the
+    // cards always claim the whole usable rect.
+    func testPagedGridAdaptsToFewCards() {
+        let tiling = SpaceTiling(mode: .fixedColumns, columns: 2, maxRows: 2)   // capacity 4
+        let usableW = viewport.x - 2 * tiling.margin
+        let usableH = viewport.y - topInset - bottomInset - 2 * tiling.margin
+
+        // 1 card fills the screen.
+        let one = paged(1, tiling, page: 0)
+        XCTAssertEqual(one.columns, 1)
+        XCTAssertEqual(one.rows, 1)
+        XCTAssertEqual(one.tileSize.x, usableW, accuracy: 0.5)
+        XCTAssertEqual(one.tileSize.y, usableH, accuracy: 0.5)
+
+        // 2 cards split left/right at full height.
+        let two = paged(2, tiling, page: 0)
+        XCTAssertEqual(two.columns, 2)
+        XCTAssertEqual(two.rows, 1)
+        XCTAssertEqual(two.tileSize.y, usableH, accuracy: 0.5)
+
+        // 3 cards use the 2×2 grid with the last row centered.
+        let three = paged(3, tiling, page: 0)
+        XCTAssertEqual(three.columns, 2)
+        XCTAssertEqual(three.rows, 2)
+        XCTAssertEqual(three.tileOrigins.count, 3)
+        XCTAssertGreaterThan(three.tileOrigins[2].x, three.tileOrigins[0].x)
+    }
+
+    // The adaptive per-page grid still respects BOTH caps.
+    func testPagedGridAdaptationRespectsCaps() {
+        // 3 cards, caps 3×1 → one row of three (rows may not exceed maxRows).
+        let wide = paged(3, SpaceTiling(mode: .fixedColumns, columns: 3, maxRows: 1), page: 0)
+        XCTAssertEqual(wide.columns, 3)
+        XCTAssertEqual(wide.rows, 1)
+
+        // 3 cards, caps 1×3 → one column of three (columns may not exceed cap).
+        let tall = paged(3, SpaceTiling(mode: .fixedColumns, columns: 1, maxRows: 3), page: 0)
+        XCTAssertEqual(tall.columns, 1)
+        XCTAssertEqual(tall.rows, 3)
+    }
+
+    func testPagedLayoutClampsPageBeyondRange() {
+        let tiling = SpaceTiling(mode: .fixedColumns, columns: 3, maxRows: 2)
+        let p = paged(8, tiling, page: 5)
+        XCTAssertEqual(p.page, 1)
+        XCTAssertEqual(p.cardRange, 6..<8)
+    }
+
+    func testPagedLayoutExactMultipleFillsLastPage() {
+        let tiling = SpaceTiling(mode: .fixedColumns, columns: 2, maxRows: 2)   // capacity 4
+        let p = paged(8, tiling, page: 1)
+        XCTAssertEqual(p.pageCount, 2)
+        XCTAssertEqual(p.cardRange, 4..<8)
+        XCTAssertEqual(p.tileOrigins.count, 4)
+    }
+
+    func testPagedLayoutAutoNeverPaginatesEvenWithMaxRows() {
+        let tiling = SpaceTiling(mode: .auto, columns: 2, maxRows: 2)
+        let p = paged(12, tiling, page: 0)
+        XCTAssertEqual(p.pageCount, 1)
+        XCTAssertEqual(p.cardRange, 0..<12)
+    }
+
+    func testPagedLayoutZeroCards() {
+        let p = paged(0, SpaceTiling(mode: .fixedColumns, columns: 3, maxRows: 2), page: 0)
+        XCTAssertEqual(p.pageCount, 1)
+        XCTAssertTrue(p.tileOrigins.isEmpty)
+        XCTAssertEqual(p.cardRange, 0..<0)
+    }
+
+    func testTileIndicesReturnsOverlappingTiles() {
+        let origins = [ScreenPoint(x: 0, y: 0), ScreenPoint(x: 120, y: 0), ScreenPoint(x: 240, y: 0)]
+        let size = ScreenPoint(x: 100, y: 100)
+        // Rect spanning the first two tiles.
+        let hits = SpaceGrid.tileIndices(fromCorner: ScreenPoint(x: 10, y: 10),
+                                         toCorner: ScreenPoint(x: 130, y: 50),
+                                         tileOrigins: origins, tileSize: size)
+        XCTAssertEqual(hits, [0, 1])
+    }
+
+    func testTileIndicesReturnsEmptyWhenOutside() {
+        let origins = [ScreenPoint(x: 0, y: 0), ScreenPoint(x: 120, y: 0)]
+        let size = ScreenPoint(x: 100, y: 100)
+        let hits = SpaceGrid.tileIndices(fromCorner: ScreenPoint(x: 400, y: 400),
+                                         toCorner: ScreenPoint(x: 500, y: 500),
+                                         tileOrigins: origins, tileSize: size)
+        XCTAssertTrue(hits.isEmpty)
+    }
+
+    func testTileIndicesCountsPartialOverlapAndNormalizesCorners() {
+        let origins = [ScreenPoint(x: 0, y: 0)]
+        let size = ScreenPoint(x: 100, y: 100)
+        // Corners given bottom-right -> top-left; a 1px clip of the tile still counts.
+        let hits = SpaceGrid.tileIndices(fromCorner: ScreenPoint(x: 50, y: 50),
+                                         toCorner: ScreenPoint(x: -10, y: -10),
+                                         tileOrigins: origins, tileSize: size)
+        XCTAssertEqual(hits, [0])
+    }
 }

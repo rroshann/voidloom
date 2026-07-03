@@ -2,9 +2,18 @@ import SwiftUI
 import VoidloomCore
 
 struct WorkspaceCardView: View {
+    /// Approximate height of the card header (20pt icon/button row + 7pt
+    /// vertical padding ×2), used by the Spaces click monitor to split header
+    /// clicks (→ select) from content clicks (→ activate). Keep in sync with
+    /// `header`'s layout.
+    static let approximateHeaderHeight: CGFloat = 34
+
     let card: WorkspaceCard
     @ObservedObject var store: WorkspaceStore
     var isSelected: Bool = false
+    /// Content focus (typing lands in this card) — renders a neutral focus
+    /// ring, distinct from the accent `isSelected` border that arms Delete.
+    var isActive: Bool = false
     var isCardFocused: Bool = false
     var onToggleCardFocus: () -> Void = {}
     var onClose: () -> Void = {}
@@ -30,12 +39,20 @@ struct WorkspaceCardView: View {
                 .overlay(theme.ink(0.12))
 
             content
-                .allowsHitTesting(isSelected)
         }
         .background(cardBackground)
+        // The shadow is cast by a plain shape BEHIND the card, never by the
+        // composited card content: live-repainting content (terminal PTY, web
+        // view) would otherwise force this 24–30px blur to be recomputed on
+        // every frame, which made terminal cards visibly laggy.
+        .background(
+            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                .fill(cardShadowColor)
+                .shadow(color: cardShadowColor, radius: cardShadowRadius, x: 0, y: 18)
+        )
         .overlay(cardBorder)
-        .shadow(color: cardShadowColor, radius: cardShadowRadius, x: 0, y: 18)
         .animation(selectionAnimation, value: isSelected)
+        .animation(selectionAnimation, value: isActive)
         .animation(.easeOut(duration: 0.15), value: isHeaderHovered)
         .animation(.easeOut(duration: 0.15), value: isEditingTitle)
         .onChange(of: isSelected) { _, selected in
@@ -46,36 +63,41 @@ struct WorkspaceCardView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 10) {
+        HStack(spacing: 8) {
             ZStack {
                 Circle()
                     .fill(palette.accent.opacity(0.18))
 
                 Image(systemName: palette.symbol)
-                    .font(.system(size: 13, weight: .bold))
+                    .font(.system(size: 10, weight: .bold))
                     .foregroundStyle(palette.accent)
             }
-            .frame(width: 30, height: 30)
+            .frame(width: 20, height: 20)
+            .accessibilityHidden(true)
 
-            VStack(alignment: .leading, spacing: 2) {
+            HStack(alignment: .firstTextBaseline, spacing: 7) {
                 titleView
 
-                Text(palette.eyebrow)
-                    .font(.system(size: 10, weight: .bold, design: theme.monospacedMetadata ? .monospaced : .default))
-                    .textCase(.uppercase)
-                    .tracking(1.1)
-                    .foregroundStyle(palette.accent.opacity(0.78))
+                if !isEditingTitle {
+                    Text(palette.eyebrow)
+                        .font(.system(size: 8.5, weight: .bold, design: theme.monospacedMetadata ? .monospaced : .default))
+                        .textCase(.uppercase)
+                        .tracking(0.9)
+                        .foregroundStyle(palette.accent.opacity(0.7))
+                        .lineLimit(1)
+                        .layoutPriority(-1)
+                }
             }
 
             Spacer(minLength: 0)
 
-            if isSelected, isHeaderHovered, !isEditingTitle {
+            if isSelected || isActive, isHeaderHovered, !isEditingTitle {
                 headerActions
                     .transition(.opacity)
             }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 13)
+        .padding(.horizontal, 14)
+        .padding(.vertical, 7)
         .contentShape(Rectangle())
         .onHover { isHeaderHovered = $0 }
     }
@@ -85,7 +107,7 @@ struct WorkspaceCardView: View {
         if isEditingTitle {
             TextField("Title", text: $editingTitle)
                 .textFieldStyle(.plain)
-                .font(.system(size: 14 * theme.fontScale, weight: .black, design: .rounded))
+                .font(.system(size: 13 * theme.fontScale, weight: .heavy, design: .rounded))
                 .foregroundStyle(theme.ink(0.92))
                 .focused($isTitleFieldFocused)
                 .onSubmit {
@@ -105,7 +127,7 @@ struct WorkspaceCardView: View {
                 }
         } else {
             Text(card.title)
-                .font(.system(size: 14 * theme.fontScale, weight: .black, design: .rounded))
+                .font(.system(size: 13 * theme.fontScale, weight: .heavy, design: .rounded))
                 .foregroundStyle(theme.ink(0.92))
                 .lineLimit(1)
                 .contentShape(Rectangle())
@@ -145,17 +167,18 @@ struct WorkspaceCardView: View {
     private func headerIconButton(systemName: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 11, weight: .bold))
-                .frame(width: 24, height: 24)
+                .font(.system(size: 10, weight: .bold))
+                .frame(width: 20, height: 20)
                 .foregroundStyle(theme.ink(0.84))
                 .background(
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
                         .fill(theme.surface(0.08))
                 )
         }
         .buttonStyle(.plain)
         .pointerCursor()
         .help(label)
+        .accessibilityLabel(label)
         .highPriorityGesture(
             TapGesture().onEnded {
                 action()
@@ -167,13 +190,22 @@ struct WorkspaceCardView: View {
     private var content: some View {
         switch card.kind {
         case .agent:
-            AgentTerminalView(cardID: card.id, accent: palette.accent, isSelected: isSelected)
+            AgentTerminalView(
+                cardID: card.id,
+                accent: palette.accent,
+                isSelected: isSelected,
+                workingDirectory: store.state.space?.folderPath
+            )
         case .browser:
             BrowserCardContentView(cardID: card.id, content: card.content, store: store, isSelected: isSelected)
         case .note:
             NoteCardContentView(cardID: card.id, content: card.content, store: store, isSelected: isSelected)
         case .todo:
             TodoCardContentView(cardID: card.id, content: card.content, store: store, isSelected: isSelected)
+        case .fileBrowser:
+            FileBrowserCardContentView(store: store, accent: palette.accent)
+        case .git:
+            GitCardContentView(store: store, accent: palette.accent)
         }
     }
 
@@ -225,22 +257,36 @@ struct WorkspaceCardView: View {
         RoundedRectangle(cornerRadius: 24, style: .continuous)
             .stroke(
                 LinearGradient(
-                    colors: isSelected
-                        ? [
-                            palette.accent.opacity(0.72),
-                            palette.accent.opacity(0.42),
-                            theme.ink(0.18)
-                        ]
-                        : [
-                            theme.ink(0.22),
-                            palette.accent.opacity(0.18),
-                            theme.ink(0.06)
-                        ],
+                    colors: borderColors,
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
                 ),
-                lineWidth: isSelected ? 2 : 1
+                lineWidth: isSelected || isActive ? 2 : 1
             )
+    }
+
+    /// Selected = accent (armed for keyboard commands). Active = neutral bright
+    /// focus ring (typing lands here). Idle = faint outline.
+    private var borderColors: [Color] {
+        if isSelected {
+            return [
+                palette.accent.opacity(0.72),
+                palette.accent.opacity(0.42),
+                theme.ink(0.18)
+            ]
+        }
+        if isActive {
+            return [
+                theme.ink(0.9),
+                theme.ink(0.55),
+                theme.ink(0.3)
+            ]
+        }
+        return [
+            theme.ink(0.22),
+            palette.accent.opacity(0.18),
+            theme.ink(0.06)
+        ]
     }
 
     private var cardShadowColor: Color {

@@ -42,9 +42,18 @@ struct SpaceBackgroundView: View {
     private func imageView(fileName: String) -> some View {
         let url = backgroundsDirectory.appendingPathComponent(fileName)
         if let nsImage = NSImage(contentsOf: url) {
-            Image(nsImage: nsImage)
-                .resizable()
-                .scaledToFill()
+            // Fill via overlay so the image's aspect-fill overflow never becomes
+            // layout size: a bare `scaledToFill` Image reports its overflowing
+            // width, inflating the Spaces shell past the window and pushing the
+            // right-hand tiles off screen. `Color.clear` adopts exactly the
+            // proposed size; `.clipped()` trims the visual overflow.
+            Color.clear
+                .overlay(
+                    Image(nsImage: nsImage)
+                        .resizable()
+                        .scaledToFill()
+                )
+                .clipped()
                 .ignoresSafeArea()
         } else {
             AtmosphereBackground()   // graceful fallback if the file is missing

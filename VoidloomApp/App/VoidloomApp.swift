@@ -7,7 +7,9 @@ import VoidloomCore
 struct VoidloomApp: App {
     @StateObject private var store = WorkspaceStore()
     @StateObject private var agentSessionManager = AgentSessionManager()
-    @StateObject private var conversationStore = ConversationStore()
+    @StateObject private var conversationStore = ConversationStore(
+        provider: AnthropicResponseProvider()
+    )
     @StateObject private var interaction = CanvasInteractionModel()
 
     var body: some Scene {
@@ -24,9 +26,12 @@ struct VoidloomApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unifiedCompact)
+        .commands { VoidloomCommands() }
 
         Settings {
             SettingsView()
+                .environmentObject(store)
+                .environmentObject(agentSessionManager)
         }
     }
 }
@@ -40,6 +45,9 @@ private struct RootThemeHost: View {
     @ObservedObject var sessionManager: AgentSessionManager
     @ObservedObject var conversationStore: ConversationStore
     @ObservedObject var interaction: CanvasInteractionModel
+
+    /// Launch shows the startup screen; opening/creating a workspace flips this.
+    @StateObject private var session = AppSession()
 
     @Environment(\.colorScheme) private var systemColorScheme
 
@@ -68,12 +76,24 @@ private struct RootThemeHost: View {
 
     var body: some View {
         let theme = theme
-        RootView(
-            store: store,
-            sessionManager: sessionManager,
-            conversationStore: conversationStore,
-            interaction: interaction
-        )
+        Group {
+            if session.isWorkspaceOpen {
+                RootView(
+                    store: store,
+                    sessionManager: sessionManager,
+                    conversationStore: conversationStore,
+                    interaction: interaction
+                )
+            } else {
+                StartupView(store: store)
+            }
+        }
+        .environmentObject(session)
+        .sheet(isPresented: $session.showNewWorkspace) {
+            NewWorkspaceSheet(store: store)
+                .environment(\.theme, theme)
+                .environmentObject(session)
+        }
         .environmentObject(sessionManager)
         .environment(\.theme, theme)
         .preferredColorScheme(theme.colorScheme)

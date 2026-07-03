@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import VoidloomCore
 
@@ -11,6 +12,7 @@ struct AIConversationSidebar: View {
     let onClose: () -> Void
 
     @State private var input = ""
+    @State private var hasAIKey = false
     @FocusState private var isInputFocused: Bool
     @Environment(\.theme) private var theme
 
@@ -20,6 +22,10 @@ struct AIConversationSidebar: View {
 
             VStack(alignment: .leading, spacing: 16) {
                 header
+
+                if !hasAIKey {
+                    connectAIBanner
+                }
 
                 if messages.isEmpty {
                     emptyState
@@ -42,6 +48,51 @@ struct AIConversationSidebar: View {
             .shadow(color: .black.opacity(0.34), radius: 32, x: -18, y: 0)
         }
         .ignoresSafeArea()
+        .onAppear { refreshAIKeyState() }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            refreshAIKeyState()
+        }
+    }
+
+    private var connectAIBanner: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "sparkles")
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundStyle(theme.accent)
+                    .accessibilityHidden(true)
+
+                Text("Connect AI")
+                    .font(.system(size: 13, weight: .bold, design: .rounded))
+                    .foregroundStyle(theme.ink(0.78))
+            }
+
+            Text("Add your Anthropic API key to chat with a real model. Until then, replies are simulated.")
+                .font(.system(size: 12, weight: .medium, design: .rounded))
+                .foregroundStyle(theme.ink(0.42))
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button(action: openSettings) {
+                Text("Open Settings")
+                    .font(.system(size: 12, weight: .semibold, design: .rounded))
+                    .foregroundStyle(theme.ink(0.95))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 7)
+                    .background(theme.accent, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            }
+            .buttonStyle(.plain)
+            .pointerCursor()
+
+            Text("Settings → AI  (⌘,)")
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+                .foregroundStyle(theme.ink(0.32))
+        }
+        .padding(14)
+        .background(theme.surface(0.06), in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .stroke(theme.accent.opacity(0.25), lineWidth: 1)
+        )
     }
 
     private var header: some View {
@@ -49,6 +100,7 @@ struct AIConversationSidebar: View {
             Image(systemName: "sparkles")
                 .font(.system(size: 13, weight: .bold))
                 .foregroundStyle(theme.accent)
+                .accessibilityHidden(true)
 
             Text("Assistant")
                 .font(.system(size: 11, weight: .bold, design: .monospaced))
@@ -68,6 +120,7 @@ struct AIConversationSidebar: View {
             .buttonStyle(.plain)
             .pointerCursor()
             .help("Close conversation")
+            .accessibilityLabel("Close conversation")
         }
     }
 
@@ -134,6 +187,7 @@ struct AIConversationSidebar: View {
             .buttonStyle(.plain)
             .pointerCursor()
             .disabled(!canSubmit)
+            .accessibilityLabel("Send message")
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)
@@ -149,8 +203,17 @@ struct AIConversationSidebar: View {
         !input.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    private func refreshAIKeyState() {
+        hasAIKey = AnthropicAPIKeyStore.load() != nil
+    }
+
+    private func openSettings() {
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+    }
+
     private func submit() {
         guard canSubmit else { return }
+        refreshAIKeyState()
         onSubmit(input)
         input = ""
     }

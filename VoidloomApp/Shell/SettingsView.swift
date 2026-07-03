@@ -64,8 +64,6 @@ private struct GeneralSettingsTab: View {
     }
 
     // Preserved existing key.
-    @AppStorage("isWorkspaceSidebarVisible") private var isWorkspaceSidebarVisible = false
-
     @AppStorage("general.launchBehavior") private var launchBehavior: LaunchBehavior = .reopenLast
     @AppStorage("general.defaultCard") private var defaultCard: DefaultCard = .note
     @AppStorage("general.confirmDelete") private var confirmDelete = true
@@ -91,7 +89,6 @@ private struct GeneralSettingsTab: View {
             }
 
             Section("Sidebars") {
-                Toggle("Show workspaces sidebar", isOn: $isWorkspaceSidebarVisible)
                 Toggle("Show AI conversation sidebar", isOn: $showAISidebar)
                 Toggle("Remember sidebar widths", isOn: $rememberSidebarWidths)
             }
@@ -126,6 +123,12 @@ private struct AppearanceSettingsTab: View {
     @AppStorage("appearance.textSize") private var textSize: TextSize = .medium
     @AppStorage("appearance.monospacedMetadata") private var monospacedMetadata = true
 
+    /// Curated accent presets — one tap, no fighting the system color wheel.
+    private static let accentPresets = [
+        "#5EE6D3", "#38C6FF", "#5B8CFF", "#A56BFF",
+        "#FF6AC1", "#FF5A5F", "#FFB44A", "#7CE38B"
+    ]
+
     var body: some View {
         Form {
             Section("Theme") {
@@ -134,10 +137,22 @@ private struct AppearanceSettingsTab: View {
                 }
                 .pickerStyle(.segmented)
 
-                ColorPicker("Accent color", selection: Binding(
-                    get: { Color(hex: accentHex) },
-                    set: { accentHex = $0.toHex() }
-                ), supportsOpacity: false)
+                LabeledContent("Accent color") {
+                    HStack(spacing: 8) {
+                        ForEach(Self.accentPresets, id: \.self) { hex in
+                            AccentSwatch(
+                                hex: hex,
+                                isSelected: accentHex.caseInsensitiveCompare(hex) == .orderedSame
+                            ) { accentHex = hex }
+                        }
+                        ColorPicker("Custom accent color", selection: Binding(
+                            get: { Color(hex: accentHex) },
+                            set: { accentHex = $0.toHex() }
+                        ), supportsOpacity: false)
+                        .labelsHidden()
+                        .help("Custom…")
+                    }
+                }
 
                 Toggle("Reduce transparency in panels", isOn: $reduceTransparency)
             }
@@ -172,6 +187,30 @@ private struct AppearanceSettingsTab: View {
             }
         }
         .formStyle(.grouped)
+    }
+}
+
+/// A tappable accent preset. Shows a ring when it's the active accent.
+private struct AccentSwatch: View {
+    let hex: String
+    let isSelected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Circle()
+                .fill(Color(hex: hex))
+                .frame(width: 22, height: 22)
+                .overlay(Circle().strokeBorder(.white.opacity(0.25), lineWidth: 1))
+                .overlay(
+                    Circle()
+                        .strokeBorder(Color.primary, lineWidth: 2)
+                        .padding(-3)
+                        .opacity(isSelected ? 1 : 0)
+                )
+        }
+        .buttonStyle(.plain)
+        .help("Use \(hex)")
     }
 }
 
@@ -235,6 +274,7 @@ private struct CanvasSettingsTab: View {
 private struct SpacesSettingsTab: View {
     @AppStorage("app.mode") private var appMode: AppMode = .canvas
     @AppStorage("spaces.defaultColumns") private var defaultColumns = 0   // 0 = auto
+    @AppStorage("spaces.defaultRows") private var defaultRows = 0         // 0 = auto / no pagination
 
     var body: some View {
         Form {
@@ -255,6 +295,17 @@ private struct SpacesSettingsTab: View {
                     ForEach(1...5, id: \.self) { Text("\($0)").tag($0) }
                 }
                 .pickerStyle(.menu)
+
+                Picker("Rows", selection: $defaultRows) {
+                    Text("Auto").tag(0)
+                    ForEach(1...5, id: \.self) { Text("\($0)").tag($0) }
+                }
+                .pickerStyle(.menu)
+                .disabled(defaultColumns == 0)
+
+                Text("Defaults for new spaces. A fixed columns × rows grid paginates overflow; each space can override this from its top bar.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
@@ -317,33 +368,26 @@ private struct CardsSettingsTab: View {
 // MARK: - AI
 
 private struct AISettingsTab: View {
-    enum Model: String, CaseIterable, Identifiable {
-        case opus = "Claude Opus 4.x"
-        case sonnet = "Claude Sonnet 4.x"
-        case haiku = "Claude Haiku"
-        var id: String { rawValue }
-    }
-
     enum Memory: String, CaseIterable, Identifiable {
         case session = "Session only"
         case workspace = "Per workspace"
         var id: String { rawValue }
     }
 
-    @AppStorage("ai.model") private var model: Model = .sonnet
+    @AppStorage("ai.model") private var model: AIModelChoice = .opus
     @AppStorage("ai.streamResponses") private var streamResponses = true
     @AppStorage("ai.memory") private var memory: Memory = .session
     @AppStorage("ai.sendSelectedCard") private var sendSelectedCard = true
     @AppStorage("ai.customInstructions") private var customInstructions = ""
-    @State private var apiEndpoint = ""
-    @State private var apiKey = ""
+    @State private var apiKey = AnthropicAPIKeyStore.load() ?? ""
+    @State private var keySavedFeedback = false
     @State private var persistConversations = false
 
     var body: some View {
         Form {
             Section("Conversation") {
                 Picker("Default model", selection: $model) {
-                    ForEach(Model.allCases) { Text($0.rawValue).tag($0) }
+                    ForEach(AIModelChoice.allCases) { Text($0.rawValue).tag($0) }
                 }
                 .pickerStyle(.menu)
 
@@ -375,11 +419,35 @@ private struct AISettingsTab: View {
             }
 
             Section("Connection") {
-                TextField("API endpoint", text: $apiEndpoint, prompt: Text("https://api.anthropic.com"))
-                    .disabled(true)
+                LabeledContent("API endpoint", value: "api.anthropic.com")
 
-                SecureField("API key", text: $apiKey, prompt: Text("••••••••"))
-                    .disabled(true)
+                SecureField("Anthropic API key", text: $apiKey, prompt: Text("sk-ant-…"))
+
+                HStack {
+                    Button(keySavedFeedback ? "Saved ✓" : "Save Key") {
+                        AnthropicAPIKeyStore.save(apiKey)
+                        keySavedFeedback = true
+                        Task { @MainActor in
+                            try? await Task.sleep(nanoseconds: 1_500_000_000)
+                            keySavedFeedback = false
+                        }
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+
+                    Button("Remove Key") {
+                        AnthropicAPIKeyStore.delete()
+                        apiKey = ""
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(AnthropicAPIKeyStore.load() == nil)
+                }
+
+                Text(AnthropicAPIKeyStore.load() == nil
+                     ? "No key stored — the assistant replies with a placeholder until one is saved. Keys are kept in the login keychain."
+                     : "Key stored in the login keychain. The assistant uses the real Anthropic API.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
 
                 Toggle("Persist conversations to disk", isOn: $persistConversations)
                     .disabled(true)
@@ -399,6 +467,13 @@ private struct StorageSettingsTab: View {
     @AppStorage("storage.autosave") private var autosave = true
     @AppStorage("storage.autosaveDelay") private var autosaveDelay = 0.75
     @AppStorage("storage.prettyPrint") private var prettyPrint = false
+
+    @EnvironmentObject private var store: WorkspaceStore
+    @EnvironmentObject private var sessionManager: AgentSessionManager
+
+    @State private var showResetConfirmation = false
+    @State private var showExportError = false
+    @State private var exportErrorMessage = ""
 
     private var libraryURL: URL {
         WorkspaceStore.defaultLibraryURL()
@@ -428,6 +503,8 @@ private struct StorageSettingsTab: View {
                         // Placeholder: opens an NSOpenPanel once relocation is supported.
                     }
                     .buttonStyle(.bordered)
+                    .disabled(true)
+                    .help("Not supported yet — the data folder is fixed for now.")
                 }
             }
 
@@ -442,24 +519,81 @@ private struct StorageSettingsTab: View {
             }
 
             Section("Library") {
-                LabeledContent("Workspaces", value: "—")
-                LabeledContent("On-disk size", value: "—")
+                LabeledContent("Workspaces", value: "\(store.library.workspaces.count)")
+                LabeledContent("On-disk size", value: onDiskSize)
 
                 HStack {
-                    Button("Export Library…") {
-                        // Placeholder: zips library.json + workspaces/.
-                    }
-                    .buttonStyle(.bordered)
+                    Button("Export Library…") { exportLibrary() }
+                        .buttonStyle(.bordered)
 
-                    Button("Reset All Data…") {
-                        // Placeholder: destructive reset behind a confirmation sheet.
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.red)
+                    Button("Reset All Data…") { showResetConfirmation = true }
+                        .buttonStyle(.bordered)
+                        .tint(.red)
                 }
             }
         }
         .formStyle(.grouped)
+        .confirmationDialog(
+            "Reset all data?",
+            isPresented: $showResetConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Reset Everything", role: .destructive) {
+                sessionManager.terminateAllSessions()
+                store.resetAllData()
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Deletes every workspace, backup, and imported background, then starts over with one empty space. This cannot be undone.")
+        }
+        .alert("Export failed", isPresented: $showExportError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(exportErrorMessage)
+        }
+    }
+
+    /// Zips the whole data folder (library.json + workspaces/ + backups/ +
+    /// backgrounds/) to a user-chosen destination and reveals it in Finder.
+    private func exportLibrary() {
+        store.flushPendingPersistence()
+
+        let panel = NSSavePanel()
+        panel.allowedContentTypes = [.zip]
+        panel.nameFieldStringValue = "Voidloom-Export.zip"
+        guard panel.runModal() == .OK, let destination = panel.url else { return }
+
+        let source = libraryURL.deletingLastPathComponent()
+        do {
+            if FileManager.default.fileExists(atPath: destination.path) {
+                try FileManager.default.removeItem(at: destination)
+            }
+            let ditto = Process()
+            ditto.executableURL = URL(fileURLWithPath: "/usr/bin/ditto")
+            ditto.arguments = ["-c", "-k", "--sequesterRsrc", source.path, destination.path]
+            try ditto.run()
+            ditto.waitUntilExit()
+            guard ditto.terminationStatus == 0 else {
+                throw CocoaError(.fileWriteUnknown)
+            }
+            NSWorkspace.shared.activateFileViewerSelecting([destination])
+        } catch {
+            exportErrorMessage = error.localizedDescription
+            showExportError = true
+        }
+    }
+
+    private var onDiskSize: String {
+        let base = libraryURL.deletingLastPathComponent()
+        guard let enumerator = FileManager.default.enumerator(
+            at: base, includingPropertiesForKeys: [.totalFileAllocatedSizeKey]
+        ) else { return "—" }
+        var bytes: Int64 = 0
+        for case let url as URL in enumerator {
+            bytes += Int64((try? url.resourceValues(forKeys: [.totalFileAllocatedSizeKey])
+                .totalFileAllocatedSize) ?? 0)
+        }
+        return ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file)
     }
 }
 
