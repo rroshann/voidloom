@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import VoidloomAI
 import VoidloomCore
 
 @main
@@ -9,6 +10,7 @@ struct VoidloomApp: App {
     @StateObject private var agentSessionManager = AgentSessionManager()
     @StateObject private var conversationStore = ConversationStore()
     @StateObject private var interaction = CanvasInteractionModel()
+    @StateObject private var modelAssets = ModelAssetManager()
 
     var body: some Scene {
         WindowGroup {
@@ -19,7 +21,8 @@ struct VoidloomApp: App {
                 store: store,
                 sessionManager: agentSessionManager,
                 conversationStore: conversationStore,
-                interaction: interaction
+                interaction: interaction,
+                modelAssets: modelAssets
             )
         }
         .windowStyle(.hiddenTitleBar)
@@ -40,6 +43,7 @@ private struct RootThemeHost: View {
     @ObservedObject var sessionManager: AgentSessionManager
     @ObservedObject var conversationStore: ConversationStore
     @ObservedObject var interaction: CanvasInteractionModel
+    @ObservedObject var modelAssets: ModelAssetManager
 
     @Environment(\.colorScheme) private var systemColorScheme
 
@@ -72,7 +76,8 @@ private struct RootThemeHost: View {
             store: store,
             sessionManager: sessionManager,
             conversationStore: conversationStore,
-            interaction: interaction
+            interaction: interaction,
+            modelAssets: modelAssets
         )
         .environmentObject(sessionManager)
         .environment(\.theme, theme)

@@ -1,4 +1,5 @@
 import SwiftUI
+import VoidloomAI
 import VoidloomCore
 
 /// Top-level shell: switches between the free pan/zoom Canvas presentation and
@@ -10,6 +11,7 @@ struct RootView: View {
     @ObservedObject var sessionManager: AgentSessionManager
     @ObservedObject var conversationStore: ConversationStore
     @ObservedObject var interaction: CanvasInteractionModel
+    @ObservedObject var modelAssets: ModelAssetManager
     @StateObject private var mediator: MediatorSessionCoordinator
 
     @AppStorage("app.mode") private var appMode: AppMode = .canvas
@@ -17,13 +19,15 @@ struct RootView: View {
     init(store: WorkspaceStore,
          sessionManager: AgentSessionManager,
          conversationStore: ConversationStore,
-         interaction: CanvasInteractionModel) {
+         interaction: CanvasInteractionModel,
+         modelAssets: ModelAssetManager) {
         self.store = store
         self.sessionManager = sessionManager
         self.conversationStore = conversationStore
         self.interaction = interaction
+        self.modelAssets = modelAssets
         _mediator = StateObject(wrappedValue: MediatorSessionCoordinator(
-            brain: FastPathBrain(),
+            brain: MediatorBrainFactory.makeBrain(assets: modelAssets),
             executor: CommandExecutor(store: store, terminals: sessionManager, namePool: AgentNamePool())
         ))
     }
