@@ -21,18 +21,28 @@ struct MediatorHUDView: View {
                     .padding(.vertical, 8)
                     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
                     .frame(maxWidth: 420)
+                    .accessibilityIdentifier("mediator.narration")
+                    .onChange(of: mediator.narration) { _, newValue in
+                        guard !newValue.isEmpty else { return }
+                        AccessibilityNotification.Announcement(newValue).post()
+                    }
             }
             if case .awaitingConfirmation(let prompt, _) = mediator.state {
                 HStack(spacing: 10) {
                     Text(prompt).font(.callout)
                     Button("Confirm") { mediator.confirm(true) }
                         .keyboardShortcut(.defaultAction)
+                        .accessibilityLabel("Confirm")
+                        .accessibilityIdentifier("mediator.confirm")
                     Button("Cancel") { mediator.confirm(false) }
+                        .accessibilityLabel("Cancel")
+                        .accessibilityIdentifier("mediator.cancel")
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
                 .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
                 .frame(maxWidth: 420)
+                .accessibilityElement(children: .contain)
             }
             HStack(spacing: 8) {
                 if showsPushToTalkMic {
@@ -40,8 +50,10 @@ struct MediatorHUDView: View {
                 }
                 Image(systemName: stateIcon)
                     .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
                 TextField("Ask the mediator — try \"start 2 claude agents\"", text: $input)
                     .textFieldStyle(.plain)
+                    .accessibilityIdentifier("mediator.input")
                     .onSubmit(submit)
             }
             .padding(.horizontal, 14)
@@ -61,7 +73,11 @@ struct MediatorHUDView: View {
             .gesture(micHoldGesture)
             .help(micHelp)
             .accessibilityLabel("Hold to talk")
+            .accessibilityIdentifier("mediator.mic")
             .accessibilityHint(micHelp)
+            .accessibilityAddTraits(.isButton)
+            .accessibilityValue(isMicHeld ? "Recording" : "")
+            .disabled(mediator.isMicPermissionDenied)
     }
 
     private var micForeground: Color {
