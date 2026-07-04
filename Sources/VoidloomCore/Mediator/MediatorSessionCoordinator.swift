@@ -20,27 +20,31 @@ public final class MediatorSessionCoordinator: ObservableObject {
     private var machine = MediatorSessionMachine()
     private let brain: MediatorBrain
     private let executor: CommandExecutor
+    private let transcriber: SpeechTranscribing?
     private let timeoutScale: Double
     private var timeoutTask: Task<Void, Never>?
     private var parseTask: Task<Void, Never>?
     private var queuedUtterance: String?
 
-    public init(brain: MediatorBrain, executor: CommandExecutor, timeoutScale: Double = 1) {
+    public init(
+        brain: MediatorBrain,
+        executor: CommandExecutor,
+        transcriber: SpeechTranscribing? = nil,
+        timeoutScale: Double = 1
+    ) {
         self.brain = brain
         self.executor = executor
+        self.transcriber = transcriber
         self.timeoutScale = timeoutScale
+        transcriber?.onEvent = { [weak self] event in
+            self?.handleTranscriberEvent(event)
+        }
     }
 
     public func submitTyped(_ text: String) {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
-        if case .awaitingConfirmation = machine.state {
-            let word = trimmed.lowercased()
-            if ["confirm", "yes", "cancel", "no"].contains(word) {
-                send(.confirmReceived(word == "confirm" || word == "yes"))
-                return
-            }
-        }
+        if handleConfirmationUtterance(trimmed) { return }
         if isBusy {
             queuedUtterance = trimmed   // depth-1 queue: newest wins, per carry-over #2
             return
@@ -49,6 +53,8 @@ public final class MediatorSessionCoordinator: ObservableObject {
         send(.transcriptFinal(trimmed))
     }
 
+    public func pushToTalkPressed() { send(.pushToTalkPressed) }
+    public func wakeDetected() { send(.wakeDetected) }
     public func confirm(_ accepted: Bool) { send(.confirmReceived(accepted)) }
     public func cancel() { send(.cancelRequested) }
 
@@ -78,10 +84,37 @@ public final class MediatorSessionCoordinator: ObservableObject {
         send(.transcriptFinal(next))
     }
 
+    /// Typed input and voice finals share this branch while awaiting confirmation.
+    @discardableResult
+    private func handleConfirmationUtterance(_ text: String) -> Bool {
+        guard case .awaitingConfirmation = machine.state else { return false }
+        let word = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard ["confirm", "yes", "cancel", "no"].contains(word) else { return false }
+        send(.confirmReceived(word == "confirm" || word == "yes"))
+        return true
+    }
+
+    private func handleTranscriberEvent(_ event: TranscriberEvent) {
+        switch event {
+        case .partial(let text):
+            send(.transcriptDelta(text))
+        case .final(let text):
+            let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return }
+            if handleConfirmationUtterance(trimmed) { return }
+            send(.transcriptFinal(trimmed))
+        case .unavailable(let message):
+            if case .capturing = state { send(.cancelRequested) }
+            perform(.narrate(message))
+        }
+    }
+
     private func perform(_ effect: MediatorEffect) {
         switch effect {
-        case .startCapture, .stopCapture:
-            break // audio capture arrives with the voice plan
+        case .startCapture:
+            transcriber?.startUtterance()
+        case .stopCapture:
+            transcriber?.stopUtterance()
 
         case .parse(let transcript):
             parseTask?.cancel()
