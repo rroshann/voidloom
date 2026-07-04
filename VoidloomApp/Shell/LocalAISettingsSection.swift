@@ -9,17 +9,25 @@ struct LocalAISettingsSection: View {
     @AppStorage("ai.preferAppleIntelligence") private var preferAppleIntelligence = true
 
     private var statusText: String {
-        if AppleTierAvailability.foundationModelsAvailable && preferAppleIntelligence {
+        let commandReady = assets.state(of: LocalModelManifest.commandModel) == .ready
+        let chatReady = assets.state(of: LocalModelManifest.chatModel) == .ready
+        let fmActive = AppleTierAvailability.foundationModelsAvailable && preferAppleIntelligence
+
+        if commandReady {
+            var parts = ["Fast path + local LLM commands"]
+            if fmActive { parts.append("+ Apple Intelligence chat") }
+            else if chatReady { parts.append("+ local chat") }
+            return parts.joined(separator: " ")
+        }
+
+        if fmActive {
             return "Apple Intelligence + fast path"
         }
 
-        let commandReady = assets.state(of: LocalModelManifest.commandModel) == .ready
-        let chatReady = assets.state(of: LocalModelManifest.chatModel) == .ready
         if !commandReady && !chatReady {
             return "Fast path only (instant parser)"
         }
         var parts = ["Fast path"]
-        if commandReady { parts.append("+ local LLM commands") }
         if chatReady { parts.append("+ local chat") }
         return parts.joined(separator: " ")
     }
@@ -29,8 +37,11 @@ struct LocalAISettingsSection: View {
             LabeledContent("Status", value: statusText)
 
             if AppleTierAvailability.foundationModelsAvailable {
-                Toggle("Prefer Apple Intelligence when available", isOn: $preferAppleIntelligence)
-                Text("When off, natural-language commands use the downloaded local LLM instead. Takes effect on next launch.")
+                Toggle(
+                    "Use Apple Intelligence for chat, and for commands whenever the fast local command model is not downloaded.",
+                    isOn: $preferAppleIntelligence
+                )
+                Text("When the command model is downloaded, commands always use the faster local LLM. Takes effect on next launch.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -42,8 +53,8 @@ struct LocalAISettingsSection: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
-            modelRow(LocalModelManifest.commandModel, subtitle: "Required for natural-language commands when Apple Intelligence is off or unavailable.")
-            modelRow(LocalModelManifest.chatModel, subtitle: "Optional. Enables local chat replies when Apple Intelligence chat is unavailable.")
+            modelRow(LocalModelManifest.commandModel, subtitle: "Primary command parser when downloaded (meets the ≤1s latency bar).")
+            modelRow(LocalModelManifest.chatModel, subtitle: "Optional. Fallback chat when Apple Intelligence is off or unavailable.")
 
             Toggle("Persist conversations to disk", isOn: $persistConversations)
                 .disabled(true)
