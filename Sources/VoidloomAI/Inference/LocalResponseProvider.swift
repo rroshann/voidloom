@@ -9,6 +9,8 @@ import VoidloomCore
 public final class LocalResponseProvider: ResponseProvider, @unchecked Sendable {
     private let engine: LlamaEngine
     private let systemPrompt: String
+    @MainActor private var activeGenerations: [UUID: Task<Void, Never>] = [:]
+    @MainActor private var generationTokens: [UUID: UUID] = [:]
 
     public init(engine: LlamaEngine, systemPrompt: String = LocalResponseProvider.defaultSystemPrompt) {
         self.engine = engine
@@ -20,25 +22,42 @@ public final class LocalResponseProvider: ResponseProvider, @unchecked Sendable 
                                  onStreamChunk: @escaping (String) -> Void,
                                  onComplete: @escaping (String) -> Void,
                                  onError: @escaping (String) -> Void) {
+        activeGenerations[workspaceID]?.cancel()
+
         let prompt = context.flatMap { $0.isEmpty ? nil : "Context:\n\($0)\n\n\(userMessage)" } ?? userMessage
         let callbacks = StreamCallbacks(
             onStreamChunk: onStreamChunk, onComplete: onComplete, onError: onError)
         let engine = self.engine
         let system = self.systemPrompt
-        Task.detached(priority: .userInitiated) {
+        let token = UUID()
+        generationTokens[workspaceID] = token
+
+        let task = Task.detached(priority: .userInitiated) { [self, workspaceID, token] in
+            defer {
+                Task { @MainActor in
+                    if generationTokens[workspaceID] == token {
+                        activeGenerations.removeValue(forKey: workspaceID)
+                        generationTokens.removeValue(forKey: workspaceID)
+                    }
+                }
+            }
             var full = ""
             do {
-                try engine.stream(systemPrompt: system, userPrompt: prompt) { token in
-                    full += token
-                    callbacks.deliverChunk(token)
+                try engine.stream(systemPrompt: system, userPrompt: prompt) { chunk in
+                    guard !Task.isCancelled else { return false }
+                    full += chunk
+                    callbacks.deliverChunk(chunk)
                     return !Task.isCancelled
                 }
+                guard !Task.isCancelled else { return }
                 let final = full
                 await callbacks.deliverComplete(final)
             } catch {
+                guard !Task.isCancelled else { return }
                 await callbacks.deliverError("The local model failed to respond.")
             }
         }
+        activeGenerations[workspaceID] = task
     }
 
     public static let defaultSystemPrompt =
