@@ -12,25 +12,42 @@ enum MediatorBrainFactory {
         let fast = FastPathBrain()
         let asset = LocalModelManifest.commandModel
         let state = assets.state(of: asset)
+        let commandReady = state == .ready
+        let fmPreferred = AppleTierAvailability.foundationModelsAvailable
+            && AppleTierAvailability.preferAppleIntelligence
+        let tier = MediatorTierResolver.resolve(
+            capabilities: .init(
+                commandModelReady: commandReady,
+                foundationModelsAvailable: fmPreferred))
         let config = LlamaEngineConfig(contextLength: 2048)
 
         switch state {
         case .downloading(let progress):
+            if fmPreferred, #available(macOS 26, *) {
+                return TieredBrain(fast: fast, fallback: FoundationModelsBrain())
+            }
             let message = "Local model downloading (\(Int(progress * 100))%) — try again shortly."
             let engine = LazyLoadingEngine(modelURL: nil, downloadingMessage: message, config: config)
             return TieredBrain(fast: fast, fallback: LlamaBrain(engine: engine))
         case .ready:
-            switch MediatorTierResolver.resolve(
-                capabilities: .init(commandModelReady: true)) {
+            switch tier {
             case .fastPathOnly:
                 return fast
-            case .fastPathWithLLM, .appleFoundationModels:
+            case .appleFoundationModels:
+                if #available(macOS 26, *) {
+                    return TieredBrain(fast: fast, fallback: FoundationModelsBrain())
+                }
+                fallthrough
+            case .fastPathWithLLM:
                 let engine = LazyLoadingEngine(
                     modelURL: assets.localURL(of: asset),
                     config: config)
                 return TieredBrain(fast: fast, fallback: LlamaBrain(engine: engine))
             }
         default:
+            if fmPreferred, #available(macOS 26, *) {
+                return TieredBrain(fast: fast, fallback: FoundationModelsBrain())
+            }
             return fast
         }
     }

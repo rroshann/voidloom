@@ -1,3 +1,4 @@
+import Speech
 import SwiftUI
 import VoidloomCore
 
@@ -5,6 +6,20 @@ import VoidloomCore
 struct VoiceSettingsSection: View {
     @AppStorage("voice.mode") private var voiceMode: VoiceInputMode = .pushToTalk
     @AppStorage("voice.wakePhrase") private var wakePhrase = "hey voidloom"
+
+    private var speechEngineLabel: String {
+        switch voiceMode {
+        case .alwaysListening:
+            return "Parakeet (wake phrase + continuous listening)"
+        case .pushToTalk:
+            if #available(macOS 26, *), SpeechTranscriber.isAvailable {
+                return "Apple SpeechAnalyzer (push-to-talk)"
+            }
+            return "Parakeet (push-to-talk)"
+        case .off:
+            return "Off"
+        }
+    }
 
     var body: some View {
         Section("Voice") {
@@ -14,6 +29,8 @@ struct VoiceSettingsSection: View {
                 }
             }
             .pickerStyle(.segmented)
+
+            LabeledContent("Speech engine", value: speechEngineLabel)
 
             if voiceMode == .alwaysListening {
                 TextField("Wake phrase", text: $wakePhrase)
@@ -35,11 +52,26 @@ struct VoiceSettingsSection: View {
                     .foregroundStyle(.secondary)
             }
 
-            Text(
-                "Speech recognition uses Parakeet (parakeet-realtime-eou-120m-coreml) under the NVIDIA Open Model License."
-            )
-            .font(.caption2)
-            .foregroundStyle(.tertiary)
+            if voiceMode == .alwaysListening || !speechAnalyzerActive {
+                Text(
+                    "Parakeet (parakeet-realtime-eou-120m-coreml) under the NVIDIA Open Model License."
+                )
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+            }
+
+            if speechAnalyzerActive && voiceMode == .pushToTalk {
+                Text(
+                    "Push-to-talk uses Apple's on-device Speech framework when available; always-listening stays on Parakeet for wake-phrase support."
+                )
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+            }
         }
+    }
+
+    private var speechAnalyzerActive: Bool {
+        guard #available(macOS 26, *) else { return false }
+        return SpeechTranscriber.isAvailable
     }
 }

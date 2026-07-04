@@ -16,8 +16,11 @@ struct VoidloomApp: App {
         let assets = ModelAssetManager()
         _modelAssets = StateObject(wrappedValue: assets)
 
-        if assets.state(of: LocalModelManifest.chatModel) == .ready,
-           let url = assets.localURL(of: LocalModelManifest.chatModel) {
+        if #available(macOS 26, *), AppleTierAvailability.foundationModelsAvailable {
+            _conversationStore = StateObject(wrappedValue: ConversationStore(
+                provider: FoundationModelsResponseProvider()))
+        } else if assets.state(of: LocalModelManifest.chatModel) == .ready,
+                  let url = assets.localURL(of: LocalModelManifest.chatModel) {
             let engine = LazyLoadingEngine(
                 modelURL: url,
                 config: LlamaEngineConfig(contextLength: 4096))

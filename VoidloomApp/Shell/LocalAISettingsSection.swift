@@ -6,8 +6,13 @@ import VoidloomAI
 struct LocalAISettingsSection: View {
     @ObservedObject var assets: ModelAssetManager
     @Binding var persistConversations: Bool
+    @AppStorage("ai.preferAppleIntelligence") private var preferAppleIntelligence = true
 
     private var statusText: String {
+        if AppleTierAvailability.foundationModelsAvailable && preferAppleIntelligence {
+            return "Apple Intelligence + fast path"
+        }
+
         let commandReady = assets.state(of: LocalModelManifest.commandModel) == .ready
         let chatReady = assets.state(of: LocalModelManifest.chatModel) == .ready
         if !commandReady && !chatReady {
@@ -22,6 +27,14 @@ struct LocalAISettingsSection: View {
     var body: some View {
         Section("Local AI") {
             LabeledContent("Status", value: statusText)
+
+            if AppleTierAvailability.foundationModelsAvailable {
+                Toggle("Prefer Apple Intelligence when available", isOn: $preferAppleIntelligence)
+                Text("When off, natural-language commands use the downloaded local LLM instead. Takes effect on next launch.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
             Text("Downloaded models take effect the next time Voidloom launches.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -29,8 +42,8 @@ struct LocalAISettingsSection: View {
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
-            modelRow(LocalModelManifest.commandModel, subtitle: "Required for natural-language commands.")
-            modelRow(LocalModelManifest.chatModel, subtitle: "Optional. Enables local chat replies; without it, chat uses placeholder responses.")
+            modelRow(LocalModelManifest.commandModel, subtitle: "Required for natural-language commands when Apple Intelligence is off or unavailable.")
+            modelRow(LocalModelManifest.chatModel, subtitle: "Optional. Enables local chat replies when Apple Intelligence chat is unavailable.")
 
             Toggle("Persist conversations to disk", isOn: $persistConversations)
                 .disabled(true)

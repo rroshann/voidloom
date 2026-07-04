@@ -19,7 +19,7 @@ struct RootView: View {
     @AppStorage("voice.mode") private var voiceMode: VoiceInputMode = .pushToTalk
     @AppStorage("voice.wakePhrase") private var wakePhrase = "hey voidloom"
 
-    private let voiceTranscriber: ParakeetTranscriber?
+    private let voiceRouter: VoiceTranscriberRouter?
 
     init(store: WorkspaceStore,
          sessionManager: AgentSessionManager,
@@ -32,19 +32,27 @@ struct RootView: View {
         self.interaction = interaction
         self.modelAssets = modelAssets
 
-        let transcriber: ParakeetTranscriber? = Self.hasMicrophone ? ParakeetTranscriber() : nil
-        voiceTranscriber = transcriber
+        let router: VoiceTranscriberRouter?
+        if Self.hasMicrophone {
+            let parakeet = ParakeetTranscriber()
+            let speechAnalyzer = VoiceTranscriberRouter.speechAnalyzerIfAvailable()
+            router = VoiceTranscriberRouter(parakeet: parakeet, speechAnalyzer: speechAnalyzer)
+        } else {
+            router = nil
+        }
+        voiceRouter = router
+
         let coordinator = MediatorSessionCoordinator(
             brain: MediatorBrainFactory.makeBrain(assets: modelAssets),
             executor: CommandExecutor(store: store, terminals: sessionManager, namePool: AgentNamePool()),
-            transcriber: transcriber
+            transcriber: router
         )
-        if let transcriber {
-            coordinator.setMicPermissionDenied(transcriber.isMicPermissionDenied)
-            transcriber.onMicPermissionDeniedChanged = { denied in
+        if let router {
+            coordinator.setMicPermissionDenied(router.isMicPermissionDenied)
+            router.onMicPermissionDeniedChanged = { denied in
                 coordinator.setMicPermissionDenied(denied)
             }
-            transcriber.onWakePhraseMatched = {
+            router.onWakePhraseMatched = {
                 coordinator.wakeDetected()
             }
         }
@@ -52,7 +60,7 @@ struct RootView: View {
     }
 
     private var pushToTalkEnabled: Bool {
-        voiceTranscriber != nil && voiceMode == .pushToTalk
+        voiceRouter != nil && voiceMode == .pushToTalk
     }
 
     var body: some View {
@@ -93,7 +101,7 @@ struct RootView: View {
     }
 
     private func applyVoiceConfiguration() {
-        voiceTranscriber?.applyConfiguration(mode: voiceMode, wakePhrase: wakePhrase)
+        voiceRouter?.applyConfiguration(mode: voiceMode, wakePhrase: wakePhrase)
     }
 
     private static var hasMicrophone: Bool {
