@@ -16,6 +16,8 @@ public final class MediatorSessionCoordinator: ObservableObject {
     /// True whenever the pipeline is mid-command (capturing/parsing/executing);
     /// false at idle and while awaiting a confirmation (the HUD accepts input then).
     @Published public private(set) var isBusy: Bool = false
+    /// True when mic permission was denied; HUD disables the hold-to-talk control.
+    @Published public private(set) var isMicPermissionDenied: Bool = false
 
     private var machine = MediatorSessionMachine()
     private let brain: MediatorBrain
@@ -54,7 +56,10 @@ public final class MediatorSessionCoordinator: ObservableObject {
     }
 
     public func pushToTalkPressed() { send(.pushToTalkPressed) }
+    /// Ends the current utterance capture; the transcriber emits `.final` when ready.
+    public func pushToTalkReleased() { transcriber?.stopUtterance() }
     public func wakeDetected() { send(.wakeDetected) }
+    public func setMicPermissionDenied(_ denied: Bool) { isMicPermissionDenied = denied }
     public func confirm(_ accepted: Bool) { send(.confirmReceived(accepted)) }
     public func cancel() { send(.cancelRequested) }
 

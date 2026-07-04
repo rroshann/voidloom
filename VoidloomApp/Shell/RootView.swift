@@ -1,3 +1,4 @@
+import AVFoundation
 import SwiftUI
 import VoidloomAI
 import VoidloomCore
@@ -15,6 +16,7 @@ struct RootView: View {
     @StateObject private var mediator: MediatorSessionCoordinator
 
     @AppStorage("app.mode") private var appMode: AppMode = .canvas
+    private let hasVoiceInput: Bool
 
     init(store: WorkspaceStore,
          sessionManager: AgentSessionManager,
@@ -26,10 +28,21 @@ struct RootView: View {
         self.conversationStore = conversationStore
         self.interaction = interaction
         self.modelAssets = modelAssets
-        _mediator = StateObject(wrappedValue: MediatorSessionCoordinator(
+
+        let voiceTranscriber: ParakeetTranscriber? = Self.hasMicrophone ? ParakeetTranscriber() : nil
+        let coordinator = MediatorSessionCoordinator(
             brain: MediatorBrainFactory.makeBrain(assets: modelAssets),
-            executor: CommandExecutor(store: store, terminals: sessionManager, namePool: AgentNamePool())
-        ))
+            executor: CommandExecutor(store: store, terminals: sessionManager, namePool: AgentNamePool()),
+            transcriber: voiceTranscriber
+        )
+        if let voiceTranscriber {
+            coordinator.setMicPermissionDenied(voiceTranscriber.isMicPermissionDenied)
+            voiceTranscriber.onMicPermissionDeniedChanged = { denied in
+                coordinator.setMicPermissionDenied(denied)
+            }
+        }
+        hasVoiceInput = voiceTranscriber != nil
+        _mediator = StateObject(wrappedValue: coordinator)
     }
 
     var body: some View {
@@ -49,9 +62,24 @@ struct RootView: View {
             }
         }
         .animation(.easeInOut(duration: 0.28), value: appMode)
+        .background {
+            if hasVoiceInput {
+                VoicePushToTalkKeyMonitor(
+                    onPress: {
+                        guard !mediator.isMicPermissionDenied else { return }
+                        mediator.pushToTalkPressed()
+                    },
+                    onRelease: { mediator.pushToTalkReleased() }
+                )
+            }
+        }
         .overlay(alignment: .bottom) {
-            MediatorHUDView(mediator: mediator)
+            MediatorHUDView(mediator: mediator, hasVoiceInput: hasVoiceInput)
                 .padding(.bottom, 84)
         }
+    }
+
+    private static var hasMicrophone: Bool {
+        AVCaptureDevice.default(for: .audio) != nil
     }
 }

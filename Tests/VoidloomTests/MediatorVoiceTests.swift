@@ -134,4 +134,14 @@ final class MediatorVoiceTests: XCTestCase {
         XCTAssertEqual(transcriber.startCount, 1)
         guard case .capturing = c.state else { return XCTFail("expected capturing") }
     }
+
+    func testPushToTalkReleasedStopsUtterance() {
+        let transcriber = FakeTranscriber()
+        let c = makeCoordinator(makeStore(), MockAgentTerminals(), transcriber: transcriber)
+
+        c.pushToTalkPressed()
+        XCTAssertEqual(transcriber.startCount, 1)
+        c.pushToTalkReleased()
+        XCTAssertEqual(transcriber.stopCount, 1)
+    }
 }

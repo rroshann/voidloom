@@ -18,6 +18,13 @@ final class ParakeetTranscriber: SpeechTranscribing {
 
     private static let modelUnavailableMessage =
         "Voice model still preparing — try again shortly."
+    private static let micDeniedMessage =
+        "Microphone access denied — voice is off; typing still works."
+
+    /// App wiring (RootView) observes this to keep the HUD mic button in sync.
+    var onMicPermissionDeniedChanged: ((Bool) -> Void)?
+
+    var isMicPermissionDenied: Bool { capture.permissionState == .denied }
 
     init() {
         prepareTask = Task { await prepareModels() }
@@ -36,8 +43,13 @@ final class ParakeetTranscriber: SpeechTranscribing {
 
         Task {
             let granted = await capture.requestPermissionIfNeeded()
-            guard granted else { return }
+            guard granted else {
+                onEvent?(.unavailable(Self.micDeniedMessage))
+                publishMicPermissionDenied()
+                return
+            }
 
+            publishMicPermissionDenied()
             await beginCapture()
         }
     }
@@ -155,6 +167,10 @@ final class ParakeetTranscriber: SpeechTranscribing {
         } catch {
             onEvent?(.unavailable(Self.modelUnavailableMessage))
         }
+    }
+
+    private func publishMicPermissionDenied() {
+        onMicPermissionDeniedChanged?(isMicPermissionDenied)
     }
 
     private func emitFinal(_ text: String, trigger: FinalTrigger) {
