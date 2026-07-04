@@ -13,6 +13,9 @@ public enum MediatorState: Equatable, Sendable {
 public enum MediatorEvent: Equatable, Sendable {
     case wakeDetected
     case pushToTalkPressed
+    /// Typed HUD input — bypasses capture; only handled from `.idle` (queued
+    /// utterances drain there). Ignored while capturing/parsing/executing.
+    case typedUtterance(String)
     case transcriptDelta(String)
     case transcriptFinal(String)
     case commandProduced(MediatorCommand)
@@ -59,6 +62,10 @@ public struct MediatorSessionMachine: Equatable, Sendable {
         case (.idle, .wakeDetected), (.idle, .pushToTalkPressed):
             state = .capturing(transcript: "")
             return [.startCapture, .scheduleTimeout(seconds: Self.captureTimeout)]
+
+        case (.idle, .typedUtterance(let text)):
+            state = .parsing(transcript: text)
+            return [.parse(transcript: text), .scheduleTimeout(seconds: Self.parseTimeout)]
 
         case (.capturing, .wakeDetected), (.capturing, .pushToTalkPressed):
             state = .capturing(transcript: "")

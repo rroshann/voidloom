@@ -6,14 +6,15 @@ import VoidloomCore
 struct VoiceSettingsSection: View {
     @AppStorage("voice.mode") private var voiceMode: VoiceInputMode = .pushToTalk
     @AppStorage("voice.wakePhrase") private var wakePhrase = "hey voidloom"
+    @AppStorage("voice.useSpeechAnalyzer") private var useSpeechAnalyzer = false
 
     private var speechEngineLabel: String {
         switch voiceMode {
         case .alwaysListening:
             return "Parakeet (wake phrase + continuous listening)"
         case .pushToTalk:
-            if #available(macOS 26, *), SpeechTranscriber.isAvailable {
-                return "Apple SpeechAnalyzer (push-to-talk)"
+            if useSpeechAnalyzer, speechAnalyzerAvailable {
+                return "Apple SpeechAnalyzer (push-to-talk, experimental)"
             }
             return "Parakeet (push-to-talk)"
         case .off:
@@ -46,23 +47,24 @@ struct VoiceSettingsSection: View {
                 .foregroundStyle(.secondary)
             }
 
+            if voiceMode == .pushToTalk, speechAnalyzerAvailable {
+                Toggle("Use Apple speech recognition (experimental)", isOn: $useSpeechAnalyzer)
+                Text(
+                    "Experimental on this OS — Apple's on-device Speech framework may be unstable. Parakeet is recommended."
+                )
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+            }
+
             if voiceMode != .off {
                 Text("Voice commands are English-only in this version.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
 
-            if voiceMode == .alwaysListening || !speechAnalyzerActive {
+            if voiceMode == .alwaysListening || !useSpeechAnalyzer || voiceMode == .off {
                 Text(
                     "Parakeet (parakeet-realtime-eou-120m-coreml) under the NVIDIA Open Model License."
-                )
-                .font(.caption2)
-                .foregroundStyle(.tertiary)
-            }
-
-            if speechAnalyzerActive && voiceMode == .pushToTalk {
-                Text(
-                    "Push-to-talk uses Apple's on-device Speech framework when available; always-listening stays on Parakeet for wake-phrase support."
                 )
                 .font(.caption2)
                 .foregroundStyle(.tertiary)
@@ -70,7 +72,7 @@ struct VoiceSettingsSection: View {
         }
     }
 
-    private var speechAnalyzerActive: Bool {
+    private var speechAnalyzerAvailable: Bool {
         guard #available(macOS 26, *) else { return false }
         return SpeechTranscriber.isAvailable
     }

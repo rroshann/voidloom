@@ -144,4 +144,18 @@ final class MediatorVoiceTests: XCTestCase {
         c.pushToTalkReleased()
         XCTAssertEqual(transcriber.stopCount, 1)
     }
+
+    func testSubmitTypedNeverStartsOrStopsCapture() async {
+        let store = makeStore()
+        let terminals = MockAgentTerminals()
+        let transcriber = FakeTranscriber()
+        let c = makeCoordinator(store, terminals, transcriber: transcriber)
+
+        c.submitTyped("start 2 claude agents")
+        await waitForIdle(c)
+
+        XCTAssertEqual(transcriber.startCount, 0)
+        XCTAssertEqual(transcriber.stopCount, 0)
+        XCTAssertEqual(store.state.cards.filter { $0.kind == .agent }.count, 2)
+    }
 }

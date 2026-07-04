@@ -51,8 +51,7 @@ public final class MediatorSessionCoordinator: ObservableObject {
             queuedUtterance = trimmed   // depth-1 queue: newest wins, per carry-over #2
             return
         }
-        send(.pushToTalkPressed)
-        send(.transcriptFinal(trimmed))
+        send(.typedUtterance(trimmed))
     }
 
     public func pushToTalkPressed() { send(.pushToTalkPressed) }
@@ -85,8 +84,7 @@ public final class MediatorSessionCoordinator: ObservableObject {
     private func drainQueueIfIdle() {
         guard state == .idle, let next = queuedUtterance else { return }
         queuedUtterance = nil
-        send(.pushToTalkPressed)
-        send(.transcriptFinal(next))
+        send(.typedUtterance(next))
     }
 
     /// Typed input and voice finals share this branch while awaiting confirmation.

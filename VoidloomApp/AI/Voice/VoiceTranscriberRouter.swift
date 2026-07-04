@@ -2,8 +2,8 @@ import Foundation
 import Speech
 import VoidloomCore
 
-/// Routes voice capture to Parakeet (always-listening + fallback) or
-/// `SpeechAnalyzerTranscriber` (PTT on macOS 26 when assets are ready).
+/// Routes voice capture to Parakeet by default. `SpeechAnalyzerTranscriber` is
+/// opt-in via `voice.useSpeechAnalyzer` (experimental on macOS 27 beta).
 @MainActor
 final class VoiceTranscriberRouter: SpeechTranscribing {
     var onEvent: ((TranscriberEvent) -> Void)? {
@@ -23,6 +23,7 @@ final class VoiceTranscriberRouter: SpeechTranscribing {
     private let parakeet: ParakeetTranscriber
     private let speechAnalyzer: SpeechTranscribing?
     private var voiceMode: VoiceInputMode = .pushToTalk
+    private var useSpeechAnalyzer = false
 
     init(parakeet: ParakeetTranscriber, speechAnalyzer: SpeechTranscribing?) {
         self.parakeet = parakeet
@@ -30,8 +31,9 @@ final class VoiceTranscriberRouter: SpeechTranscribing {
         wireChildHandlers()
     }
 
-    func applyConfiguration(mode: VoiceInputMode, wakePhrase: String) {
+    func applyConfiguration(mode: VoiceInputMode, wakePhrase: String, useSpeechAnalyzer: Bool) {
         voiceMode = mode
+        self.useSpeechAnalyzer = useSpeechAnalyzer
         parakeet.applyConfiguration(mode: mode, wakePhrase: wakePhrase)
     }
 
@@ -48,7 +50,7 @@ final class VoiceTranscriberRouter: SpeechTranscribing {
         case .alwaysListening:
             return ActiveVoiceEngine(transcriber: parakeet, isMicDenied: parakeet.isMicPermissionDenied)
         case .pushToTalk:
-            if let speechAnalyzer {
+            if useSpeechAnalyzer, let speechAnalyzer {
                 return ActiveVoiceEngine(
                     transcriber: speechAnalyzer,
                     isMicDenied: micDenied(for: speechAnalyzer))

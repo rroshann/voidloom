@@ -18,6 +18,7 @@ struct RootView: View {
     @AppStorage("app.mode") private var appMode: AppMode = .canvas
     @AppStorage("voice.mode") private var voiceMode: VoiceInputMode = .pushToTalk
     @AppStorage("voice.wakePhrase") private var wakePhrase = "hey voidloom"
+    @AppStorage("voice.useSpeechAnalyzer") private var useSpeechAnalyzer = false
 
     private let voiceRouter: VoiceTranscriberRouter?
 
@@ -98,10 +99,15 @@ struct RootView: View {
         .onAppear { applyVoiceConfiguration() }
         .onChange(of: voiceMode) { _, _ in applyVoiceConfiguration() }
         .onChange(of: wakePhrase) { _, _ in applyVoiceConfiguration() }
+        .onChange(of: useSpeechAnalyzer) { _, _ in applyVoiceConfiguration() }
     }
 
     private func applyVoiceConfiguration() {
-        voiceRouter?.applyConfiguration(mode: voiceMode, wakePhrase: wakePhrase)
+        voiceRouter?.applyConfiguration(
+            mode: voiceMode,
+            wakePhrase: wakePhrase,
+            useSpeechAnalyzer: useSpeechAnalyzer
+        )
     }
 
     private static var hasMicrophone: Bool {

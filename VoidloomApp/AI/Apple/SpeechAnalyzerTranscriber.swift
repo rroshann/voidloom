@@ -6,10 +6,10 @@ import VoidloomCore
 /// macOS 26 on-device speech via `SpeechAnalyzer` + `SpeechTranscriber`.
 /// Push-to-talk only — always-listening / wake-phrase stays on Parakeet.
 ///
-/// SDK notes (macOS 26 beta, `Speech.swiftmodule`): types are `SpeechAnalyzer`,
-/// `SpeechTranscriber`, `AnalyzerInput`; volatile hypotheses use
-/// `ReportingOption.volatileResults` and `SpeechModuleResult.isFinal`.
-/// `AnalyzerInputConverter` is macOS 27+ — this type converts capture PCM inline.
+/// SDK contract (`Speech.swiftinterface`): attach modules at `SpeechAnalyzer`
+/// init, call `prepareToAnalyze(in:)` exactly once per analyzer instance, then
+/// `start(inputSequence:)`. Do not overlap `prepareToAnalyze` calls — serialize
+/// session setup. Create a fresh `SpeechTranscriber` module per PTT session.
 @available(macOS 26, *)
 @MainActor
 final class SpeechAnalyzerTranscriber: SpeechTranscribing {
@@ -19,7 +19,7 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
     var isMicPermissionDenied: Bool { capture.permissionState == .denied }
 
     private let capture = AudioCaptureService()
-    private var transcriber: SpeechTranscriber?
+    private var sessionModule: SpeechTranscriber?
     private var analyzer: SpeechAnalyzer?
     private var analyzerFormat: AVAudioFormat?
     private var pcmConverter: AVAudioConverter?
@@ -29,6 +29,8 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
     private var isPTTSession = false
     private var modelsReady = false
     private var prepareTask: Task<Void, Never>?
+    /// Serializes PTT session setup so `prepareToAnalyze` never runs concurrently.
+    private var sessionSetupTask: Task<Void, Never>?
 
     private static let modelUnavailableMessage =
         "Speech model still preparing — try again shortly."
@@ -52,8 +54,12 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
             return
         }
 
-        Task {
+        sessionSetupTask?.cancel()
+        sessionSetupTask = Task {
+            if let prepareTask { await prepareTask.value }
+
             let granted = await capture.requestPermissionIfNeeded()
+            guard !Task.isCancelled else { return }
             guard granted else {
                 onEvent?(.unavailable(Self.micDeniedMessage))
                 publishMicPermissionDenied()
@@ -86,21 +92,20 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
         guard SpeechTranscriber.isAvailable else { return }
 
         let locale = Locale(identifier: "en-US")
-        let module = SpeechTranscriber(
+        let probe = SpeechTranscriber(
             locale: locale,
             transcriptionOptions: [],
             reportingOptions: [.volatileResults],
             attributeOptions: [])
-        transcriber = module
 
-        let status = await AssetInventory.status(forModules: [module])
+        let status = await AssetInventory.status(forModules: [probe])
         switch status {
         case .installed, .supported:
             modelsReady = true
         case .downloading:
             onEvent?(.unavailable("Speech assets downloading — try again shortly."))
         default:
-            if let request = try? await AssetInventory.assetInstallationRequest(supporting: [module]) {
+            if let request = try? await AssetInventory.assetInstallationRequest(supporting: [probe]) {
                 Task {
                     do {
                         try await request.downloadAndInstall()
@@ -118,7 +123,7 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
     // MARK: - PTT session
 
     private func beginPTTSession() async {
-        guard let transcriber, modelsReady else {
+        guard modelsReady else {
             onEvent?(.unavailable(Self.modelUnavailableMessage))
             return
         }
@@ -126,13 +131,26 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
         tearDownSession()
 
         do {
-            let analyzer = SpeechAnalyzer(modules: [transcriber])
+            let locale = Locale(identifier: "en-US")
+            let module = SpeechTranscriber(
+                locale: locale,
+                transcriptionOptions: [],
+                reportingOptions: [.volatileResults],
+                attributeOptions: [])
+            sessionModule = module
+
+            // Module must be attached at analyzer init before the single prepare call.
+            let analyzer = SpeechAnalyzer(modules: [module])
             self.analyzer = analyzer
-            let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [transcriber])
+            let format = await SpeechAnalyzer.bestAvailableAudioFormat(compatibleWith: [module])
+            guard let format else {
+                onEvent?(.unavailable(Self.transcriptionFailedMessage))
+                tearDownSession()
+                return
+            }
             try await analyzer.prepareToAnalyze(in: format)
             analyzerFormat = format
-            if let format,
-               let captureFormat = AVAudioFormat(
+            if let captureFormat = AVAudioFormat(
                    commonFormat: .pcmFormatFloat32,
                    sampleRate: 16_000,
                    channels: 1,
@@ -149,7 +167,7 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
             resultsTask = Task { @MainActor [weak self] in
                 guard let self else { return }
                 do {
-                    for try await result in transcriber.results {
+                    for try await result in module.results {
                         handleTranscriptionResult(result)
                     }
                 } catch {
@@ -240,6 +258,7 @@ final class SpeechAnalyzerTranscriber: SpeechTranscribing {
         resultsTask = nil
         inputContinuation = nil
         analyzer = nil
+        sessionModule = nil
         analyzerFormat = nil
         pcmConverter = nil
     }

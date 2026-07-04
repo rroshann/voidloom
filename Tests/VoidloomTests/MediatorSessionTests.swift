@@ -116,4 +116,20 @@ final class MediatorSessionTests: XCTestCase {
         XCTAssertEqual(machine.handle(.timeout), [])
         XCTAssertEqual(machine.state, .idle)
     }
+
+    func testTypedUtteranceFromIdleParsesWithoutCapture() {
+        var machine = MediatorSessionMachine()
+        XCTAssertEqual(
+            machine.handle(.typedUtterance("start 2 claude agents")),
+            [.parse(transcript: "start 2 claude agents"), .scheduleTimeout(seconds: 10)]
+        )
+        XCTAssertEqual(machine.state, .parsing(transcript: "start 2 claude agents"))
+    }
+
+    func testTypedUtteranceIgnoredWhileCapturing() {
+        var machine = MediatorSessionMachine()
+        _ = machine.handle(.wakeDetected)
+        XCTAssertEqual(machine.handle(.typedUtterance("typed while mic open")), [])
+        XCTAssertEqual(machine.state, .capturing(transcript: ""))
+    }
 }
