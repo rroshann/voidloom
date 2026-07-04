@@ -11,4 +11,25 @@ final class MediatorTierResolverTests: XCTestCase {
         let tier = MediatorTierResolver.resolve(capabilities: .init(commandModelReady: false))
         XCTAssertEqual(tier, .fastPathOnly)
     }
+
+    func testFoundationModelsAvailableSelectsAppleTierRegardlessOfCommandModel() {
+        let withCommandModel = MediatorTierResolver.resolve(
+            capabilities: .init(commandModelReady: true, foundationModelsAvailable: true))
+        let withoutCommandModel = MediatorTierResolver.resolve(
+            capabilities: .init(commandModelReady: false, foundationModelsAvailable: true))
+        XCTAssertEqual(withCommandModel, .appleFoundationModels)
+        XCTAssertEqual(withoutCommandModel, .appleFoundationModels)
+    }
+
+    func testFoundationModelsUnavailableCommandModelReadyUsesLLMTier() {
+        let tier = MediatorTierResolver.resolve(
+            capabilities: .init(commandModelReady: true, foundationModelsAvailable: false))
+        XCTAssertEqual(tier, .fastPathWithLLM)
+    }
+
+    func testFoundationModelsUnavailableCommandModelMissingUsesFastPathOnly() {
+        let tier = MediatorTierResolver.resolve(
+            capabilities: .init(commandModelReady: false, foundationModelsAvailable: false))
+        XCTAssertEqual(tier, .fastPathOnly)
+    }
 }

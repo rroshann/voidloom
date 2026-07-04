@@ -24,7 +24,7 @@ enum MediatorBrainFactory {
                 capabilities: .init(commandModelReady: true)) {
             case .fastPathOnly:
                 return fast
-            case .fastPathWithLLM:
+            case .fastPathWithLLM, .appleFoundationModels:
                 let engine = LazyLoadingEngine(
                     modelURL: assets.localURL(of: asset),
                     config: config)
