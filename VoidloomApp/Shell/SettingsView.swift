@@ -374,6 +374,8 @@ private struct AISettingsTab: View {
                 }
             }
 
+            VoiceSettingsSection()
+
             LocalAISettingsSection(assets: modelAssets, persistConversations: $persistConversations)
         }
         .formStyle(.grouped)

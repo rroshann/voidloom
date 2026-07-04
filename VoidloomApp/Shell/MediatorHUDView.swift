@@ -6,7 +6,7 @@ import VoidloomCore
 /// states light up when the voice plan lands — same coordinator, same view.
 struct MediatorHUDView: View {
     @ObservedObject var mediator: MediatorSessionCoordinator
-    var hasVoiceInput: Bool = false
+    var showsPushToTalkMic: Bool = false
     @State private var input = ""
     @State private var isMicHeld = false
 
@@ -35,7 +35,7 @@ struct MediatorHUDView: View {
                 .frame(maxWidth: 420)
             }
             HStack(spacing: 8) {
-                if hasVoiceInput {
+                if showsPushToTalkMic {
                     micButton
                 }
                 Image(systemName: stateIcon)

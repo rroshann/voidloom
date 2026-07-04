@@ -16,7 +16,10 @@ struct RootView: View {
     @StateObject private var mediator: MediatorSessionCoordinator
 
     @AppStorage("app.mode") private var appMode: AppMode = .canvas
-    private let hasVoiceInput: Bool
+    @AppStorage("voice.mode") private var voiceMode: VoiceInputMode = .pushToTalk
+    @AppStorage("voice.wakePhrase") private var wakePhrase = "hey voidloom"
+
+    private let voiceTranscriber: ParakeetTranscriber?
 
     init(store: WorkspaceStore,
          sessionManager: AgentSessionManager,
@@ -29,20 +32,27 @@ struct RootView: View {
         self.interaction = interaction
         self.modelAssets = modelAssets
 
-        let voiceTranscriber: ParakeetTranscriber? = Self.hasMicrophone ? ParakeetTranscriber() : nil
+        let transcriber: ParakeetTranscriber? = Self.hasMicrophone ? ParakeetTranscriber() : nil
+        voiceTranscriber = transcriber
         let coordinator = MediatorSessionCoordinator(
             brain: MediatorBrainFactory.makeBrain(assets: modelAssets),
             executor: CommandExecutor(store: store, terminals: sessionManager, namePool: AgentNamePool()),
-            transcriber: voiceTranscriber
+            transcriber: transcriber
         )
-        if let voiceTranscriber {
-            coordinator.setMicPermissionDenied(voiceTranscriber.isMicPermissionDenied)
-            voiceTranscriber.onMicPermissionDeniedChanged = { denied in
+        if let transcriber {
+            coordinator.setMicPermissionDenied(transcriber.isMicPermissionDenied)
+            transcriber.onMicPermissionDeniedChanged = { denied in
                 coordinator.setMicPermissionDenied(denied)
             }
+            transcriber.onWakePhraseMatched = {
+                coordinator.wakeDetected()
+            }
         }
-        hasVoiceInput = voiceTranscriber != nil
         _mediator = StateObject(wrappedValue: coordinator)
+    }
+
+    private var pushToTalkEnabled: Bool {
+        voiceTranscriber != nil && voiceMode == .pushToTalk
     }
 
     var body: some View {
@@ -63,7 +73,7 @@ struct RootView: View {
         }
         .animation(.easeInOut(duration: 0.28), value: appMode)
         .background {
-            if hasVoiceInput {
+            if pushToTalkEnabled {
                 VoicePushToTalkKeyMonitor(
                     onPress: {
                         guard !mediator.isMicPermissionDenied else { return }
@@ -74,9 +84,16 @@ struct RootView: View {
             }
         }
         .overlay(alignment: .bottom) {
-            MediatorHUDView(mediator: mediator, hasVoiceInput: hasVoiceInput)
+            MediatorHUDView(mediator: mediator, showsPushToTalkMic: pushToTalkEnabled)
                 .padding(.bottom, 84)
         }
+        .onAppear { applyVoiceConfiguration() }
+        .onChange(of: voiceMode) { _, _ in applyVoiceConfiguration() }
+        .onChange(of: wakePhrase) { _, _ in applyVoiceConfiguration() }
+    }
+
+    private func applyVoiceConfiguration() {
+        voiceTranscriber?.applyConfiguration(mode: voiceMode, wakePhrase: wakePhrase)
     }
 
     private static var hasMicrophone: Bool {
