@@ -8,9 +8,25 @@ import VoidloomCore
 struct VoidloomApp: App {
     @StateObject private var store = WorkspaceStore()
     @StateObject private var agentSessionManager = AgentSessionManager()
-    @StateObject private var conversationStore = ConversationStore()
     @StateObject private var interaction = CanvasInteractionModel()
-    @StateObject private var modelAssets = ModelAssetManager()
+    @StateObject private var modelAssets: ModelAssetManager
+    @StateObject private var conversationStore: ConversationStore
+
+    init() {
+        let assets = ModelAssetManager()
+        _modelAssets = StateObject(wrappedValue: assets)
+
+        if assets.state(of: LocalModelManifest.chatModel) == .ready,
+           let url = assets.localURL(of: LocalModelManifest.chatModel) {
+            let engine = LazyLoadingEngine(
+                modelURL: url,
+                config: LlamaEngineConfig(contextLength: 4096))
+            _conversationStore = StateObject(wrappedValue: ConversationStore(
+                provider: LocalResponseProvider(engine: engine)))
+        } else {
+            _conversationStore = StateObject(wrappedValue: ConversationStore())
+        }
+    }
 
     var body: some Scene {
         WindowGroup {

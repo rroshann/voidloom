@@ -68,6 +68,13 @@ final class ModelAssetManagerTests: XCTestCase {
         XCTAssertEqual(m.license, "Apache-2.0")
     }
 
+    func testManifestPinsTheChatModelVerifiedAgainstHuggingFace() {
+        let m = LocalModelManifest.chatModel
+        XCTAssertEqual(m.sha256, "b139949c5bd74937ad8ed8c8cf3d9ffb1e99c866c823204dc42c0d91fa181897")
+        XCTAssertEqual(m.sizeBytes, 1_107_409_472)
+        XCTAssertEqual(m.license, "Apache-2.0")
+    }
+
     // MARK: coalescing + cancel (via a stalling URLProtocol — no real network)
 
     private func stallingManager() -> (ModelAssetManager, LocalModelAsset) {
