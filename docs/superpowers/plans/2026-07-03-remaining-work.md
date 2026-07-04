@@ -1,6 +1,6 @@
-# Local AI Mediator — Remaining Work (as of 2026-07-03, HEAD `7df32db`)
+# Local AI Mediator — Remaining Work (FINAL UPDATE 2026-07-04, HEAD `47dbf18`)
 
-> Status snapshot: Plans 1, 2 complete. Plan 2b tasks 1–7 of 9 complete (230/230 tests, app builds, llama vendored + wired). Everything below is NOT yet started unless marked otherwise.
+> **ALL PLANS COMPLETE.** Plans 1, 2, 2b (9 tasks), 3 (voice, 4 tasks — `7dfe71d..7ae0cde`), and 4 (Apple tier, 3 tasks — `41ce0ea..47dbf18`) are implemented, lead-reviewed, and verified: 248/248 SPM tests, app builds, gated app tests 6 executed / 2 skipped (llama model not downloaded on this machine) / 0 failures — including a LIVE Apple Intelligence guided-generation test that passed. Final command-path policy (benchmark-driven): FastPath → llama when downloaded (≤0.3s warm) → Foundation Models as command fallback + chat-first (FM measured 2.0–2.9s, above the ≤1s command bar). The ONLY remaining items are user-run: the manual QA scripts in each plan's report/§ (model downloads of 397MB/1.1GB required for llama paths; mic required for voice), and the deferred-Minors list in §6 for any future polish pass. Sections below are kept as historical reference.
 >
 > **Workflow in effect (user directive):** lead session plans + personally reviews; a fresh `cursor-agent --yolo --model composer-2.5` in an Orca terminal implements each task; sequential; one agent per task, closed after approval. Resume mechanics: the `RESUME HERE` block + trailing task lines in `.superpowers/sdd/progress.md`.
 
