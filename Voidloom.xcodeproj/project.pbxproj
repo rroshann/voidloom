@@ -19,6 +19,9 @@
 		A200000000000000000000D1 /* llama.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A200000000000000000000C1 /* llama.xcframework */; };
 		A200000000000000000000D2 /* llama.xcframework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = A200000000000000000000C1 /* llama.xcframework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		A200000000000000000000D3 /* CllamaEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000000000000000000C2 /* CllamaEngine.swift */; };
+		A200000000000000000000D4 /* AudioCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000000000000000000C3 /* AudioCaptureService.swift */; };
+		A200000000000000000000D5 /* ParakeetTranscriber.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000000000000000000C4 /* ParakeetTranscriber.swift */; };
+		A200000000000000000000F5 /* FluidAudio in Frameworks */ = {isa = PBXBuildFile; productRef = A200000000000000000000F4 /* FluidAudio */; };
 		A20000000000000000000001 /* AtmosphereBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* AtmosphereBackground.swift */; };
 		A20000000000000000000003 /* ToolRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000013 /* ToolRail.swift */; };
 		A20000000000000000000004 /* CommandBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000014 /* CommandBar.swift */; };
@@ -80,6 +83,8 @@
 		A10000000000000000000010 /* Voidloom.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Voidloom.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A200000000000000000000C1 /* llama.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = llama.xcframework; path = Frameworks/llama.xcframework; sourceTree = SOURCE_ROOT; };
 		A200000000000000000000C2 /* CllamaEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/Local/CllamaEngine.swift; sourceTree = "<group>"; };
+		A200000000000000000000C3 /* AudioCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/Voice/AudioCaptureService.swift; sourceTree = "<group>"; };
+		A200000000000000000000C4 /* ParakeetTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/Voice/ParakeetTranscriber.swift; sourceTree = "<group>"; };
 		A10000000000000000000011 /* VoidloomApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = App/VoidloomApp.swift; sourceTree = "<group>"; };
 		A10000000000000000000012 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/RootView.swift; sourceTree = "<group>"; };
 		A100000000000000000000F1 /* CanvasKeyMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/CanvasKeyMonitor.swift; sourceTree = "<group>"; };
@@ -164,6 +169,7 @@
 			files = (
 				A10000000000000000000007 /* VoidloomCore in Frameworks */,
 				A200000000000000000000F2 /* VoidloomAI in Frameworks */,
+				A200000000000000000000F5 /* FluidAudio in Frameworks */,
 				A200000000000000000000D1 /* llama.xcframework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -251,6 +257,8 @@
 				A40000000000000000000011 /* ConversationStore.swift */,
 				A40000000000000000000013 /* StubResponseProvider.swift */,
 				A200000000000000000000C2 /* CllamaEngine.swift */,
+				A200000000000000000000C3 /* AudioCaptureService.swift */,
+				A200000000000000000000C4 /* ParakeetTranscriber.swift */,
 				B20000000000000000000002 /* MediatorBrainFactory.swift */,
 				A20000000000000000000019 /* CanvasZoomControls.swift */,
 				A10000000000000000000013 /* CanvasWorkspaceView.swift */,
@@ -311,6 +319,7 @@
 			packageProductDependencies = (
 				A10000000000000000000041 /* VoidloomCore */,
 				A200000000000000000000F1 /* VoidloomAI */,
+				A200000000000000000000F4 /* FluidAudio */,
 			);
 			productName = Voidloom;
 			productReference = A10000000000000000000010 /* Voidloom.app */;
@@ -367,6 +376,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				A10000000000000000000040 /* XCLocalSwiftPackageReference "" */,
+				A200000000000000000000F3 /* XCRemoteSwiftPackageReference "FluidAudio" */,
 			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = A10000000000000000000024 /* Products */;
@@ -422,6 +432,8 @@
 				A40000000000000000000002 /* AIConversationSidebar.swift in Sources */,
 				A40000000000000000000003 /* StubResponseProvider.swift in Sources */,
 				A200000000000000000000D3 /* CllamaEngine.swift in Sources */,
+				A200000000000000000000D4 /* AudioCaptureService.swift in Sources */,
+				A200000000000000000000D5 /* ParakeetTranscriber.swift in Sources */,
 				A50000000000000000000001 /* CommandPaletteModel.swift in Sources */,
 				A50000000000000000000002 /* CommandPaletteView.swift in Sources */,
 				A50000000000000000000003 /* CanvasContextMenu.swift in Sources */,
@@ -623,6 +635,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Voidloom;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Voidloom uses the microphone for push-to-talk and optional always-listening voice commands. Audio stays on this Mac.";
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -656,6 +669,7 @@
 				INFOPLIST_KEY_CFBundleDisplayName = Voidloom;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.developer-tools";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSMicrophoneUsageDescription = "Voidloom uses the microphone for push-to-talk and optional always-listening voice commands. Audio stays on this Mac.";
 				INFOPLIST_KEY_NSPrincipalClass = NSApplication;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -749,6 +763,17 @@
 		};
 /* End XCLocalSwiftPackageReference section */
 
+/* Begin XCRemoteSwiftPackageReference section */
+		A200000000000000000000F3 /* XCRemoteSwiftPackageReference "FluidAudio" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/FluidInference/FluidAudio";
+			requirement = {
+				kind = exactVersion;
+				version = 0.15.4;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
 /* Begin XCSwiftPackageProductDependency section */
 		A10000000000000000000041 /* VoidloomCore */ = {
 			isa = XCSwiftPackageProductDependency;
@@ -759,6 +784,11 @@
 			isa = XCSwiftPackageProductDependency;
 			package = A10000000000000000000040 /* XCLocalSwiftPackageReference "" */;
 			productName = VoidloomAI;
+		};
+		A200000000000000000000F4 /* FluidAudio */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A200000000000000000000F3 /* XCRemoteSwiftPackageReference "FluidAudio" */;
+			productName = FluidAudio;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};
