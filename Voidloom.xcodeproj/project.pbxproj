@@ -75,6 +75,11 @@
 		A80000000000000000000006 /* SpaceTopBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000016 /* SpaceTopBar.swift */; };
 		B20000000000000000000001 /* MediatorBrainFactory.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000002 /* MediatorBrainFactory.swift */; };
 		B20000000000000000000003 /* LlamaBrainIntegrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B20000000000000000000004 /* LlamaBrainIntegrationTests.swift */; };
+		C30000000000000000000001 /* FoundationModelsBrain.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000011 /* FoundationModelsBrain.swift */; };
+		C30000000000000000000002 /* MediatorToolMirrors.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000012 /* MediatorToolMirrors.swift */; };
+		C30000000000000000000003 /* FoundationModels.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C30000000000000000000010 /* FoundationModels.framework */; settings = {ATTRIBUTES = (Weak, ); }; };
+		C30000000000000000000004 /* FoundationModelsParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000013 /* FoundationModelsParityTests.swift */; };
+		C30000000000000000000005 /* FoundationModels.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C30000000000000000000010 /* FoundationModels.framework */; settings = {ATTRIBUTES = (Weak, ); }; };
 		B20000000000000000000005 /* CllamaEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000000000000000000C2 /* CllamaEngine.swift */; };
 		B20000000000000000000006 /* llama.xcframework in Frameworks */ = {isa = PBXBuildFile; fileRef = A200000000000000000000C1 /* llama.xcframework */; };
 		B20000000000000000000007 /* VoidloomCore in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000041 /* VoidloomCore */; };
@@ -149,6 +154,10 @@
 		A80000000000000000000016 /* SpaceTopBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spaces/SpaceTopBar.swift; sourceTree = "<group>"; };
 		B20000000000000000000002 /* MediatorBrainFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/Local/MediatorBrainFactory.swift; sourceTree = "<group>"; };
 		B20000000000000000000004 /* LlamaBrainIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LlamaBrainIntegrationTests.swift; sourceTree = "<group>"; };
+		C30000000000000000000010 /* FoundationModels.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = FoundationModels.framework; path = System/Library/Frameworks/FoundationModels.framework; sourceTree = SDKROOT; };
+		C30000000000000000000011 /* FoundationModelsBrain.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/Apple/FoundationModelsBrain.swift; sourceTree = "<group>"; };
+		C30000000000000000000012 /* MediatorToolMirrors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/Apple/MediatorToolMirrors.swift; sourceTree = "<group>"; };
+		C30000000000000000000013 /* FoundationModelsParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationModelsParityTests.swift; sourceTree = "<group>"; };
 		B20000000000000000000010 /* VoidloomAppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VoidloomAppTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -175,6 +184,7 @@
 				A200000000000000000000F2 /* VoidloomAI in Frameworks */,
 				A200000000000000000000F5 /* FluidAudio in Frameworks */,
 				A200000000000000000000D1 /* llama.xcframework in Frameworks */,
+				C30000000000000000000003 /* FoundationModels.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -185,6 +195,7 @@
 				B20000000000000000000007 /* VoidloomCore in Frameworks */,
 				B20000000000000000000008 /* VoidloomAI in Frameworks */,
 				B20000000000000000000006 /* llama.xcframework in Frameworks */,
+				C30000000000000000000005 /* FoundationModels.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -266,6 +277,8 @@
 				A200000000000000000000C3 /* AudioCaptureService.swift */,
 				A200000000000000000000C4 /* ParakeetTranscriber.swift */,
 				B20000000000000000000002 /* MediatorBrainFactory.swift */,
+				C30000000000000000000011 /* FoundationModelsBrain.swift */,
+				C30000000000000000000012 /* MediatorToolMirrors.swift */,
 				A20000000000000000000019 /* CanvasZoomControls.swift */,
 				A10000000000000000000013 /* CanvasWorkspaceView.swift */,
 				A20000000000000000000015 /* DraggableWorkspaceCard.swift */,
@@ -301,6 +314,7 @@
 			isa = PBXGroup;
 			children = (
 				B20000000000000000000004 /* LlamaBrainIntegrationTests.swift */,
+				C30000000000000000000013 /* FoundationModelsParityTests.swift */,
 			);
 			path = VoidloomAppTests;
 			sourceTree = "<group>";
@@ -469,6 +483,8 @@
 				A80000000000000000000005 /* SpaceTileCard.swift in Sources */,
 				A80000000000000000000006 /* SpaceTopBar.swift in Sources */,
 				B20000000000000000000001 /* MediatorBrainFactory.swift in Sources */,
+				C30000000000000000000001 /* FoundationModelsBrain.swift in Sources */,
+				C30000000000000000000002 /* MediatorToolMirrors.swift in Sources */,
 				A10000000000000000000005 /* PreviewSupport.swift in Sources */,
 				AB0000000000000000000002 /* Color+Hex.swift in Sources */,
 				AB0000000000000000000004 /* Theme.swift in Sources */,
@@ -483,6 +499,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B20000000000000000000003 /* LlamaBrainIntegrationTests.swift in Sources */,
+				C30000000000000000000004 /* FoundationModelsParityTests.swift in Sources */,
 				B20000000000000000000005 /* CllamaEngine.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
