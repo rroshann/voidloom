@@ -1,4 +1,5 @@
 import SwiftUI
+import VoidloomAI
 import VoidloomCore
 
 // MARK: - Settings Root
@@ -336,6 +337,7 @@ private struct AISettingsTab: View {
     @AppStorage("ai.sendSelectedCard") private var sendSelectedCard = true
     @AppStorage("ai.customInstructions") private var customInstructions = ""
     @State private var persistConversations = false
+    @EnvironmentObject private var modelAssets: ModelAssetManager
 
     var body: some View {
         Form {
@@ -372,14 +374,7 @@ private struct AISettingsTab: View {
                 }
             }
 
-            Section("Local AI") {
-                LabeledContent("Status", value: "Typed commands — instant local parser")
-                Text("Voidloom's AI runs entirely on this Mac — no endpoints, no API keys. Model setup arrives with the mediator.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                Toggle("Persist conversations to disk", isOn: $persistConversations)
-                    .disabled(true)
-            }
+            LocalAISettingsSection(assets: modelAssets, persistConversations: $persistConversations)
         }
         .formStyle(.grouped)
     }
@@ -553,4 +548,5 @@ private struct KeyboardShortcutRow: View {
 
 #Preview {
     SettingsView()
+        .environmentObject(ModelAssetManager())
 }

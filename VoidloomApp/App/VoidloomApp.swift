@@ -46,6 +46,7 @@ struct VoidloomApp: App {
 
         Settings {
             SettingsView()
+                .environmentObject(modelAssets)
         }
     }
 }
