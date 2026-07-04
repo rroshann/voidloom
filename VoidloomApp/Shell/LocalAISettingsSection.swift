@@ -13,7 +13,7 @@ struct LocalAISettingsSection: View {
         if !commandReady && !chatReady {
             return "Fast path only (instant parser)"
         }
-        var parts = ["Fast path only (instant parser)"]
+        var parts = ["Fast path"]
         if commandReady { parts.append("+ local LLM commands") }
         if chatReady { parts.append("+ local chat") }
         return parts.joined(separator: " ")
@@ -22,10 +22,10 @@ struct LocalAISettingsSection: View {
     var body: some View {
         Section("Local AI") {
             LabeledContent("Status", value: statusText)
-            Text("Model changes take effect at next app launch (brain/provider resolve at startup — documented limitation).")
+            Text("Downloaded models take effect the next time Voidloom launches.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
-            Text("Voidloom's AI runs entirely on this Mac — no endpoints, no API keys. Model setup arrives with the mediator.")
+            Text("Voidloom's AI runs entirely on this Mac — no endpoints, no API keys.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
 
@@ -34,10 +34,6 @@ struct LocalAISettingsSection: View {
 
             Toggle("Persist conversations to disk", isOn: $persistConversations)
                 .disabled(true)
-        }
-        .task {
-            _ = await assets.verifyExisting(LocalModelManifest.commandModel)
-            _ = await assets.verifyExisting(LocalModelManifest.chatModel)
         }
     }
 
@@ -62,7 +58,11 @@ struct LocalAISettingsSection: View {
     private func control(for asset: LocalModelAsset) -> some View {
         switch assets.state(of: asset) {
         case .ready:
-            Label("Ready", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+            HStack(spacing: 8) {
+                Label("Ready", systemImage: "checkmark.circle.fill").foregroundStyle(.green)
+                Button("Verify") { Task { _ = await assets.verifyExisting(asset) } }
+                    .controlSize(.small)
+            }
         case .downloading(let progress):
             HStack(spacing: 8) {
                 ProgressView(value: progress).frame(width: 80)
