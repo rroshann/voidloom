@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+# A newer push to the same branch/PR cancels the older in-flight run.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Fast, self-contained: exercises the pure VoidloomCore logic via SwiftPM.
+  # This is the TDD gate — 208 tests, no SwiftUI, no SDK/signing requirements.
+  core-tests:
+    name: Core tests (swift test)
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: swift --version
+
+      - name: Run VoidloomCore tests
+        run: swift test
+
+  # Compiles the full app bundle. Requires the macOS 26 SDK (Xcode 26+) because
+  # DockStyle.swift uses `if #available(macOS 26.0, *)`; hence the macos-26 runner.
+  # Code signing is disabled — CI only proves the app compiles and links.
+  app-build:
+    name: App build (xcodebuild)
+    runs-on: macos-26
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Show Xcode version
+        run: xcodebuild -version
+
+      - name: Resolve Swift package dependencies
+        run: xcodebuild -resolvePackageDependencies -project Voidloom.xcodeproj -scheme Voidloom
+
+      - name: Build Voidloom
+        run: |
+          set -o pipefail
+          xcodebuild build \
+            -project Voidloom.xcodeproj \
+            -scheme Voidloom \
+            -destination 'platform=macOS' \
+            -skipPackagePluginValidation \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY=""

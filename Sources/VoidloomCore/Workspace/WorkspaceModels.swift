@@ -5,6 +5,8 @@ public enum CardKind: String, CaseIterable, Codable, Equatable, Identifiable, Se
     case note
     case todo
     case browser
+    case fileBrowser
+    case git
 
     public var id: String { rawValue }
 }
@@ -49,6 +51,13 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     /// fresh decode always starts empty (no JSON schema change, legacy-safe).
     /// Cleared by single-selection and `clearSelection`.
     public var marqueeSelectedCardIDs: Set<UUID> = []
+
+    /// The card whose CONTENT currently has input focus (typing lands in it) —
+    /// distinct from `selectedCardID`, which arms a card for keyboard commands
+    /// like Delete. Transient like the marquee set: not in `CodingKeys`, so it
+    /// resets on decode/workspace-switch. Active and selected are mutually
+    /// exclusive — activating clears selection and vice versa.
+    public var activeCardID: UUID?
 
     /// Transient anchor for double-click grid placement: the viewport snapshot
     /// when the current 2x2 page began. It distinguishes "I'm still filling the
@@ -334,12 +343,24 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         selectedTextID = nil
         // A deliberate single selection supersedes any marquee selection.
         marqueeSelectedCardIDs = []
+        activeCardID = nil
+    }
+
+    /// Makes `id` the active card (content focus) and drops any selection, so a
+    /// card being typed into is never simultaneously armed for Delete.
+    public mutating func activateCard(id: UUID) {
+        guard cards.contains(where: { $0.id == id }) else { return }
+        activeCardID = id
+        selectedCardID = nil
+        selectedTextID = nil
+        marqueeSelectedCardIDs = []
     }
 
     public mutating func clearSelection() {
         selectedCardID = nil
         selectedTextID = nil
         marqueeSelectedCardIDs = []
+        activeCardID = nil
     }
 
     /// Toggles `id` in or out of the multi-selection (⌘-click). A lone
@@ -352,6 +373,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public mutating func toggleCardInSelection(id: UUID) {
         guard cards.contains(where: { $0.id == id }) else { return }
         selectedTextID = nil
+        activeCardID = nil
 
         var working = marqueeSelectedCardIDs
         if working.isEmpty, let single = selectedCardID {
@@ -405,6 +427,17 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         selectedTextID = nil
     }
 
+    /// Screen-space marquee/⌘ selection for Spaces, where tile geometry is owned
+    /// by `SpaceGrid` (not card canvas positions). Sets the transient marquee set
+    /// from a pre-computed id set and mirrors `selectedCardID` (lone hit ⇒ that id,
+    /// else nil), matching `selectCards(fromCorner:toCorner:additive:base:)`.
+    public mutating func selectCardsInSpace(ids: Set<UUID>) {
+        marqueeSelectedCardIDs = ids
+        selectedCardID = ids.count == 1 ? ids.first : nil
+        selectedTextID = nil
+        activeCardID = nil
+    }
+
     /// AABB intersection between a card's rect and the marquee rect (canvas space).
     private static func cardIntersects(
         card: WorkspaceCard,
@@ -428,9 +461,13 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         // Drop any connection that referenced the removed card so dangling
         // edges never render or persist.
         connections.removeAll { $0.from == id || $0.to == id }
+        space?.freeFrames[id] = nil
 
         if selectedCardID == id {
             selectedCardID = nil
+        }
+        if activeCardID == id {
+            activeCardID = nil
         }
     }
 
@@ -442,8 +479,12 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         guard !ids.isEmpty else { return }
         cards.removeAll { ids.contains($0.id) }
         connections.removeAll { ids.contains($0.from) || ids.contains($0.to) }
+        for id in ids { space?.freeFrames[id] = nil }
         if let selected = selectedCardID, ids.contains(selected) {
             selectedCardID = nil
+        }
+        if let active = activeCardID, ids.contains(active) {
+            activeCardID = nil
         }
         marqueeSelectedCardIDs.subtract(ids)
     }
@@ -815,6 +856,11 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         space?.background = background
     }
 
+    public mutating func setSpaceFolder(_ path: String?) {
+        ensureSpaceConfig()
+        space?.folderPath = path
+    }
+
     public mutating func setSpaceTiling(_ tiling: SpaceTiling) {
         ensureSpaceConfig()
         space?.tiling = tiling
@@ -823,5 +869,43 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
     public mutating func setBackgroundDimming(_ value: Double) {
         ensureSpaceConfig()
         space?.backgroundDimming = min(max(value, 0), 1)
+    }
+
+    public mutating func setSpaceLayoutMode(_ mode: SpaceLayoutMode) {
+        ensureSpaceConfig()
+        space?.layoutMode = mode
+    }
+
+    /// Seeds free-arrange frames for cards that don't have one yet, never
+    /// overwriting an existing frame — a card the user has placed stays put.
+    public mutating func seedMissingFreeFrames(_ defaults: [UUID: SpaceFreeFrame]) {
+        guard !defaults.isEmpty else { return }
+        ensureSpaceConfig()
+        space?.freeFrames.merge(defaults) { existing, _ in existing }
+    }
+
+    /// Replaces every free-arrange frame — drives "Re-tile" in free mode,
+    /// snapping all cards back to a computed arrangement.
+    public mutating func setSpaceFreeFrames(_ frames: [UUID: SpaceFreeFrame]) {
+        ensureSpaceConfig()
+        space?.freeFrames = frames
+    }
+
+    /// Moves a free-arrange card to `origin`, keeping its size. No-op for a
+    /// card without a seeded frame (unknown or grid-only).
+    public mutating func moveSpaceCardFreely(id: UUID, to origin: ScreenPoint) {
+        guard space?.freeFrames[id] != nil else { return }
+        space?.freeFrames[id]?.origin = origin
+    }
+
+    /// Resizes a free-arrange card, keeping its origin (bottom-right handle
+    /// semantics) and clamping to the card minimums so content stays usable.
+    /// No-op for a card without a seeded frame (unknown or grid-only).
+    public mutating func resizeSpaceCardFreely(id: UUID, to size: ScreenPoint) {
+        guard space?.freeFrames[id] != nil else { return }
+        space?.freeFrames[id]?.size = ScreenPoint(
+            x: max(size.x, CardSize.minimumWidth),
+            y: max(size.y, CardSize.minimumHeight)
+        )
     }
 }

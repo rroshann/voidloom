@@ -5,6 +5,7 @@ enum PaletteSection: String, CaseIterable {
     case create = "Create"
     case workspaces = "Workspaces"
     case view = "View"
+    case cards = "Go to"
     case app = "App"
 }
 

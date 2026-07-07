@@ -46,7 +46,6 @@ struct BrowserCardContentView: View {
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .contentShape(Rectangle())
                             .onTapGesture {
-                                guard isSelected else { return }
                                 // Pre-populate draft with the live URL so the user edits what they see
                                 urlDraft = loadModel.currentURL?.absoluteString ?? content
                                 isEditingURL = true
@@ -88,7 +87,6 @@ struct BrowserCardContentView: View {
                 .buttonStyle(.plain)
                 .foregroundStyle(theme.ink(0.55))
             }
-            .allowsHitTesting(isSelected)
 
             // ── Page title (secondary, truncated) ─────────────────────────
             if let title = loadModel.pageTitle, !title.isEmpty {
@@ -105,7 +103,6 @@ struct BrowserCardContentView: View {
             ZStack {
                 BrowserWebView(urlString: content, model: loadModel)
                     .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-                    .allowsHitTesting(isSelected)
 
                 if loadModel.isLoading {
                     VStack {

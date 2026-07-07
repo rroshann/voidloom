@@ -98,7 +98,6 @@ struct TodoCardContentView: View {
             }
             .padding(16)
         }
-        .allowsHitTesting(isSelected)
         .onChange(of: content) { _, newValue in
             let parsed = TodoContentParser.parse(newValue)
             guard parsed != items else { return }

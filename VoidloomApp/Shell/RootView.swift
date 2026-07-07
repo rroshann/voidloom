@@ -1,5 +1,6 @@
 import AVFoundation
 import SwiftUI
+import AppKit
 import VoidloomAI
 import VoidloomCore
 
@@ -15,7 +16,10 @@ struct RootView: View {
     @ObservedObject var modelAssets: ModelAssetManager
     @StateObject private var mediator: MediatorSessionCoordinator
 
+    @EnvironmentObject private var session: AppSession
+
     @AppStorage("app.mode") private var appMode: AppMode = .canvas
+    @AppStorage("isMinimapVisible") private var isMinimapVisible = false
     @AppStorage("voice.mode") private var voiceMode: VoiceInputMode = .pushToTalk
     @AppStorage("voice.wakePhrase") private var wakePhrase = "hey voidloom"
     @AppStorage("voice.useSpeechAnalyzer") private var useSpeechAnalyzer = false
@@ -76,7 +80,11 @@ struct RootView: View {
                 )
                 .transition(.opacity)
             case .spaces:
-                SpacesShellView(store: store, sessionManager: sessionManager)
+                SpacesShellView(
+                    store: store,
+                    sessionManager: sessionManager,
+                    conversationStore: conversationStore
+                )
                     .transition(.opacity)
             }
         }
@@ -100,6 +108,72 @@ struct RootView: View {
         .onChange(of: voiceMode) { _, _ in applyVoiceConfiguration() }
         .onChange(of: wakePhrase) { _, _ in applyVoiceConfiguration() }
         .onChange(of: useSpeechAnalyzer) { _, _ in applyVoiceConfiguration() }
+        .onChange(of: store.library.workspaces.isEmpty) { _, isEmpty in
+            // Deleting the last workspace from inside the app returns to the launcher
+            // rather than leaving an empty canvas/space.
+            if isEmpty { session.isWorkspaceOpen = false }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: MenuAction.notification)) { note in
+            guard let action = note.object as? MenuAction else { return }
+            switch action {
+            case .toggleAppMode:
+                appMode = appMode == .canvas ? .spaces : .canvas
+            case .toggleMinimap:
+                isMinimapVisible.toggle()
+            case .addCard(let kind):
+                store.addCard(kind: kind)
+            case .goToLauncher:
+                session.isWorkspaceOpen = false
+            case .undo:
+                if isTypingResponder(NSApp.keyWindow?.firstResponder) {
+                    NSApp.sendAction(Selector(("undo:")), to: nil, from: nil)
+                } else {
+                    store.undo()
+                }
+            case .redo:
+                if isTypingResponder(NSApp.keyWindow?.firstResponder) {
+                    NSApp.sendAction(Selector(("redo:")), to: nil, from: nil)
+                } else {
+                    store.redo()
+                }
+            case .copy:
+                if isTypingResponder(NSApp.keyWindow?.firstResponder) {
+                    NSApp.sendAction(Selector(("copy:")), to: nil, from: nil)
+                } else {
+                    store.copySelection()
+                }
+            case .cut:
+                if isTypingResponder(NSApp.keyWindow?.firstResponder) {
+                    NSApp.sendAction(Selector(("cut:")), to: nil, from: nil)
+                } else {
+                    store.cutSelection()
+                }
+            case .paste:
+                if isTypingResponder(NSApp.keyWindow?.firstResponder) {
+                    NSApp.sendAction(Selector(("paste:")), to: nil, from: nil)
+                } else {
+                    store.pasteCards()
+                }
+            case .duplicate:
+                if !(isTypingResponder(NSApp.keyWindow?.firstResponder)) {
+                    store.duplicateSelection()
+                }
+            case .setProjectFolder:
+                let panel = NSOpenPanel()
+                panel.canChooseDirectories = true
+                panel.canChooseFiles = false
+                panel.allowsMultipleSelection = false
+                panel.prompt = "Choose"
+                if let current = store.state.space?.folderPath, !current.isEmpty {
+                    panel.directoryURL = URL(fileURLWithPath: current)
+                }
+                if panel.runModal() == .OK, let url = panel.url {
+                    store.setSpaceFolder(url.path)
+                }
+            case .zoomIn, .zoomOut, .resetViewport:
+                break   // handled by CanvasShellView, which owns the zoom anchor
+            }
+        }
     }
 
     private func applyVoiceConfiguration() {

@@ -1,26 +1,30 @@
 import SwiftUI
 import VoidloomCore
 
-/// One Spaces grid tile: the existing card chrome at a grid-assigned frame,
-/// with no resize handles and no free dragging (the grid owns position in v0).
+/// One Spaces grid tile: the existing card chrome at a grid-assigned frame. The
+/// grid (`SpacesShellView`) owns position and drag state — this view renders the
+/// card, forwards its drag to the shell (which live-previews the reorder and
+/// positions the tile under the cursor), and handles tap selection.
 struct SpaceTileCard: View {
     let card: WorkspaceCard
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var sessionManager: AgentSessionManager
-    let onDragChanged: (CGSize) -> Void
-    /// Returns `true` iff a reorder was committed, so the caller can skip
-    /// the snap-back animation and let the grid spring do the work alone.
-    let onDropped: (CGPoint) -> Bool
+    /// Reports an in-progress drag: cumulative `translation` plus the cursor's
+    /// global `location`, so the shell can offset the tile and hit-test the slot.
+    let onDragChanged: (CGSize, CGPoint) -> Void
+    /// Reports the drag ending at the cursor's global `location`.
+    let onDragEnded: (CGPoint) -> Void
 
     @State private var isEditingTitle = false
     @State private var editingCardTitleID: UUID?
-    @State private var translation: CGSize = .zero
 
     var body: some View {
         WorkspaceCardView(
             card: card,
             store: store,
-            isSelected: store.state.selectedCardID == card.id,
+            isSelected: store.state.selectedCardID == card.id
+                || store.state.marqueeSelectedCardIDs.contains(card.id),
+            isActive: store.state.activeCardID == card.id,
             isCardFocused: false,
             onToggleCardFocus: {},
             onClose: closeCard,
@@ -28,33 +32,18 @@ struct SpaceTileCard: View {
             editingCardTitleID: $editingCardTitleID
         )
         .contentShape(Rectangle())
-        .offset(translation)
         .gesture(
             DragGesture(coordinateSpace: .global)
-                .onChanged { value in
-                    translation = value.translation
-                    onDragChanged(value.translation)
-                }
-                .onEnded { value in
-                    let didReorder = onDropped(value.location)
-                    if didReorder {
-                        // Grid spring handles the visual move; reset without
-                        // animation so the two springs don't compound into a
-                        // visible double-move.
-                        translation = .zero
-                    } else {
-                        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-                            translation = .zero
-                        }
-                    }
-                },
+                .onChanged { value in onDragChanged(value.translation, value.location) }
+                .onEnded { value in onDragEnded(value.location) },
             // While the title field is being edited, disable the tile's own drag
             // so typing/selection isn't stolen and a stray move can't reorder.
             including: isEditingTitle ? .subviews : .all
         )
-        .onTapGesture {
-            store.selectCard(id: card.id)
-        }
+        // No tap gesture here: selection-on-click (including ⌘-toggle) is owned
+        // by SpacesShellView's ContentClickMonitor, which also sees clicks on
+        // AppKit-backed content this gesture never would. A second handler here
+        // would double-toggle ⌘-clicks.
     }
 
     private func closeCard() {

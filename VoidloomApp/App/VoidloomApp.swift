@@ -46,10 +46,13 @@ struct VoidloomApp: App {
         }
         .windowStyle(.hiddenTitleBar)
         .windowToolbarStyle(.unifiedCompact)
+        .commands { VoidloomCommands() }
 
         Settings {
             SettingsView()
                 .environmentObject(modelAssets)
+                .environmentObject(store)
+                .environmentObject(agentSessionManager)
         }
     }
 }
@@ -64,6 +67,9 @@ private struct RootThemeHost: View {
     @ObservedObject var conversationStore: ConversationStore
     @ObservedObject var interaction: CanvasInteractionModel
     @ObservedObject var modelAssets: ModelAssetManager
+
+    /// Launch shows the startup screen; opening/creating a workspace flips this.
+    @StateObject private var session = AppSession()
 
     @Environment(\.colorScheme) private var systemColorScheme
 
@@ -92,14 +98,27 @@ private struct RootThemeHost: View {
 
     var body: some View {
         let theme = theme
-        RootView(
-            store: store,
-            sessionManager: sessionManager,
-            conversationStore: conversationStore,
-            interaction: interaction,
-            modelAssets: modelAssets
-        )
+        Group {
+            if session.isWorkspaceOpen {
+                RootView(
+                    store: store,
+                    sessionManager: sessionManager,
+                    conversationStore: conversationStore,
+                    interaction: interaction,
+                    modelAssets: modelAssets
+                )
+            } else {
+                StartupView(store: store)
+            }
+        }
+        .environmentObject(session)
+        .sheet(isPresented: $session.showNewWorkspace) {
+            NewWorkspaceSheet(store: store)
+                .environment(\.theme, theme)
+                .environmentObject(session)
+        }
         .environmentObject(sessionManager)
+        .environmentObject(modelAssets)
         .environment(\.theme, theme)
         .preferredColorScheme(theme.colorScheme)
         .tint(theme.accent)
