@@ -10,6 +10,7 @@ struct MediatorHUDView: View {
     @State private var input = ""
     @State private var isMicHeld = false
     @FocusState private var inputFocused: Bool
+    @State private var refocusTask: Task<Void, Never>?
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// Sunday is "thinking" while parsing/executing a command or streaming a
@@ -146,7 +147,20 @@ struct MediatorHUDView: View {
     }
 
     private func submit() {
+        let wasTyped = !input.isEmpty
         mediator.submitTyped(input)
         input = ""
+        // A command that creates a card (a terminal or note editor) makes it
+        // grab first responder on mount, stealing focus mid-conversation. Keep
+        // the pill focused so the user can chain commands: assert now, then
+        // re-assert after the new card has had a chance to mount and grab it.
+        guard wasTyped else { return }
+        inputFocused = true
+        refocusTask?.cancel()
+        refocusTask = Task {
+            try? await Task.sleep(nanoseconds: 250_000_000)
+            guard !Task.isCancelled else { return }
+            inputFocused = true
+        }
     }
 }
