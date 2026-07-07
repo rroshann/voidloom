@@ -89,19 +89,24 @@ struct SpacesShellView: View {
                 .foregroundStyle(.white.opacity(0.5))
             HStack(spacing: 8) {
                 ForEach(["start 2 claude agents", "note: my ideas", "todo: plan the week"], id: \.self) { hint in
-                    Text(hint)
-                        .font(.system(size: 12, weight: .medium, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.62))
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 6)
-                        .background(Capsule().fill(.white.opacity(0.06)))
-                        .overlay(Capsule().strokeBorder(.white.opacity(0.1), lineWidth: 1))
+                    Button { MenuAction.runMediatorCommand(hint).post() } label: {
+                        Text(hint)
+                            .font(.system(size: 12, weight: .medium, design: .rounded))
+                            .foregroundStyle(.white.opacity(0.72))
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 6)
+                            .background(Capsule().fill(.white.opacity(0.06)))
+                            .overlay(Capsule().strokeBorder(.white.opacity(0.12), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                    .pointerCursor()
+                    .help("Run: \(hint)")
                 }
             }
             .padding(.top, 4)
         }
-        .accessibilityElement(children: .combine)
-        .accessibilityLabel("Empty workspace. Ask Sunday below to begin, or add a card from the dock.")
+        // Chips are individually actionable buttons — leave them as distinct
+        // accessibility elements rather than combining the whole block.
     }
 
     /// Builds a tiling from the global Settings defaults, used when a space has no

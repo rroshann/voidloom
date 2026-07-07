@@ -256,6 +256,8 @@ struct RootView: View {
                 }
             case .focusMediator:
                 break   // handled by MediatorHUDView, which owns the input's FocusState
+            case .runMediatorCommand(let text):
+                mediator.submitTyped(text)
             case .zoomIn, .zoomOut, .resetViewport:
                 break   // handled by CanvasShellView, which owns the zoom anchor
             }

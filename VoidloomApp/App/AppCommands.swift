@@ -21,6 +21,8 @@ enum MenuAction {
     case duplicate
     case setProjectFolder
     case focusMediator
+    /// Run a command through the mediator (e.g. tapping an empty-state hint chip).
+    case runMediatorCommand(String)
 
     static let notification = Notification.Name("voidloom.menuAction")
 
