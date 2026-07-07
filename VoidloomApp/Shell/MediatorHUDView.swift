@@ -30,19 +30,35 @@ struct MediatorHUDView: View {
             }
             if case .awaitingConfirmation(let prompt, _) = mediator.state {
                 HStack(spacing: 10) {
-                    Text(prompt).font(.callout)
-                    Button("Confirm") { mediator.confirm(true) }
-                        .keyboardShortcut(.defaultAction)
-                        .accessibilityLabel("Confirm")
-                        .accessibilityIdentifier("mediator.confirm")
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.orange)
+                        .accessibilityHidden(true)
+                    Text(prompt)
+                        .font(.callout.weight(.medium))
+                        .fixedSize(horizontal: false, vertical: true)
+                    Spacer(minLength: 8)
                     Button("Cancel") { mediator.confirm(false) }
+                        .keyboardShortcut(.cancelAction)
                         .accessibilityLabel("Cancel")
                         .accessibilityIdentifier("mediator.cancel")
+                    // No default (Enter) shortcut on a destructive action, so an
+                    // idle Return never confirms it by accident — the user clicks
+                    // or types "confirm".
+                    Button("Confirm") { mediator.confirm(true) }
+                        .tint(.red)
+                        .accessibilityLabel("Confirm")
+                        .accessibilityIdentifier("mediator.confirm")
                 }
                 .padding(.horizontal, 14)
-                .padding(.vertical, 8)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
+                .padding(.vertical, 10)
                 .frame(maxWidth: 420)
+                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14, style: .continuous)
+                        .strokeBorder(Color.orange.opacity(0.35), lineWidth: 1)
+                )
+                .shadow(color: .black.opacity(0.18), radius: 12, y: 4)
                 .accessibilityElement(children: .contain)
             }
             HStack(spacing: 8) {
