@@ -87,6 +87,9 @@ struct MediatorHUDView: View {
                     .textFieldStyle(.plain)
                     .focused($inputFocused)
                     .accessibilityIdentifier("mediator.input")
+                    // Stable label — the visible placeholder rotates, but VoiceOver
+                    // should always hear the same thing.
+                    .accessibilityLabel("Ask \(AssistantIdentity.name)")
                     .onSubmit(submit)
                     .onReceive(hintTimer) { _ in
                         // Rotate only while empty (never mid-typing); reduce motion
