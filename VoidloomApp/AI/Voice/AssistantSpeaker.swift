@@ -24,7 +24,11 @@ final class AssistantSpeaker: ObservableObject {
         // as calm and considered.
         utterance.rate = AVSpeechUtteranceDefaultSpeechRate * 0.95
         utterance.pitchMultiplier = 1.0
-        utterance.prefersAssistiveTechnologySettings = true
+        utterance.volume = 1.0
+        // Use our chosen voice/rate directly rather than tying playback to the
+        // user's (often unset) assistive-tech settings, so speech is reliably
+        // audible.
+        utterance.prefersAssistiveTechnologySettings = false
         synthesizer.speak(utterance)
     }
 

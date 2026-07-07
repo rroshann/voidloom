@@ -36,6 +36,10 @@ public final class MediatorSessionCoordinator: ObservableObject {
     /// can show a distinct "consulting an agent" state rather than plain thinking.
     @Published public private(set) var isDelegating: Bool = false
 
+    /// Whether the most recent request arrived by voice (vs typed). Drives the
+    /// "speak only when spoken to" preference and pure-voice reply display.
+    @Published public private(set) var lastInputWasVoice: Bool = false
+
     /// Runs a delegated question through an agent CLI and relays the answer.
     /// Always returns user-facing text (owns its own errors + timeout); streams
     /// progress via `onChunk`. Set by the app; nil disables delegation.
@@ -72,6 +76,7 @@ public final class MediatorSessionCoordinator: ObservableObject {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
         if handleConfirmationUtterance(trimmed) { return }
+        lastInputWasVoice = false
         if isBusy {
             queuedUtterance = trimmed   // depth-1 queue: newest wins, per carry-over #2
             return
@@ -156,6 +161,7 @@ public final class MediatorSessionCoordinator: ObservableObject {
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return }
             if handleConfirmationUtterance(trimmed) { return }
+            lastInputWasVoice = true
             send(.transcriptFinal(trimmed))
         case .unavailable(let message):
             if case .capturing = state { send(.cancelRequested) }

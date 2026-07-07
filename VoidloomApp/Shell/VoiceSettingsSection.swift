@@ -7,7 +7,16 @@ struct VoiceSettingsSection: View {
     @AppStorage("voice.mode") private var voiceMode: VoiceInputMode = .pushToTalk
     @AppStorage("voice.wakePhrase") private var wakePhrase = "hey sunday"
     @AppStorage("voice.useSpeechAnalyzer") private var useSpeechAnalyzer = false
-    @AppStorage("voice.speakReplies") private var speakReplies = false
+    @AppStorage("voice.speechMode") private var speechMode: AssistantSpeechMode = .whenSpokenTo
+    @AppStorage("voice.showTextReplies") private var showTextReplies = true
+
+    private var speechModeExplanation: String {
+        switch speechMode {
+        case .off: "\(AssistantIdentity.name) never reads replies aloud."
+        case .whenSpokenTo: "\(AssistantIdentity.name) speaks back only when you talk to it — a natural spoken conversation. Typed replies stay silent."
+        case .always: "\(AssistantIdentity.name) reads every reply aloud, whether you typed or spoke."
+        }
+    }
 
     private var speechEngineLabel: String {
         switch voiceMode {
@@ -34,9 +43,24 @@ struct VoiceSettingsSection: View {
 
             LabeledContent("Speech engine", value: speechEngineLabel)
 
-            Toggle("Speak \(AssistantIdentity.name)'s replies", isOn: $speakReplies)
-            if speakReplies {
-                Text("\(AssistantIdentity.name) reads answers aloud on-device. It stops the moment you start speaking, and never talks over you.")
+            Picker("Speak replies", selection: $speechMode) {
+                ForEach(AssistantSpeechMode.allCases) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            Text(speechModeExplanation)
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
+
+            if speechMode != .off {
+                Toggle("Show reply text while speaking", isOn: $showTextReplies)
+                Text(showTextReplies
+                     ? "When you speak to \(AssistantIdentity.name), the reply appears as text and is read aloud."
+                     : "Pure voice: when you speak to \(AssistantIdentity.name), it replies by voice only — no text bubble.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+                Text("Voices are on-device and free. For a more natural voice, install a Premium/Enhanced English voice in System Settings › Accessibility › Spoken Content › System Voice — \(AssistantIdentity.name) picks the best one automatically.")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
             }

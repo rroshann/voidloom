@@ -24,7 +24,11 @@ struct RootView: View {
     @AppStorage("voice.mode") private var voiceMode: VoiceInputMode = .pushToTalk
     @AppStorage("voice.wakePhrase") private var wakePhrase = "hey sunday"
     @AppStorage("voice.useSpeechAnalyzer") private var useSpeechAnalyzer = false
-    @AppStorage("voice.speakReplies") private var speakReplies = false
+    // Default: Sunday speaks back when you SPEAK to it (fixes "I can't hear
+    // Sunday" — voice replies were silent by default). Typed stays silent unless
+    // you pick "Always".
+    @AppStorage("voice.speechMode") private var speechMode: AssistantSpeechMode = .whenSpokenTo
+    @AppStorage("voice.showTextReplies") private var showTextReplies = true
     @StateObject private var speaker = AssistantSpeaker()
 
     private let voiceRouter: VoiceTranscriberRouter?
@@ -172,7 +176,8 @@ struct RootView: View {
             }
         }
         .overlay(alignment: .bottom) {
-            MediatorHUDView(mediator: mediator, showsPushToTalkMic: pushToTalkEnabled)
+            MediatorHUDView(mediator: mediator, showsPushToTalkMic: pushToTalkEnabled,
+                            showTextReplies: showTextReplies)
                 .padding(.bottom, 84)
         }
         .environmentObject(contextProvider)
@@ -190,7 +195,8 @@ struct RootView: View {
         // settles, never mid-stream. Barge-in stops speech the moment the mic
         // opens, so Sunday never talks over the user.
         .onChange(of: mediator.narration) { _, newValue in
-            guard speakReplies, mediator.state == .idle, !mediator.isStreamingReply,
+            guard speechMode.shouldSpeak(inputWasVoice: mediator.lastInputWasVoice),
+                  mediator.state == .idle, !mediator.isStreamingReply,
                   !newValue.isEmpty else { return }
             speaker.speak(newValue)
         }

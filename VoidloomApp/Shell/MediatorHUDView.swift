@@ -7,6 +7,9 @@ import VoidloomCore
 struct MediatorHUDView: View {
     @ObservedObject var mediator: MediatorSessionCoordinator
     var showsPushToTalkMic: Bool = false
+    /// When false and the request came by voice, Sunday's reply is spoken but not
+    /// shown as text — a pure spoken conversation.
+    var showTextReplies: Bool = true
     @State private var input = ""
     @State private var isMicHeld = false
     @FocusState private var inputFocused: Bool
@@ -55,7 +58,10 @@ struct MediatorHUDView: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            if showNarration, !mediator.narration.isEmpty {
+            // Pure-voice mode: when the request came by voice and text replies are
+            // off, Sunday speaks but shows no bubble.
+            if showNarration, !mediator.narration.isEmpty,
+               !(mediator.lastInputWasVoice && !showTextReplies) {
                 narrationBubble
             }
             if case .awaitingConfirmation(let prompt, _) = mediator.state {
