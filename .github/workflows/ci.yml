@@ -37,6 +37,21 @@ jobs:
       - name: Show Xcode version
         run: xcodebuild -version
 
+      # llama.xcframework is vendored-but-gitignored: each checkout builds it once
+      # via scripts/build-llama-xcframework.sh (pinned to llama.cpp b9850). Cache it
+      # so CI only pays the full Metal build when the pin/script changes.
+      - name: Cache llama.xcframework
+        uses: actions/cache@v4
+        with:
+          path: Frameworks/llama.xcframework
+          key: llama-xcframework-${{ runner.os }}-${{ hashFiles('scripts/build-llama-xcframework.sh') }}
+
+      - name: Build llama.xcframework (cache miss only)
+        run: |
+          if [ ! -d Frameworks/llama.xcframework ]; then
+            bash scripts/build-llama-xcframework.sh
+          fi
+
       - name: Resolve Swift package dependencies
         run: xcodebuild -resolvePackageDependencies -project Voidloom.xcodeproj -scheme Voidloom
 
