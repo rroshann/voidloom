@@ -170,6 +170,8 @@ struct RootView: View {
                 if panel.runModal() == .OK, let url = panel.url {
                     store.setSpaceFolder(url.path)
                 }
+            case .focusMediator:
+                break   // handled by MediatorHUDView, which owns the input's FocusState
             case .zoomIn, .zoomOut, .resetViewport:
                 break   // handled by CanvasShellView, which owns the zoom anchor
             }

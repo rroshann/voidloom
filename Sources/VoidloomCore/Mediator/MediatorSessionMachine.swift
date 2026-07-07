@@ -42,9 +42,12 @@ public enum MediatorEffect: Equatable, Sendable {
 /// An @MainActor coordinator (Plan 2) performs effects and feeds events back.
 public struct MediatorSessionMachine: Equatable, Sendable {
     public static let captureTimeout: Double = 15
-    public static let confirmationTimeout: Double = 10
+    /// Destructive commands wait this long for a confirm/cancel; expiry cancels.
+    /// 30s, not 10 — QA showed a human answering the prompt can miss 10s.
+    public static let confirmationTimeout: Double = 30
     public static let parseTimeout: Double = 10
     static let rephrasePrompt = "Didn't catch that — try rephrasing."
+    static let confirmVocabulary: Set<String> = ["confirm", "yes", "cancel", "no"]
 
     public private(set) var state: MediatorState = .idle
 
@@ -64,6 +67,11 @@ public struct MediatorSessionMachine: Equatable, Sendable {
             return [.startCapture, .scheduleTimeout(seconds: Self.captureTimeout)]
 
         case (.idle, .typedUtterance(let text)):
+            // A confirm word with no pending confirmation would otherwise reach
+            // the parser and produce a nonsense target-resolution reply.
+            if Self.confirmVocabulary.contains(text.lowercased()) {
+                return [.narrate("Nothing to confirm.")]
+            }
             state = .parsing(transcript: text)
             return [.parse(transcript: text), .scheduleTimeout(seconds: Self.parseTimeout)]
 
@@ -116,6 +124,14 @@ public struct MediatorSessionMachine: Equatable, Sendable {
              (.awaitingConfirmation, .cancelRequested):
             state = .idle
             return [.narrate("Cancelled")]
+
+        // The coordinator intercepts confirm words before the machine, so any
+        // utterance arriving here is neither — reprompt instead of swallowing it,
+        // and re-arm the window so the reprompt's narrate doesn't strand the state.
+        case (.awaitingConfirmation(let prompt, _), .typedUtterance),
+             (.awaitingConfirmation(let prompt, _), .transcriptFinal):
+            return [.narrate("Waiting on a confirmation — say \"confirm\" or \"cancel\". \(prompt)"),
+                    .scheduleTimeout(seconds: Self.confirmationTimeout)]
 
         default:
             return [] // stale or irrelevant events never disturb the pipeline

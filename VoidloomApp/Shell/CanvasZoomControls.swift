@@ -120,6 +120,7 @@ private struct CanvasZoomButton: View {
     var body: some View {
         Button(action: { if isEnabled { action() } }) {
             Image(systemName: systemName)
+                .accessibilityLabel(label)
                 .font(.system(size: iconSize, weight: .bold))
                 .frame(width: side, height: side)
                 .foregroundStyle(theme.ink(isEnabled ? 0.84 : 0.22))

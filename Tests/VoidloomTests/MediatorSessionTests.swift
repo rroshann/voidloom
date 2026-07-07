@@ -37,7 +37,7 @@ final class MediatorSessionTests: XCTestCase {
         var machine = MediatorSessionMachine.executing(pending)
         XCTAssertEqual(
             machine.handle(.executionFinished(.needsConfirmation(prompt: "Close omen?", pending: pending))),
-            [.scheduleTimeout(seconds: 10)]
+            [.scheduleTimeout(seconds: 30)]
         )
         XCTAssertEqual(machine.state, .awaitingConfirmation(prompt: "Close omen?", pending: pending))
 
@@ -131,5 +131,38 @@ final class MediatorSessionTests: XCTestCase {
         _ = machine.handle(.wakeDetected)
         XCTAssertEqual(machine.handle(.typedUtterance("typed while mic open")), [])
         XCTAssertEqual(machine.state, .capturing(transcript: ""))
+    }
+
+    func testNonConfirmUtteranceWhileAwaitingConfirmationRepromptsAndRearmsTimeout() {
+        let pending = MediatorCommand.closeTerminal(target: "omen")
+        var machine = MediatorSessionMachine.executing(pending)
+        _ = machine.handle(.executionFinished(.needsConfirmation(prompt: "Close omen?", pending: pending)))
+
+        XCTAssertEqual(
+            machine.handle(.typedUtterance("start 2 claude agents")),
+            [.narrate("Waiting on a confirmation — say \"confirm\" or \"cancel\". Close omen?"),
+             .scheduleTimeout(seconds: MediatorSessionMachine.confirmationTimeout)]
+        )
+        XCTAssertEqual(machine.state, .awaitingConfirmation(prompt: "Close omen?", pending: pending))
+
+        XCTAssertEqual(
+            machine.handle(.transcriptFinal("what about the build")),
+            [.narrate("Waiting on a confirmation — say \"confirm\" or \"cancel\". Close omen?"),
+             .scheduleTimeout(seconds: MediatorSessionMachine.confirmationTimeout)]
+        )
+        XCTAssertEqual(machine.state, .awaitingConfirmation(prompt: "Close omen?", pending: pending))
+    }
+
+    func testStrayConfirmWordsAtIdleNarrateInsteadOfParsing() {
+        var machine = MediatorSessionMachine()
+        for word in ["confirm", "Cancel", "yes", "NO"] {
+            XCTAssertEqual(machine.handle(.typedUtterance(word)), [.narrate("Nothing to confirm.")],
+                           "stray \(word) should not reach the parser")
+            XCTAssertEqual(machine.state, .idle)
+        }
+    }
+
+    func testConfirmationWindowIsThirtySeconds() {
+        XCTAssertEqual(MediatorSessionMachine.confirmationTimeout, 30)
     }
 }
