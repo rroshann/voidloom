@@ -14,6 +14,7 @@ struct StartupView: View {
     @State private var searchText = ""
     @State private var showAll = false
     @State private var hoveredRowID: UUID?
+    @State private var keyboardSelectedID: UUID?
 
     private var sorted: [WorkspaceSummary] {
         store.library.workspaces.sorted { $0.updatedAt > $1.updatedAt }
@@ -96,6 +97,18 @@ struct StartupView: View {
                     .fill(.white.opacity(0.08))
                     .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(.white.opacity(0.1), lineWidth: 1))
             )
+            // Spotlight/Raycast pattern: keep the search field focused, but let
+            // ↑/↓ move a highlight through the results and ⏎ open it.
+            .onKeyPress(.downArrow) { moveKeyboardSelection(1); return .handled }
+            .onKeyPress(.upArrow) { moveKeyboardSelection(-1); return .handled }
+            .onKeyPress(.return) {
+                let list = displayedWorkspaces
+                if let id = keyboardSelectedID, let ws = list.first(where: { $0.id == id }) {
+                    open(ws); return .handled
+                }
+                if let only = list.first, list.count == 1 { open(only); return .handled }
+                return .ignored
+            }
     }
 
     private var workspaceList: some View {
@@ -171,8 +184,10 @@ struct StartupView: View {
         .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.white.opacity(hoveredRowID == ws.id ? 0.09 : 0.05))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(.white.opacity(0.08), lineWidth: 1))
+                .fill(.white.opacity(hoveredRowID == ws.id || keyboardSelectedID == ws.id ? 0.09 : 0.05))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(keyboardSelectedID == ws.id ? Color.accentColor.opacity(0.7) : .white.opacity(0.08),
+                            lineWidth: keyboardSelectedID == ws.id ? 1.5 : 1))
         )
         .contentShape(Rectangle())
         .onTapGesture { if editingID != ws.id { open(ws) } }
@@ -228,6 +243,14 @@ struct StartupView: View {
         .buttonStyle(.borderedProminent)
         .tint(theme.accent)
         .frame(maxWidth: 260)
+    }
+
+    private func moveKeyboardSelection(_ delta: Int) {
+        let list = displayedWorkspaces
+        guard !list.isEmpty else { return }
+        let current = list.firstIndex { $0.id == keyboardSelectedID } ?? (delta > 0 ? -1 : 0)
+        let next = min(max(current + delta, 0), list.count - 1)
+        keyboardSelectedID = list[next].id
     }
 
     private func open(_ ws: WorkspaceSummary) {
