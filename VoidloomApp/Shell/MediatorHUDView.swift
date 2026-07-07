@@ -12,7 +12,24 @@ struct MediatorHUDView: View {
     @FocusState private var inputFocused: Bool
     @State private var refocusTask: Task<Void, Never>?
     @State private var hintIndex = 0
+    @State private var showNarration = false
+    @State private var narrationDismissTask: Task<Void, Never>?
+    @State private var boxPulse = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// While the mic is capturing, the machine's `.capturing` state carries the
+    /// live transcript — surfacing it lets the user SEE what Sunday heard.
+    private var listeningTranscript: String? {
+        if case .capturing(let text) = mediator.state { return text }
+        return nil
+    }
+    private var isListening: Bool {
+        if case .capturing = mediator.state { return true }
+        return false
+    }
+    /// The whole pill glows/pulses while Sunday is listening or working, so the
+    /// user knows something is happening (not just a small icon).
+    private var isBoxActive: Bool { isListening || isThinking }
 
     /// Rotating examples so users discover Sunday's breadth beyond spawning.
     private static let hints = [
@@ -38,7 +55,7 @@ struct MediatorHUDView: View {
 
     var body: some View {
         VStack(spacing: 8) {
-            if !mediator.narration.isEmpty {
+            if showNarration, !mediator.narration.isEmpty {
                 narrationBubble
             }
             if case .awaitingConfirmation(let prompt, _) = mediator.state {
@@ -83,25 +100,58 @@ struct MediatorHUDView: View {
                     .symbolEffect(.variableColor.iterative, isActive: isThinking && !reduceMotion)
                     .contentTransition(.symbolEffect(.replace))
                     .accessibilityHidden(true)
-                TextField(placeholder, text: $input)
-                    .textFieldStyle(.plain)
-                    .focused($inputFocused)
-                    .accessibilityIdentifier("mediator.input")
-                    // Stable label — the visible placeholder rotates, but VoiceOver
-                    // should always hear the same thing.
-                    .accessibilityLabel("Ask \(AssistantIdentity.name)")
-                    .onSubmit(submit)
-                    .onReceive(hintTimer) { _ in
-                        // Rotate only while empty (never mid-typing); reduce motion
-                        // pins to the first hint.
-                        guard !reduceMotion, input.isEmpty else { return }
-                        withAnimation(.easeInOut(duration: 0.4)) { hintIndex += 1 }
-                    }
+                if isListening {
+                    // Voice: show what Sunday is hearing, live, in place of the field.
+                    Text(listeningTranscript?.isEmpty == false ? listeningTranscript! : "Listening…")
+                        .foregroundStyle(listeningTranscript?.isEmpty == false ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
+                        .lineLimit(1)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .accessibilityLabel(listeningTranscript?.isEmpty == false ? "Heard: \(listeningTranscript!)" : "Listening")
+                } else {
+                    TextField(placeholder, text: $input)
+                        .textFieldStyle(.plain)
+                        .focused($inputFocused)
+                        .accessibilityIdentifier("mediator.input")
+                        // Stable label — the visible placeholder rotates, but VoiceOver
+                        // should always hear the same thing.
+                        .accessibilityLabel("Ask \(AssistantIdentity.name)")
+                        .onSubmit(submit)
+                        .onReceive(hintTimer) { _ in
+                            // Rotate only while empty (never mid-typing); reduce motion
+                            // pins to the first hint.
+                            guard !reduceMotion, input.isEmpty else { return }
+                            withAnimation(.easeInOut(duration: 0.4)) { hintIndex += 1 }
+                        }
+                }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .frame(width: 420)
             .background(.ultraThinMaterial, in: Capsule())
+            .overlay(
+                // The whole pill glows while listening/working — a bigger, calmer
+                // signal than the small icon that something is happening.
+                Capsule()
+                    .strokeBorder(.tint, lineWidth: 1.5)
+                    .opacity(isBoxActive ? (boxPulse ? 0.85 : 0.28) : 0)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.7).repeatForever(autoreverses: true), value: boxPulse)
+            )
+        }
+        .onChange(of: isBoxActive) { _, active in
+            boxPulse = active && !reduceMotion
+        }
+        .onChange(of: mediator.narration) { _, new in
+            // Sunday's reply is transient: show it, keep it up while streaming, then
+            // fade it ~3s after it settles. The stored copy lives in the sidebar.
+            narrationDismissTask?.cancel()
+            guard !new.isEmpty else { showNarration = false; return }
+            showNarration = true
+            narrationDismissTask = Task {
+                while mediator.isStreamingReply { try? await Task.sleep(nanoseconds: 200_000_000) }
+                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                guard !Task.isCancelled else { return }
+                withAnimation(.easeInOut(duration: 0.4)) { showNarration = false }
+            }
         }
         // ⌘J (Focus Mediator): terminal cards hold first responder — especially
         // after workspace restore — so the HUD needs a keyboard path back in.
