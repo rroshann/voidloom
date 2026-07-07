@@ -127,16 +127,21 @@ struct AIConversationSidebar: View {
     }
 
     private var emptyState: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Spacer()
 
-            Text("No conversation yet")
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(theme.ink(0.6))
+            Image(systemName: "sparkles")
+                .font(.system(size: 22, weight: .light))
+                .foregroundStyle(theme.accent)
+                .accessibilityHidden(true)
 
-            Text("Ask \(AssistantIdentity.name) to add cards, reorganize this workspace, or answer questions about it.")
+            Text("Talk to \(AssistantIdentity.name)")
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .foregroundStyle(theme.ink(0.7))
+
+            Text("Ask \(AssistantIdentity.name) to add cards, reorganize this workspace, or answer questions about what's here.")
                 .font(.system(size: 12, weight: .medium, design: .rounded))
-                .foregroundStyle(theme.ink(0.38))
+                .foregroundStyle(theme.ink(0.42))
                 .fixedSize(horizontal: false, vertical: true)
 
             Spacer()
