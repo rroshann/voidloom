@@ -11,8 +11,10 @@ struct AIConversationSidebar: View {
     let onSubmit: (String) -> Void
     let onRetry: (UUID) -> Void
     let onClose: () -> Void
+    let onClearHistory: () -> Void
 
     @State private var input = ""
+    @State private var showClearConfirm = false
     @State private var hasChatBackend = false
     @EnvironmentObject private var modelAssets: ModelAssetManager
     @FocusState private var isInputFocused: Bool
@@ -111,6 +113,26 @@ struct AIConversationSidebar: View {
                 .foregroundStyle(theme.ink(0.48))
 
             Spacer(minLength: 0)
+
+            if !messages.isEmpty {
+                Button { showClearConfirm = true } label: {
+                    Image(systemName: "trash")
+                        .font(.system(size: 11, weight: .bold))
+                        .frame(width: 24, height: 24)
+                        .foregroundStyle(theme.ink(0.7))
+                        .background(theme.surface(0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .pointerCursor()
+                .help("Clear conversation — Sunday forgets this chat")
+                .accessibilityLabel("Clear conversation history")
+                .confirmationDialog("Clear this conversation?", isPresented: $showClearConfirm, titleVisibility: .visible) {
+                    Button("Clear history", role: .destructive) { onClearHistory() }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("Sunday will forget this conversation for this workspace. This can't be undone.")
+                }
+            }
 
             Button(action: onClose) {
                 Image(systemName: "xmark")
@@ -373,7 +395,8 @@ private struct PulsingDots: View {
         ],
         onSubmit: { _ in },
         onRetry: { _ in },
-        onClose: {}
+        onClose: {},
+        onClearHistory: {}
     )
     .environmentObject(ModelAssetManager())
     .frame(width: 340, height: 760)

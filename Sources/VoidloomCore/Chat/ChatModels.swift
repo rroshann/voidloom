@@ -76,4 +76,13 @@ public protocol ResponseProvider: AnyObject, Sendable {
         onComplete: @escaping (String) -> Void,
         onError: @escaping (String) -> Void
     )
+
+    /// Forget everything remembered for this workspace's conversation, so after a
+    /// "clear history" the assistant no longer references the prior chat. Stateless
+    /// providers can ignore it (the default no-op).
+    @MainActor func resetConversation(workspaceID: UUID)
+}
+
+public extension ResponseProvider {
+    @MainActor func resetConversation(workspaceID: UUID) {}
 }

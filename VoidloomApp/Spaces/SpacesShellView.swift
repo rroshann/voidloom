@@ -266,7 +266,8 @@ struct SpacesShellView: View {
                             withAnimation(.easeInOut(duration: 0.24)) {
                                 isAIConversationVisible = false
                             }
-                        }
+                        },
+                        onClearHistory: { conversationStore.clear(workspaceID: activeWorkspaceID) }
                     )
                     .transition(.move(edge: .trailing).combined(with: .opacity))
                     .zIndex(1)

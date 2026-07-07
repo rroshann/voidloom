@@ -77,12 +77,17 @@ struct RootView: View {
         coordinator.chatFallback = { utterance, onChunk in
             await context.refreshGit()
             let grounded = context.snapshot()
-            return try await Self.streamChat(
+            let workspaceID = store.library.selectedWorkspaceID
+            let reply = try await Self.streamChat(
                 chatProvider,
-                workspaceID: store.library.selectedWorkspaceID,
+                workspaceID: workspaceID,
                 message: utterance,
                 context: grounded,
                 onChunk: onChunk)
+            // The pill streamed the reply into the HUD; record the exchange so it
+            // joins (and persists in) the same history the sidebar shows.
+            conversationStore.record(workspaceID: workspaceID, userText: utterance, assistantText: reply)
+            return reply
         }
         // Delegation: repo-technical questions run through the user's agent CLI
         // (Claude/Codex per the setting) in the project folder; the answer relays
