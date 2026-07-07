@@ -19,11 +19,14 @@ public final class CommandExecutor {
     private let store: WorkspaceStore
     private let terminals: AgentTerminalControlling
     private let namePool: AgentNamePool
+    public let memory: AgentMemory
 
-    public init(store: WorkspaceStore, terminals: AgentTerminalControlling, namePool: AgentNamePool) {
+    public init(store: WorkspaceStore, terminals: AgentTerminalControlling,
+                namePool: AgentNamePool, memory: AgentMemory = AgentMemory()) {
         self.store = store
         self.terminals = terminals
         self.namePool = namePool
+        self.memory = memory
     }
 
     public func execute(_ command: MediatorCommand, confirmed: Bool = false) -> ExecutionResult {
@@ -33,6 +36,7 @@ public final class CommandExecutor {
         case .sendPrompt(let target, let text):
             return withAgent(named: target) { id, name in
                 terminals.send(text: text, to: id)
+                memory.record(cardID: id, action: .received(text))
                 return .success(narration: "→ \(name)")
             }
         case .readOutput(let target):
@@ -130,6 +134,32 @@ public final class CommandExecutor {
             // so the coordinator runs it and never routes it here. This is an
             // unreachable safety only.
             return .refused(reason: "Delegation isn't available right now.")
+
+        case .relayBetweenAgents(let from, let to):
+            return withAgent(named: from) { fromID, fromName in
+                withAgent(named: to) { toID, toName in
+                    guard fromID != toID else {
+                        return .needsClarification(question: "Relay needs two different agents.")
+                    }
+                    let output = terminals.recentOutput(of: fromID, maxLines: Self.outputLines)
+                    let body = output.isEmpty ? "\(fromName) has no output yet." : output.joined(separator: "\n")
+                    terminals.send(text: "Context from \(fromName): \(body)", to: toID)
+                    memory.record(cardID: toID, action: .relayed(from: fromName))
+                    return .success(narration: "Relayed \(fromName) → \(toName)")
+                }
+            }
+
+        case .briefAgent(let target):
+            return withAgent(named: target) { id, name in
+                let others = agentCards()
+                let roster = memory.roster(for: others, excluding: id)
+                guard !roster.isEmpty else {
+                    return .success(narration: "\(name) is the only agent here.")
+                }
+                terminals.send(text: "Other agents in this workspace — \(roster).", to: id)
+                memory.record(cardID: id, action: .received("a briefing on the other agents"))
+                return .success(narration: "Briefed \(name) on the others")
+            }
         }
     }
 
@@ -155,6 +185,7 @@ public final class CommandExecutor {
         for name in finalNames {
             let id = store.addTitledCard(kind: .agent, title: name)
             terminals.spawn(cardID: id, kind: kind, workingDirectory: workingDirectory)
+            memory.record(cardID: id, action: .spawned)
         }
         let noun = count == 1 ? "agent" : "agents"
         return .success(narration: "Spawned \(count) \(kind.rawValue) \(noun): \(finalNames.joined(separator: ", "))")

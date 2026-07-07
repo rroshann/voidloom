@@ -36,15 +36,22 @@ final class FoundationModelsBrain: MediatorBrain, @unchecked Sendable {
     }
 
     static let defaultSystemPrompt = """
-    You translate a single spoken workspace command into one structured command matching the schema. \
+    You translate ONE spoken workspace command into a structured command. Fill EXACTLY ONE \
+    of the command fields — the single best match — and leave every other field null. Never \
+    fill spawnAgents unless the user clearly asks to create or start agents. \
     Examples:
-    ask ember to fix the build -> sendPrompt target ember text fix the build
-    start 4 claude agents -> spawnAgents count 4 kind claude
-    switch to research -> switchSpace name research
-    close ember -> closeTerminal target ember
-    read what slate is saying -> readOutput target slate
-    tile the windows in a grid -> arrange style grid
-    make a todo that says buy milk -> createCard kind todo content buy milk
+    ask ember to fix the build -> sendPrompt(target: ember, text: fix the build)
+    start 4 claude agents -> spawnAgents(count: 4, kind: claude)
+    switch to research -> switchSpace(name: research)
+    go to the design space -> switchSpace(name: design)
+    close ember -> closeTerminal(target: ember)
+    read what slate is saying -> readOutput(target: slate)
+    tile the windows in a grid -> arrange(grid)
+    make a todo that says buy milk -> createCard(kind: todo, content: buy milk)
+    rename ember to scout -> renameCard(target: ember, newName: scout)
+    ask ember about how persistence works -> delegate(question: how persistence works, target: ember)
+    relay ember to slate -> relayBetweenAgents(from: ember, to: slate)
+    brief ember -> briefAgent(target: ember)
     """
 
     private static func unavailableMessage(

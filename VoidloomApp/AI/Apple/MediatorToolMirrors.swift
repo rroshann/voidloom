@@ -12,7 +12,7 @@ enum MediatorToolMirrors {
         "spawnAgents", "sendPrompt", "readOutput", "closeTerminal",
         "arrange", "createCard", "switchSpace", "setBackground",
         "renameCard", "deleteCard", "editNote", "addTodoItem", "setTodoItemDone",
-        "delegate",
+        "delegate", "relayBetweenAgents", "briefAgent",
     ]
 
     /// Canonical mirror instance per schema sample (for round-trip parity tests).
@@ -46,6 +46,10 @@ enum MediatorToolMirrors {
             return SetTodoItemDoneMirror(target: "chores", text: "buy milk", done: true)
         case "delegate":
             return DelegateMirror(question: "how does persistence work", target: "ember")
+        case "relayBetweenAgents":
+            return RelayBetweenAgentsMirror(from: "ember", to: "slate")
+        case "briefAgent":
+            return BriefAgentMirror(target: "ember")
         default:
             return nil
         }
@@ -251,6 +255,27 @@ struct DelegateMirror: MediatorCommandMirroring {
     }
 }
 
+@available(macOS 26, *)
+@Generable
+struct RelayBetweenAgentsMirror: MediatorCommandMirroring {
+    var from: String
+    var to: String
+
+    func toCommand() throws -> MediatorCommand {
+        .relayBetweenAgents(from: from, to: to)
+    }
+}
+
+@available(macOS 26, *)
+@Generable
+struct BriefAgentMirror: MediatorCommandMirroring {
+    var target: String
+
+    func toCommand() throws -> MediatorCommand {
+        .briefAgent(target: target)
+    }
+}
+
 // MARK: - Top-level guided-generation container (one wire case active)
 
 @available(macOS 26, *)
@@ -270,13 +295,15 @@ struct MediatorCommandMirror {
     var addTodoItem: AddTodoItemMirror?
     var setTodoItemDone: SetTodoItemDoneMirror?
     var delegate: DelegateMirror?
+    var relayBetweenAgents: RelayBetweenAgentsMirror?
+    var briefAgent: BriefAgentMirror?
 
     func toCommand() throws -> MediatorCommand {
         let mirrors: [(any MediatorCommandMirroring)?] = [
             spawnAgents, sendPrompt, readOutput, closeTerminal,
             arrange, createCard, switchSpace, setBackground,
             renameCard, deleteCard, editNote, addTodoItem, setTodoItemDone,
-            delegate,
+            delegate, relayBetweenAgents, briefAgent,
         ]
         let selected = mirrors.compactMap { $0 }
         guard selected.count == 1, let mirror = selected.first else {

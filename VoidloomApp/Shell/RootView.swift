@@ -51,9 +51,12 @@ struct RootView: View {
         }
         voiceRouter = router
 
+        // One AgentMemory shared by the executor (writes) and the context
+        // provider (reads) so Sunday and the agents stay aware of each other.
+        let memory = AgentMemory()
         let coordinator = MediatorSessionCoordinator(
             brain: MediatorBrainFactory.makeBrain(assets: modelAssets),
-            executor: CommandExecutor(store: store, terminals: sessionManager, namePool: AgentNamePool()),
+            executor: CommandExecutor(store: store, terminals: sessionManager, namePool: AgentNamePool(), memory: memory),
             transcriber: router
         )
         if let router {
@@ -66,7 +69,7 @@ struct RootView: View {
             }
         }
         let context = AssistantContextProvider(
-            store: store, sessionManager: sessionManager, modelAssets: modelAssets)
+            store: store, sessionManager: sessionManager, modelAssets: modelAssets, agentMemory: memory)
 
         // Conversational pill: utterances no brain can parse as a command go to
         // the same chat backend the Assistant sidebar uses — grounded in the live

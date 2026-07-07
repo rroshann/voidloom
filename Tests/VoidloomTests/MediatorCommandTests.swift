@@ -44,7 +44,7 @@ final class MediatorCommandSchemaTests: XCTestCase {
             ["spawnAgents", "sendPrompt", "readOutput", "closeTerminal",
              "arrange", "createCard", "switchSpace", "setBackground",
              "renameCard", "deleteCard", "editNote", "addTodoItem", "setTodoItemDone",
-             "delegate"]
+             "delegate", "relayBetweenAgents", "briefAgent"]
         )
     }
 

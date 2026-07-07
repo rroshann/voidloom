@@ -139,6 +139,18 @@ final class FastPathBrainTests: XCTestCase {
         XCTAssertEqual(b, .delegate(question: "summarize the persistence layer", target: nil))
     }
 
+    func testRelayVerbsMapToRelayBetweenAgents() async throws {
+        let a = try await parse("relay ember to slate")
+        XCTAssertEqual(a, .relayBetweenAgents(from: "ember", to: "slate"))
+        let b = try await parse("have ember tell slate")
+        XCTAssertEqual(b, .relayBetweenAgents(from: "ember", to: "slate"))
+    }
+
+    func testBriefVerbMapsToBriefAgent() async throws {
+        let a = try await parse("brief ember")
+        XCTAssertEqual(a, .briefAgent(target: "ember"))
+    }
+
     func testCrudVerbsNeedTheirConnectorsElseUnparseable() async {
         // No " to " / " in " → FastPath abstains and llama/chat handles it.
         for bad in ["rename ember", "append ship it", "add buy milk", "check buy milk"] {

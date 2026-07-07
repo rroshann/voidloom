@@ -400,6 +400,48 @@ final class CommandExecutorTests: XCTestCase {
         let result = makeExecutor(store, terminals).execute(.renameCard(target: "ghost", newName: "x"))
         XCTAssertEqual(result, .needsClarification(question: "I don't see a card called ghost."))
     }
+
+    // MARK: - Agent memory (Turn 2)
+
+    func testSpawnAndPromptRecordAgentActivity() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let exec = makeExecutor(store, terminals)
+        _ = exec.execute(.spawnAgents(count: 1, kind: .claudeCode, names: ["ember"]))
+        let id = store.state.cards.first { $0.title == "ember" }!.id
+        XCTAssertEqual(exec.memory.activity(for: id), "just started")
+        _ = exec.execute(.sendPrompt(target: "ember", text: "fix the build"))
+        XCTAssertEqual(exec.memory.activity(for: id), "asked to fix the build")
+    }
+
+    func testRelayReadsSourceOutputAndSendsToTarget() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let fromID = store.addTitledCard(kind: .agent, title: "ember")
+        let toID = store.addTitledCard(kind: .agent, title: "slate")
+        terminals.outputByCard[fromID] = ["found the bug in Store.swift"]
+        let result = makeExecutor(store, terminals).execute(.relayBetweenAgents(from: "ember", to: "slate"))
+        XCTAssertEqual(result, .success(narration: "Relayed ember → slate"))
+        XCTAssertEqual(terminals.sent.last?.cardID, toID)
+        XCTAssertTrue(terminals.sent.last?.text.contains("found the bug in Store.swift") == true)
+    }
+
+    func testRelayToSameAgentIsRejected() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        store.addTitledCard(kind: .agent, title: "ember")
+        let result = makeExecutor(store, terminals).execute(.relayBetweenAgents(from: "ember", to: "ember"))
+        XCTAssertEqual(result, .needsClarification(question: "Relay needs two different agents."))
+    }
+
+    func testBriefSendsRosterOfOtherAgents() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let exec = makeExecutor(store, terminals)
+        _ = exec.execute(.spawnAgents(count: 2, kind: .claudeCode, names: ["ember", "slate"]))
+        _ = exec.execute(.sendPrompt(target: "slate", text: "fix the build"))
+        let result = exec.execute(.briefAgent(target: "ember"))
+        XCTAssertEqual(result, .success(narration: "Briefed ember on the others"))
+        let briefing = terminals.sent.last!
+        XCTAssertTrue(briefing.text.contains("slate: asked to fix the build"))
+        XCTAssertFalse(briefing.text.contains("ember:"))
+    }
 }
 
 final class PreworkCleanupTests: XCTestCase {

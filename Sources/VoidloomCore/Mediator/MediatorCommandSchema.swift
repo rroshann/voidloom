@@ -84,6 +84,13 @@ public enum MediatorCommandSchema {
             Parameter(name: "question", kind: .string, required: true),
             Parameter(name: "target", kind: .string, required: false),
         ]),
+        Case(name: "relayBetweenAgents", parameters: [
+            Parameter(name: "from", kind: .string, required: true),
+            Parameter(name: "to", kind: .string, required: true),
+        ]),
+        Case(name: "briefAgent", parameters: [
+            Parameter(name: "target", kind: .string, required: true),
+        ]),
     ]
 
     /// One canonical wire sample per case. Every sample must decode into
@@ -103,6 +110,8 @@ public enum MediatorCommandSchema {
         "addTodoItem": #"{"addTodoItem":{"target":"chores","text":"buy milk"}}"#,
         "setTodoItemDone": #"{"setTodoItemDone":{"target":"chores","text":"buy milk","done":true}}"#,
         "delegate": #"{"delegate":{"question":"how does persistence work","target":"ember"}}"#,
+        "relayBetweenAgents": #"{"relayBetweenAgents":{"from":"ember","to":"slate"}}"#,
+        "briefAgent": #"{"briefAgent":{"target":"ember"}}"#,
     ]
 
     /// Allowed values for `.agentKind` parameters — the grammar constrains

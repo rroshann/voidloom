@@ -54,6 +54,22 @@ public final class FastPathBrain: MediatorBrain {
         case "research", "delegate", "investigate":
             let question = originalWords.dropFirst().joined(separator: " ").trimmingCharacters(in: .whitespaces)
             return question.isEmpty ? nil : .delegate(question: question, target: nil)
+        case "relay":
+            guard let (from, to) = splitOnConnector("to", in: originalWords, firstOccurrence: true) else { return nil }
+            return .relayBetweenAgents(from: from, to: to)
+        case "have":
+            // "have ember tell slate" / "have ember brief slate" → relay.
+            if let (from, to) = splitOnConnector("tell", in: originalWords, firstOccurrence: true) {
+                return .relayBetweenAgents(from: from, to: to)
+            }
+            if let (from, to) = splitOnConnector("brief", in: originalWords, firstOccurrence: true) {
+                return .relayBetweenAgents(from: from, to: to)
+            }
+            return nil
+        case "brief", "catch-up":
+            guard words.count >= 2 else { return nil }
+            let target = words.dropFirst().filter { $0 != "up" }.joined(separator: " ")
+            return target.isEmpty ? nil : .briefAgent(target: target)
         case "read", "show":
             guard words.count >= 2 else { return nil }
             return .readOutput(target: strippedName(words[1]))

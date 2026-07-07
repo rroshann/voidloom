@@ -12,14 +12,17 @@ final class AssistantContextProvider: ObservableObject {
     private let store: WorkspaceStore
     private let sessionManager: AgentSessionManager
     private let modelAssets: ModelAssetManager
+    private let agentMemory: AgentMemory
 
     @Published private(set) var gitSummary: String?
     private var lastGitFolder: String?
 
-    init(store: WorkspaceStore, sessionManager: AgentSessionManager, modelAssets: ModelAssetManager) {
+    init(store: WorkspaceStore, sessionManager: AgentSessionManager,
+         modelAssets: ModelAssetManager, agentMemory: AgentMemory = AgentMemory()) {
         self.store = store
         self.sessionManager = sessionManager
         self.modelAssets = modelAssets
+        self.agentMemory = agentMemory
     }
 
     /// The full context string. Synchronous and always current except for git,
@@ -86,7 +89,13 @@ final class AssistantContextProvider: ObservableObject {
     private func detail(for card: WorkspaceCard) -> String? {
         switch card.kind {
         case .agent:
-            return sessionManager.session(for: card.id)?.isRunning == true ? "running" : "idle"
+            let state = sessionManager.session(for: card.id)?.isRunning == true ? "running" : "idle"
+            // Fold in what the agent is doing (from AgentMemory) so Sunday can
+            // answer "what is slate up to?" and reason about the whole team.
+            if let activity = agentMemory.activity(for: card.id) {
+                return "\(state) · \(activity)"
+            }
+            return state
         case .note, .todo:
             let text = card.content.trimmingCharacters(in: .whitespacesAndNewlines)
             return text.isEmpty ? nil : text

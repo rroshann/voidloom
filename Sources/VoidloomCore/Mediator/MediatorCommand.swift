@@ -40,4 +40,8 @@ public enum MediatorCommand: Codable, Equatable, Sendable {
     // Phase C — delegation: hand a repo-technical question to an agent CLI and
     // relay its answer. `target` nil means "pick or spawn an agent".
     case delegate(question: String, target: String?)
+    // Agent memory: relay one agent's recent output to another; brief an agent on
+    // what the others are doing.
+    case relayBetweenAgents(from: String, to: String)
+    case briefAgent(target: String)
 }
