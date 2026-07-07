@@ -194,7 +194,9 @@ struct MediatorHUDView: View {
     }
 
     private var stateIcon: String {
-        switch mediator.state {
+        // Delegation reads as consulting another agent, distinct from thinking.
+        if mediator.isDelegating { return "person.wave.2.fill" }
+        return switch mediator.state {
         case .idle: "waveform"
         case .capturing: "dot.radiowaves.left.and.right"
         case .parsing: "brain"

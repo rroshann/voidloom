@@ -32,6 +32,10 @@ public final class MediatorSessionCoordinator: ObservableObject {
     /// affordance. Set when the chat leg begins, cleared when it resolves.
     @Published public private(set) var isStreamingReply: Bool = false
 
+    /// True while a delegation is in flight (an agent CLI is working), so the HUD
+    /// can show a distinct "consulting an agent" state rather than plain thinking.
+    @Published public private(set) var isDelegating: Bool = false
+
     /// Runs a delegated question through an agent CLI and relays the answer.
     /// Always returns user-facing text (owns its own errors + timeout); streams
     /// progress via `onChunk`. Set by the app; nil disables delegation.
@@ -93,6 +97,7 @@ public final class MediatorSessionCoordinator: ObservableObject {
             delegateTask?.cancel(); delegateTask = nil
             timeoutTask?.cancel(); timeoutTask = nil
             isStreamingReply = false
+            isDelegating = false
         }
         isBusy = !(state == .idle) && !isAwaitingConfirmation
         for effect in effects { perform(effect) }
@@ -110,6 +115,7 @@ public final class MediatorSessionCoordinator: ObservableObject {
     /// machine to idle, which cancels this task.
     private func runDelegation(question: String, target: String?, handler: @escaping DelegateHandler) {
         isStreamingReply = true
+        isDelegating = true
         narration = target.map { "Asking \($0)…" } ?? "Delegating…"
         delegateTask?.cancel()
         delegateTask = Task { [weak self] in
@@ -121,6 +127,7 @@ public final class MediatorSessionCoordinator: ObservableObject {
             let answer = await handler(question, target, onChunk)
             guard !Task.isCancelled else { return }
             self.isStreamingReply = false
+            self.isDelegating = false
             self.send(.executionFinished(.success(narration: answer)))
         }
     }
