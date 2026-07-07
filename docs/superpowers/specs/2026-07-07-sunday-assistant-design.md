@@ -77,9 +77,20 @@ re-validate live against llama) → FM `@Generable` mirrors (parity tests) → F
 
 ## Phase C — Delegation (the Jarvis move)
 
-**C0 prerequisite — agent cards run real agents.** `spawn(kind: .claudeCode)` launches the CLI in the
-PTY after the shell starts (settings: per-kind launch command, default `claude`). Missing CLI detected
-(`which claude` in the login shell) → card banner + narration hint instead of a dead prompt.
+**C0 — DEFERRED (user decision).** Delegation runs `claude -p` as a clean, captured subprocess
+(ProcessAgentCommandRunner) rather than inside a card's PTY, so it does NOT require agent cards to be
+running the CLI — this is more robust (no scrollback parsing) and keeps the QA'd bare-shell spawn behavior
+unchanged. Making `spawn(kind:.claudeCode)` auto-launch the provider CLI in the terminal is a separate
+behavior change to confirm with the user before shipping (some may want bare shells).
+
+**Delegation as built (Phase C):** `delegate(question, target?)` command; FastPath verbs "ask X about …"
+(vs "ask X to …" = sendPrompt), "research …", "delegate …", "investigate …". The coordinator intercepts
+`.delegate` and runs it async (streamed into the HUD, cancellable — the machine now allows cancel in
+`.executing`). DelegationService picks the provider from the `agent.provider` setting, runs
+`provider.printCommand(question)` in the workspace folder via a login shell (PATH resolves the CLI),
+strips ANSI, caps to 30 lines, attributes the answer ("ember (Claude): …"). Missing CLI / timeout /
+failure each return a friendly message. Verified: real `claude -p` call returns cleanly; 7 service unit
+tests; full command-pipeline + FM parity for the 14-case grammar.
 
 **C1 — the `delegate(question, target?)` flow:**
 1. Routing v1 is explicit and predictable: "ask ember …", "ask an agent …", "deep dive …" verbs, plus a

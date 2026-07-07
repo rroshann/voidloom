@@ -379,6 +379,7 @@ private struct AISettingsTab: View {
     @AppStorage("ai.memory") private var memory: Memory = .session
     @AppStorage("ai.sendSelectedCard") private var sendSelectedCard = true
     @AppStorage("ai.customInstructions") private var customInstructions = ""
+    @AppStorage("agent.provider") private var agentProvider: AgentProvider = .claude
     @State private var persistConversations = false
     @EnvironmentObject private var modelAssets: ModelAssetManager
 
@@ -393,6 +394,16 @@ private struct AISettingsTab: View {
                 .pickerStyle(.segmented)
 
                 Toggle("Send selected card as context", isOn: $sendSelectedCard)
+            }
+
+            Section("Agents") {
+                Picker("Primary provider", selection: $agentProvider) {
+                    ForEach(AgentProvider.allCases) { Text($0.displayName).tag($0) }
+                }
+                .pickerStyle(.segmented)
+                Text("Sunday launches this CLI in terminal cards and delegates repo questions to it. More providers coming; delegation uses your own account.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
             }
 
             Section("System Prompt") {

@@ -45,7 +45,15 @@ public final class FastPathBrain: MediatorBrain {
         case "spawn", "start", "open", "launch":
             return parseSpawn(Array(words.dropFirst()))
         case "ask", "tell", "prompt":
+            // "ask ember about <q>" delegates a question; "ask ember to <text>"
+            // types <text> into the shell. The connector disambiguates.
+            if let (agent, question) = splitOnConnector("about", in: originalWords, firstOccurrence: true) {
+                return .delegate(question: question, target: agent)
+            }
             return parseSendPrompt(Array(words.dropFirst()), original: Array(originalWords.dropFirst()))
+        case "research", "delegate", "investigate":
+            let question = originalWords.dropFirst().joined(separator: " ").trimmingCharacters(in: .whitespaces)
+            return question.isEmpty ? nil : .delegate(question: question, target: nil)
         case "read", "show":
             guard words.count >= 2 else { return nil }
             return .readOutput(target: strippedName(words[1]))

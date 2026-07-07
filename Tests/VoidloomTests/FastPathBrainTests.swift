@@ -123,6 +123,22 @@ final class FastPathBrainTests: XCTestCase {
         XCTAssertEqual(unchecked, .setTodoItemDone(target: "chores", text: "buy milk", done: false))
     }
 
+    // MARK: - Phase C: delegation
+
+    func testAskAboutDelegatesWhileAskToStillSendsPrompt() async throws {
+        let deleg = try await parse("ask ember about how does persistence work")
+        XCTAssertEqual(deleg, .delegate(question: "how does persistence work", target: "ember"))
+        let prompt = try await parse("ask ember to fix the build")
+        XCTAssertEqual(prompt, .sendPrompt(target: "ember", text: "fix the build"))
+    }
+
+    func testResearchAndDelegateVerbsDelegateWithoutATarget() async throws {
+        let a = try await parse("research how the debounce works")
+        XCTAssertEqual(a, .delegate(question: "how the debounce works", target: nil))
+        let b = try await parse("delegate summarize the persistence layer")
+        XCTAssertEqual(b, .delegate(question: "summarize the persistence layer", target: nil))
+    }
+
     func testCrudVerbsNeedTheirConnectorsElseUnparseable() async {
         // No " to " / " in " → FastPath abstains and llama/chat handles it.
         for bad in ["rename ember", "append ship it", "add buy milk", "check buy milk"] {

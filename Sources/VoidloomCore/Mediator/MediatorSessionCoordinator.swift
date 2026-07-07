@@ -32,6 +32,13 @@ public final class MediatorSessionCoordinator: ObservableObject {
     /// affordance. Set when the chat leg begins, cleared when it resolves.
     @Published public private(set) var isStreamingReply: Bool = false
 
+    /// Runs a delegated question through an agent CLI and relays the answer.
+    /// Always returns user-facing text (owns its own errors + timeout); streams
+    /// progress via `onChunk`. Set by the app; nil disables delegation.
+    public typealias DelegateHandler =
+        @MainActor (_ question: String, _ target: String?, _ onChunk: @escaping @MainActor (String) -> Void) async -> String
+    public var delegateHandler: DelegateHandler?
+
     private var machine = MediatorSessionMachine()
     private let brain: MediatorBrain
     private let executor: CommandExecutor
@@ -39,6 +46,7 @@ public final class MediatorSessionCoordinator: ObservableObject {
     private let timeoutScale: Double
     private var timeoutTask: Task<Void, Never>?
     private var parseTask: Task<Void, Never>?
+    private var delegateTask: Task<Void, Never>?
     private var queuedUtterance: String?
 
     public init(
@@ -82,6 +90,7 @@ public final class MediatorSessionCoordinator: ObservableObject {
         // a hung LlamaBrain call and the parse watchdog must not outlive the state.
         if state == .idle {
             parseTask?.cancel(); parseTask = nil
+            delegateTask?.cancel(); delegateTask = nil
             timeoutTask?.cancel(); timeoutTask = nil
             isStreamingReply = false
         }
@@ -93,6 +102,27 @@ public final class MediatorSessionCoordinator: ObservableObject {
     private var isAwaitingConfirmation: Bool {
         if case .awaitingConfirmation = state { return true }
         return false
+    }
+
+    /// Runs a delegation while the machine sits in `.executing`: streams the
+    /// agent's progress into the HUD, then narrates the final answer. The
+    /// handler owns its own timeout and never throws; a `cancel()` returns the
+    /// machine to idle, which cancels this task.
+    private func runDelegation(question: String, target: String?, handler: @escaping DelegateHandler) {
+        isStreamingReply = true
+        narration = target.map { "Asking \($0)…" } ?? "Delegating…"
+        delegateTask?.cancel()
+        delegateTask = Task { [weak self] in
+            guard let self else { return }
+            let onChunk: @MainActor (String) -> Void = { [weak self] partial in
+                guard let self, !Task.isCancelled, self.isStreamingReply else { return }
+                self.narration = partial
+            }
+            let answer = await handler(question, target, onChunk)
+            guard !Task.isCancelled else { return }
+            self.isStreamingReply = false
+            self.send(.executionFinished(.success(narration: answer)))
+        }
     }
 
     private func drainQueueIfIdle() {
@@ -170,7 +200,11 @@ public final class MediatorSessionCoordinator: ObservableObject {
             }
 
         case .execute(let command, let confirmed):
-            send(.executionFinished(executor.execute(command, confirmed: confirmed)))
+            if case .delegate(let question, let target) = command, let handler = delegateHandler {
+                runDelegation(question: question, target: target, handler: handler)
+            } else {
+                send(.executionFinished(executor.execute(command, confirmed: confirmed)))
+            }
 
         case .scheduleTimeout(let seconds):
             timeoutTask?.cancel()

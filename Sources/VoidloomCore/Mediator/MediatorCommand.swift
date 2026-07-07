@@ -37,4 +37,7 @@ public enum MediatorCommand: Codable, Equatable, Sendable {
     case editNote(target: String, content: String, append: Bool)
     case addTodoItem(target: String, text: String)
     case setTodoItemDone(target: String, text: String, done: Bool)
+    // Phase C — delegation: hand a repo-technical question to an agent CLI and
+    // relay its answer. `target` nil means "pick or spawn an agent".
+    case delegate(question: String, target: String?)
 }

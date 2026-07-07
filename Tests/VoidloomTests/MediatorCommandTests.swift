@@ -43,7 +43,8 @@ final class MediatorCommandSchemaTests: XCTestCase {
             MediatorCommandSchema.cases.map(\.name),
             ["spawnAgents", "sendPrompt", "readOutput", "closeTerminal",
              "arrange", "createCard", "switchSpace", "setBackground",
-             "renameCard", "deleteCard", "editNote", "addTodoItem", "setTodoItemDone"]
+             "renameCard", "deleteCard", "editNote", "addTodoItem", "setTodoItemDone",
+             "delegate"]
         )
     }
 

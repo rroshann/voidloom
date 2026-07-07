@@ -124,6 +124,12 @@ public final class CommandExecutor {
                 store.updateCardContent(id: card.id, to: TodoContentParser.serialize(items))
                 return .success(narration: "\(done ? "Checked" : "Unchecked") \"\(items[index].text)\" in \(card.title)")
             }
+
+        case .delegate:
+            // Delegation is long and asynchronous (a CLI subprocess + harvest),
+            // so the coordinator runs it and never routes it here. This is an
+            // unreachable safety only.
+            return .refused(reason: "Delegation isn't available right now.")
         }
     }
 

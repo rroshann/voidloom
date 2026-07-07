@@ -152,6 +152,36 @@ extension MediatorCoordinatorTests {
         XCTAssertEqual(c.state, .idle)
     }
 
+    func testDelegateCommandRoutesToHandlerAndNarratesAnswer() async {
+        let brain = ControllableBrain(.success(.delegate(question: "how does persistence work", target: "ember")))
+        let c = MediatorSessionCoordinator(
+            brain: brain,
+            executor: CommandExecutor(store: makeStore(), terminals: MockAgentTerminals(), namePool: AgentNamePool()))
+        c.delegateHandler = { question, target, onChunk in
+            XCTAssertEqual(question, "how does persistence work")
+            XCTAssertEqual(target, "ember")
+            onChunk("ember is thinking…")
+            return "ember: persistence is debounced per workspace."
+        }
+        c.submitTyped("ask ember about how does persistence work")
+        for _ in 0..<4000 where c.narration != "ember: persistence is debounced per workspace." { await Task.yield() }
+        XCTAssertEqual(c.narration, "ember: persistence is debounced per workspace.")
+        XCTAssertFalse(c.isStreamingReply)
+        XCTAssertEqual(c.state, .idle)
+    }
+
+    func testDelegationWithoutHandlerIsRefusedNotCrashed() async {
+        let brain = ControllableBrain(.success(.delegate(question: "q", target: nil)))
+        let c = MediatorSessionCoordinator(
+            brain: brain,
+            executor: CommandExecutor(store: makeStore(), terminals: MockAgentTerminals(), namePool: AgentNamePool()))
+        // No delegateHandler set → falls through to the executor's safety refusal.
+        c.submitTyped("research something")
+        for _ in 0..<4000 where c.narration.isEmpty { await Task.yield() }
+        XCTAssertEqual(c.narration, "Delegation isn't available right now.")
+        XCTAssertEqual(c.state, .idle)
+    }
+
     func testChatReplyStreamsChunksIntoNarrationLive() async {
         let brain = ControllableBrain(.failure(.unparseable("tell me a joke")))
         let c = MediatorSessionCoordinator(

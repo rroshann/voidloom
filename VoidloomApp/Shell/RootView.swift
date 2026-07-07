@@ -79,6 +79,13 @@ struct RootView: View {
                 context: grounded,
                 onChunk: onChunk)
         }
+        // Delegation: repo-technical questions run through the user's agent CLI
+        // (Claude/Codex per the setting) in the project folder; the answer relays
+        // into the HUD. The CLI does the work — Sunday's own brain stays local.
+        let delegation = DelegationService(store: store)
+        coordinator.delegateHandler = { question, target, onChunk in
+            await delegation.delegate(question: question, target: target, onChunk: onChunk)
+        }
         _mediator = StateObject(wrappedValue: coordinator)
         _contextProvider = StateObject(wrappedValue: context)
     }

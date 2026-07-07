@@ -124,6 +124,13 @@ public struct MediatorSessionMachine: Equatable, Sendable {
         case (.executing, .executionFinished(let result)):
             return finish(result)
 
+        // Normal commands execute synchronously, so `.executing` is instantaneous
+        // and cancel can't land here — but delegation runs a long async CLI in
+        // this state, so let the user abort it.
+        case (.executing, .cancelRequested):
+            state = .idle
+            return [.narrate("Cancelled")]
+
         case (.awaitingConfirmation(_, let pending), .confirmReceived(true)):
             state = .executing(pending)
             return [.execute(pending, confirmed: true)]

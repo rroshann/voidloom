@@ -12,6 +12,7 @@ enum MediatorToolMirrors {
         "spawnAgents", "sendPrompt", "readOutput", "closeTerminal",
         "arrange", "createCard", "switchSpace", "setBackground",
         "renameCard", "deleteCard", "editNote", "addTodoItem", "setTodoItemDone",
+        "delegate",
     ]
 
     /// Canonical mirror instance per schema sample (for round-trip parity tests).
@@ -43,6 +44,8 @@ enum MediatorToolMirrors {
             return AddTodoItemMirror(target: "chores", text: "buy milk")
         case "setTodoItemDone":
             return SetTodoItemDoneMirror(target: "chores", text: "buy milk", done: true)
+        case "delegate":
+            return DelegateMirror(question: "how does persistence work", target: "ember")
         default:
             return nil
         }
@@ -237,6 +240,17 @@ struct SetTodoItemDoneMirror: MediatorCommandMirroring {
     }
 }
 
+@available(macOS 26, *)
+@Generable
+struct DelegateMirror: MediatorCommandMirroring {
+    var question: String
+    var target: String?
+
+    func toCommand() throws -> MediatorCommand {
+        .delegate(question: question, target: target)
+    }
+}
+
 // MARK: - Top-level guided-generation container (one wire case active)
 
 @available(macOS 26, *)
@@ -255,12 +269,14 @@ struct MediatorCommandMirror {
     var editNote: EditNoteMirror?
     var addTodoItem: AddTodoItemMirror?
     var setTodoItemDone: SetTodoItemDoneMirror?
+    var delegate: DelegateMirror?
 
     func toCommand() throws -> MediatorCommand {
         let mirrors: [(any MediatorCommandMirroring)?] = [
             spawnAgents, sendPrompt, readOutput, closeTerminal,
             arrange, createCard, switchSpace, setBackground,
             renameCard, deleteCard, editNote, addTodoItem, setTodoItemDone,
+            delegate,
         ]
         let selected = mirrors.compactMap { $0 }
         guard selected.count == 1, let mirror = selected.first else {
