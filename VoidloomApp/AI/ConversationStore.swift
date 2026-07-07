@@ -103,7 +103,18 @@ final class ConversationStore: ObservableObject {
         var timestamp: Date
     }
 
+    /// Honors the Settings toggle "Persist conversations to disk" (default on).
+    private static var persistenceEnabled: Bool {
+        UserDefaults.standard.object(forKey: "conversations.persist") as? Bool ?? true
+    }
+
     private func persist() {
+        guard Self.persistenceEnabled else {
+            // Respect an opt-out: stop writing and remove any prior on-disk copy.
+            let url = Self.storeURL
+            Task.detached(priority: .utility) { try? FileManager.default.removeItem(at: url) }
+            return
+        }
         // Snapshot the persistable subset on the main actor, then write off-thread.
         let snapshot: [UUID: [PersistedMessage]] = threads.reduce(into: [:]) { acc, entry in
             let settled = entry.value.compactMap { msg -> PersistedMessage? in
@@ -126,7 +137,8 @@ final class ConversationStore: ObservableObject {
     }
 
     private static func loadFromDisk() -> [UUID: [ChatMessage]] {
-        guard let data = try? Data(contentsOf: storeURL),
+        guard persistenceEnabled,
+              let data = try? Data(contentsOf: storeURL),
               let decoded = try? JSONDecoder().decode([UUID: [PersistedMessage]].self, from: data)
         else { return [:] }
         return decoded.mapValues { msgs in

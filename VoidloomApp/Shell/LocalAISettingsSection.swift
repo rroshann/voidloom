@@ -1,5 +1,6 @@
 import SwiftUI
 import VoidloomAI
+import VoidloomCore
 
 /// Real "Local AI" management: tier status, per-model download/verify with
 /// progress, and license attribution. Drives `ModelAssetManager`; no inference here.
@@ -56,8 +57,12 @@ struct LocalAISettingsSection: View {
             modelRow(LocalModelManifest.commandModel, subtitle: "Primary command parser when downloaded (meets the ≤1s latency bar).")
             modelRow(LocalModelManifest.chatModel, subtitle: "Optional. Fallback chat when Apple Intelligence is off or unavailable.")
 
-            Toggle("Persist conversations to disk", isOn: $persistConversations)
-                .disabled(true)
+            Toggle("Remember conversations across launches", isOn: $persistConversations)
+            Text(persistConversations
+                 ? "Each workspace's chat with \(AssistantIdentity.name) is saved on-device and restored when you reopen the app. Clear a conversation any time from the assistant sidebar."
+                 : "Conversations stay only for this session and are erased when you quit. Any saved history is removed.")
+                .font(.caption2)
+                .foregroundStyle(.tertiary)
         }
     }
 

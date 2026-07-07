@@ -380,7 +380,7 @@ private struct AISettingsTab: View {
     @AppStorage("ai.sendSelectedCard") private var sendSelectedCard = true
     @AppStorage("ai.customInstructions") private var customInstructions = ""
     @AppStorage("agent.provider") private var agentProvider: MediatorAgentKind = .claudeCode
-    @State private var persistConversations = false
+    @AppStorage("conversations.persist") private var persistConversations = true
     @EnvironmentObject private var modelAssets: ModelAssetManager
 
     var body: some View {
