@@ -81,6 +81,10 @@ final class FoundationModelsBrain: MediatorBrain, @unchecked Sendable {
                 return false
             }
         }
+        // LanguageModelError exists only in the macOS 27 SDK (Xcode 27 / Swift 6.4+);
+        // the compiler gate keeps Xcode 26 toolchains (CI) building, the #available
+        // keeps the binary safe on older macOS at runtime.
+        #if compiler(>=6.4)
         if #available(macOS 27, *) {
             if let model = error as? LanguageModelError {
                 switch model {
@@ -91,6 +95,7 @@ final class FoundationModelsBrain: MediatorBrain, @unchecked Sendable {
                 }
             }
         }
+        #endif
         return false
     }
 }
