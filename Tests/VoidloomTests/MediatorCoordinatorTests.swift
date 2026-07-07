@@ -137,6 +137,44 @@ private final class ControllableBrain: MediatorBrain, @unchecked Sendable {
 }
 
 extension MediatorCoordinatorTests {
+    func testUnparseableFallsBackToChatWhenConfigured() async {
+        let brain = ControllableBrain(.failure(.unparseable("hi")))
+        let c = MediatorSessionCoordinator(
+            brain: brain,
+            executor: CommandExecutor(store: makeStore(), terminals: MockAgentTerminals(), namePool: AgentNamePool()))
+        c.chatFallback = { utterance in
+            XCTAssertEqual(utterance, "hi")
+            return "Hey — ready when you are."
+        }
+        c.submitTyped("hi")
+        for _ in 0..<4000 where c.narration.isEmpty { await Task.yield() }
+        XCTAssertEqual(c.narration, "Hey — ready when you are.")
+        XCTAssertEqual(c.state, .idle)
+    }
+
+    func testChatFallbackErrorFallsBackToRephrasePrompt() async {
+        let brain = ControllableBrain(.failure(.unparseable("hi")))
+        let c = MediatorSessionCoordinator(
+            brain: brain,
+            executor: CommandExecutor(store: makeStore(), terminals: MockAgentTerminals(), namePool: AgentNamePool()))
+        c.chatFallback = { _ in throw BrainError.backendFailure("chat down") }
+        c.submitTyped("hi")
+        for _ in 0..<4000 where c.narration.isEmpty { await Task.yield() }
+        XCTAssertEqual(c.narration, "Didn't catch that — try rephrasing.")
+        XCTAssertEqual(c.state, .idle)
+    }
+
+    func testModelNotReadyNeverRoutesToChat() async {
+        let brain = ControllableBrain(.failure(.modelNotReady("Local model not downloaded — open Settings › Local AI.")))
+        let c = MediatorSessionCoordinator(
+            brain: brain,
+            executor: CommandExecutor(store: makeStore(), terminals: MockAgentTerminals(), namePool: AgentNamePool()))
+        c.chatFallback = { _ in XCTFail("chat must not swallow model-availability errors"); return "" }
+        c.submitTyped("start 2 claude agents")
+        for _ in 0..<4000 where c.narration.isEmpty { await Task.yield() }
+        XCTAssertEqual(c.narration, "Local model not downloaded — open Settings › Local AI.")
+    }
+
     func testParseFailedSurfacesBrainSpecificMessage() async {
         let brain = ControllableBrain(.failure(.modelNotReady("Local model not downloaded — open Settings › Local AI.")))
         let c = MediatorSessionCoordinator(

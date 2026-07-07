@@ -19,6 +19,12 @@ public final class MediatorSessionCoordinator: ObservableObject {
     /// True when mic permission was denied; HUD disables the hold-to-talk control.
     @Published public private(set) var isMicPermissionDenied: Bool = false
 
+    /// When set, an utterance NO brain tier can parse as a command is answered
+    /// by the chat backend and the reply narrated in the HUD — the pill talks
+    /// back instead of shrugging. Only `.unparseable` routes here; model-
+    /// availability errors keep their specific messages.
+    public var chatFallback: (@MainActor (String) async throws -> String)?
+
     private var machine = MediatorSessionMachine()
     private let brain: MediatorBrain
     private let executor: CommandExecutor
@@ -131,6 +137,14 @@ public final class MediatorSessionCoordinator: ObservableObject {
                     return
                 } catch {
                     guard !Task.isCancelled else { return }
+                    if case BrainError.unparseable = error, let chat = self.chatFallback {
+                        if let reply = try? await chat(transcript), !Task.isCancelled, !reply.isEmpty {
+                            self.send(.chatReply(reply))
+                        } else if !Task.isCancelled {
+                            self.send(.parseFailed(""))
+                        }
+                        return
+                    }
                     self.send(.parseFailed(Self.message(for: error)))
                 }
             }

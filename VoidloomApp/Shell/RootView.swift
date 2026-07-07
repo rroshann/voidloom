@@ -30,7 +30,8 @@ struct RootView: View {
          sessionManager: AgentSessionManager,
          conversationStore: ConversationStore,
          interaction: CanvasInteractionModel,
-         modelAssets: ModelAssetManager) {
+         modelAssets: ModelAssetManager,
+         chatProvider: ResponseProvider) {
         self.store = store
         self.sessionManager = sessionManager
         self.conversationStore = conversationStore
@@ -59,6 +60,29 @@ struct RootView: View {
             }
             router.onWakePhraseMatched = {
                 coordinator.wakeDetected()
+            }
+        }
+        // Conversational pill: utterances no brain can parse as a command go to
+        // the same chat backend the Assistant sidebar uses, replies in the HUD.
+        coordinator.chatFallback = { utterance in
+            try await withCheckedThrowingContinuation { continuation in
+                var resumed = false
+                chatProvider.generateResponse(
+                    workspaceID: UUID(),
+                    userMessage: utterance,
+                    context: nil,
+                    onStreamChunk: { _ in },
+                    onComplete: { reply in
+                        guard !resumed else { return }
+                        resumed = true
+                        continuation.resume(returning: reply)
+                    },
+                    onError: { message in
+                        guard !resumed else { return }
+                        resumed = true
+                        continuation.resume(throwing: BrainError.backendFailure(message))
+                    }
+                )
             }
         }
         _mediator = StateObject(wrappedValue: coordinator)

@@ -20,6 +20,8 @@ public enum MediatorEvent: Equatable, Sendable {
     case transcriptFinal(String)
     case commandProduced(MediatorCommand)
     case parseFailed(String)
+    /// The utterance was no command, so the chat backend answered instead.
+    case chatReply(String)
     case executionFinished(ExecutionResult)
     case confirmReceived(Bool)
     case timeout
@@ -103,6 +105,10 @@ public struct MediatorSessionMachine: Equatable, Sendable {
         case (.parsing, .parseFailed(let message)):
             state = .idle
             return [.narrate(message.isEmpty ? Self.rephrasePrompt : message)]
+
+        case (.parsing, .chatReply(let text)):
+            state = .idle
+            return [.narrate(text)]
 
         case (.parsing, .timeout):
             state = .idle

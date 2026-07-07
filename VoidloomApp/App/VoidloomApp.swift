@@ -11,24 +11,28 @@ struct VoidloomApp: App {
     @StateObject private var interaction = CanvasInteractionModel()
     @StateObject private var modelAssets: ModelAssetManager
     @StateObject private var conversationStore: ConversationStore
+    /// The launch-time chat backend, shared by the sidebar and the mediator's
+    /// conversational fallback so both always answer with the same voice.
+    private let chatProvider: ResponseProvider
 
     init() {
         let assets = ModelAssetManager()
         _modelAssets = StateObject(wrappedValue: assets)
 
+        let provider: ResponseProvider
         if #available(macOS 26, *), AppleTierAvailability.foundationModelsAvailable {
-            _conversationStore = StateObject(wrappedValue: ConversationStore(
-                provider: FoundationModelsResponseProvider()))
+            provider = FoundationModelsResponseProvider()
         } else if assets.state(of: LocalModelManifest.chatModel) == .ready,
                   let url = assets.localURL(of: LocalModelManifest.chatModel) {
             let engine = LazyLoadingEngine(
                 modelURL: url,
                 config: LlamaEngineConfig(contextLength: 4096))
-            _conversationStore = StateObject(wrappedValue: ConversationStore(
-                provider: LocalResponseProvider(engine: engine)))
+            provider = LocalResponseProvider(engine: engine)
         } else {
-            _conversationStore = StateObject(wrappedValue: ConversationStore())
+            provider = StubResponseProvider()
         }
+        chatProvider = provider
+        _conversationStore = StateObject(wrappedValue: ConversationStore(provider: provider))
     }
 
     var body: some Scene {
@@ -41,7 +45,8 @@ struct VoidloomApp: App {
                 sessionManager: agentSessionManager,
                 conversationStore: conversationStore,
                 interaction: interaction,
-                modelAssets: modelAssets
+                modelAssets: modelAssets,
+                chatProvider: chatProvider
             )
         }
         .windowStyle(.hiddenTitleBar)
@@ -67,6 +72,7 @@ private struct RootThemeHost: View {
     @ObservedObject var conversationStore: ConversationStore
     @ObservedObject var interaction: CanvasInteractionModel
     @ObservedObject var modelAssets: ModelAssetManager
+    let chatProvider: ResponseProvider
 
     /// Launch shows the startup screen; opening/creating a workspace flips this.
     @StateObject private var session = AppSession()
@@ -105,7 +111,8 @@ private struct RootThemeHost: View {
                     sessionManager: sessionManager,
                     conversationStore: conversationStore,
                     interaction: interaction,
-                    modelAssets: modelAssets
+                    modelAssets: modelAssets,
+                    chatProvider: chatProvider
                 )
             } else {
                 StartupView(store: store)
