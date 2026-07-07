@@ -5,8 +5,9 @@ import VoidloomCore
 /// Voice input preferences: mode, wake phrase, and on-device honesty copy.
 struct VoiceSettingsSection: View {
     @AppStorage("voice.mode") private var voiceMode: VoiceInputMode = .pushToTalk
-    @AppStorage("voice.wakePhrase") private var wakePhrase = "hey voidloom"
+    @AppStorage("voice.wakePhrase") private var wakePhrase = "hey sunday"
     @AppStorage("voice.useSpeechAnalyzer") private var useSpeechAnalyzer = false
+    @AppStorage("voice.speakReplies") private var speakReplies = false
 
     private var speechEngineLabel: String {
         switch voiceMode {
@@ -32,6 +33,13 @@ struct VoiceSettingsSection: View {
             .pickerStyle(.segmented)
 
             LabeledContent("Speech engine", value: speechEngineLabel)
+
+            Toggle("Speak \(AssistantIdentity.name)'s replies", isOn: $speakReplies)
+            if speakReplies {
+                Text("\(AssistantIdentity.name) reads answers aloud on-device. It stops the moment you start speaking, and never talks over you.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+            }
 
             if voiceMode == .alwaysListening {
                 TextField("Wake phrase", text: $wakePhrase)

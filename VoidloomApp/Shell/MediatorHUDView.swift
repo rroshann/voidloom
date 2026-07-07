@@ -10,6 +10,17 @@ struct MediatorHUDView: View {
     @State private var input = ""
     @State private var isMicHeld = false
     @FocusState private var inputFocused: Bool
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Sunday is "thinking" while parsing/executing a command or streaming a
+    /// reply — the state icon animates then, unless the user reduced motion.
+    private var isThinking: Bool {
+        if mediator.isStreamingReply { return true }
+        switch mediator.state {
+        case .parsing, .executing: return true
+        default: return false
+        }
+    }
 
     var body: some View {
         VStack(spacing: 8) {
@@ -50,7 +61,9 @@ struct MediatorHUDView: View {
                     micButton
                 }
                 Image(systemName: stateIcon)
-                    .foregroundStyle(.secondary)
+                    .foregroundStyle(isThinking ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    .symbolEffect(.variableColor.iterative, isActive: isThinking && !reduceMotion)
+                    .contentTransition(.symbolEffect(.replace))
                     .accessibilityHidden(true)
                 TextField("Ask \(AssistantIdentity.name) — try \"start 2 claude agents\"", text: $input)
                     .textFieldStyle(.plain)

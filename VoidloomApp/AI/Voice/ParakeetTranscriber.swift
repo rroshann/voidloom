@@ -21,7 +21,7 @@ final class ParakeetTranscriber: SpeechTranscribing {
     private var didEmitFinalForUtterance = false
     private var prepareTask: Task<Void, Never>?
     private var voiceMode: VoiceInputMode = .pushToTalk
-    private var wakeMatcher = WakePhraseMatcher(phrase: "hey voidloom")
+    private var wakeMatcher = WakePhraseMatcher(phrase: "hey sunday")
     private var wakeScanBuffer = ""
 
     private static let modelUnavailableMessage =

@@ -22,8 +22,10 @@ struct RootView: View {
     @AppStorage("app.mode") private var appMode: AppMode = .canvas
     @AppStorage("isMinimapVisible") private var isMinimapVisible = false
     @AppStorage("voice.mode") private var voiceMode: VoiceInputMode = .pushToTalk
-    @AppStorage("voice.wakePhrase") private var wakePhrase = "hey voidloom"
+    @AppStorage("voice.wakePhrase") private var wakePhrase = "hey sunday"
     @AppStorage("voice.useSpeechAnalyzer") private var useSpeechAnalyzer = false
+    @AppStorage("voice.speakReplies") private var speakReplies = false
+    @StateObject private var speaker = AssistantSpeaker()
 
     private let voiceRouter: VoiceTranscriberRouter?
 
@@ -175,6 +177,17 @@ struct RootView: View {
         .onChange(of: useSpeechAnalyzer) { _, _ in applyVoiceConfiguration() }
         .onChange(of: store.state.space?.folderPath) { _, _ in
             Task { await contextProvider.refreshGit() }
+        }
+        // Sunday speaks (opt-in): read the FINAL narration once the pipeline
+        // settles, never mid-stream. Barge-in stops speech the moment the mic
+        // opens, so Sunday never talks over the user.
+        .onChange(of: mediator.narration) { _, newValue in
+            guard speakReplies, mediator.state == .idle, !mediator.isStreamingReply,
+                  !newValue.isEmpty else { return }
+            speaker.speak(newValue)
+        }
+        .onChange(of: mediator.state) { _, newState in
+            if case .capturing = newState { speaker.stop() }
         }
         .onChange(of: store.library.workspaces.isEmpty) { _, isEmpty in
             // Deleting the last workspace from inside the app returns to the launcher
