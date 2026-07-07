@@ -26,19 +26,7 @@ struct MediatorHUDView: View {
     var body: some View {
         VStack(spacing: 8) {
             if !mediator.narration.isEmpty {
-                Text(mediator.narration)
-                    .font(.callout)
-                    .textSelection(.enabled)
-                    .lineLimit(8)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 8)
-                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 10))
-                    .frame(maxWidth: 420)
-                    .accessibilityIdentifier("mediator.narration")
-                    .onChange(of: mediator.narration) { _, newValue in
-                        guard !newValue.isEmpty else { return }
-                        AccessibilityNotification.Announcement(newValue).post()
-                    }
+                narrationBubble
             }
             if case .awaitingConfirmation(let prompt, _) = mediator.state {
                 HStack(spacing: 10) {
@@ -134,6 +122,40 @@ struct MediatorHUDView: View {
                 isMicHeld = false
                 mediator.pushToTalkReleased()
             }
+    }
+
+    /// Sunday's reply, styled as her speaking: an identity glyph, refined
+    /// material, an accent hairline, and a soft lift — not a debug label.
+    private var narrationBubble: some View {
+        HStack(alignment: .top, spacing: 9) {
+            Image(systemName: "sparkle")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.tint)
+                .symbolEffect(.variableColor.iterative, isActive: mediator.isStreamingReply && !reduceMotion)
+                .padding(.top, 1)
+                .accessibilityHidden(true)
+            Text(mediator.narration)
+                .font(.callout)
+                .textSelection(.enabled)
+                .lineLimit(8)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 10)
+        .frame(maxWidth: 420, alignment: .leading)
+        .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .overlay(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .strokeBorder(Color.accentColor.opacity(0.18), lineWidth: 1)
+        )
+        .shadow(color: .black.opacity(0.18), radius: 12, y: 4)
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("mediator.narration")
+        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .onChange(of: mediator.narration) { _, newValue in
+            guard !newValue.isEmpty else { return }
+            AccessibilityNotification.Announcement(newValue).post()
+        }
     }
 
     private var stateIcon: String {
