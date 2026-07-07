@@ -52,6 +52,7 @@
 		A300000000000000000000C2 /* NewWorkspaceSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A300000000000000000000D2 /* NewWorkspaceSheet.swift */; };
 		A300000000000000000000C4 /* DockStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A300000000000000000000D4 /* DockStyle.swift */; };
 		A300000000000000000000C3 /* StartupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A300000000000000000000D3 /* StartupView.swift */; };
+		A300000000000000000000E1 /* WorkspaceEmptyState.swift in Sources */ = {isa = PBXBuildFile; fileRef = A300000000000000000000E2 /* WorkspaceEmptyState.swift */; };
 		A40000000000000000000001 /* ConversationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000011 /* ConversationStore.swift */; };
 		A40000000000000000000004 /* AssistantContextProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000014 /* AssistantContextProvider.swift */; };
 		A40000000000000000000005 /* AgentCommandRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000015 /* AgentCommandRunner.swift */; };
@@ -151,6 +152,7 @@
 		A300000000000000000000D2 /* NewWorkspaceSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/NewWorkspaceSheet.swift; sourceTree = "<group>"; };
 		A300000000000000000000D4 /* DockStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/DockStyle.swift; sourceTree = "<group>"; };
 		A300000000000000000000D3 /* StartupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/StartupView.swift; sourceTree = "<group>"; };
+		A300000000000000000000E2 /* WorkspaceEmptyState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/WorkspaceEmptyState.swift; sourceTree = "<group>"; };
 		A40000000000000000000011 /* ConversationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/ConversationStore.swift; sourceTree = "<group>"; };
 		A40000000000000000000014 /* AssistantContextProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/AssistantContextProvider.swift; sourceTree = "<group>"; };
 		A40000000000000000000015 /* AgentCommandRunner.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/AgentCommandRunner.swift; sourceTree = "<group>"; };
@@ -336,6 +338,7 @@
 				A300000000000000000000D2 /* NewWorkspaceSheet.swift */,
 				A300000000000000000000D4 /* DockStyle.swift */,
 				A300000000000000000000D3 /* StartupView.swift */,
+				A300000000000000000000E2 /* WorkspaceEmptyState.swift */,
 				A20000000000000000000019 /* CanvasZoomControls.swift */,
 				A10000000000000000000013 /* CanvasWorkspaceView.swift */,
 				A20000000000000000000015 /* DraggableWorkspaceCard.swift */,
@@ -520,6 +523,7 @@
 				A300000000000000000000C2 /* NewWorkspaceSheet.swift in Sources */,
 				A300000000000000000000C4 /* DockStyle.swift in Sources */,
 				A300000000000000000000C3 /* StartupView.swift in Sources */,
+				A300000000000000000000E1 /* WorkspaceEmptyState.swift in Sources */,
 				A40000000000000000000001 /* ConversationStore.swift in Sources */,
 				A40000000000000000000004 /* AssistantContextProvider.swift in Sources */,
 				A40000000000000000000005 /* AgentCommandRunner.swift in Sources */,

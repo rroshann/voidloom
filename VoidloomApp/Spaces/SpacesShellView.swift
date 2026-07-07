@@ -74,40 +74,6 @@ struct SpacesShellView: View {
         assistantContext.snapshot(selectedCardContext: selectedCardContext)
     }
 
-    /// The first thing you see in a new workspace — inviting, on-brand, and it
-    /// points at Sunday rather than a bare "no cards" label.
-    private var emptyWorkspaceState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 32, weight: .light))
-                .foregroundStyle(.tint)
-            Text("A blank canvas")
-                .font(.system(size: 20, weight: .semibold, design: .rounded))
-                .foregroundStyle(.white.opacity(0.9))
-            Text("Ask Sunday below to begin — or add a card from the dock.")
-                .font(.system(size: 14, design: .rounded))
-                .foregroundStyle(.white.opacity(0.5))
-            HStack(spacing: 8) {
-                ForEach(["start 2 claude agents", "note: my ideas", "todo: plan the week"], id: \.self) { hint in
-                    Button { MenuAction.runMediatorCommand(hint).post() } label: {
-                        Text(hint)
-                            .font(.system(size: 12, weight: .medium, design: .rounded))
-                            .foregroundStyle(.white.opacity(0.72))
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
-                            .background(Capsule().fill(.white.opacity(0.06)))
-                            .overlay(Capsule().strokeBorder(.white.opacity(0.12), lineWidth: 1))
-                    }
-                    .buttonStyle(.plain)
-                    .pointerCursor()
-                    .help("Run: \(hint)")
-                }
-            }
-            .padding(.top, 4)
-        }
-        // Chips are individually actionable buttons — leave them as distinct
-        // accessibility elements rather than combining the whole block.
-    }
 
     /// Builds a tiling from the global Settings defaults, used when a space has no
     /// tiling of its own. Columns 0 = Auto (fit all); Rows 0 = no pagination.
@@ -180,7 +146,7 @@ struct SpacesShellView: View {
                     ))
 
                 if orderedIDs.isEmpty {
-                    emptyWorkspaceState
+                    WorkspaceEmptyState()
                 }
 
                 if layoutMode == .freeArrange {

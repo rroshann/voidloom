@@ -142,6 +142,12 @@ struct CanvasShellView: View {
                 )
                     .ignoresSafeArea()
 
+                // Same inviting empty state as Spaces mode; centered and small so
+                // canvas pan/zoom on the surrounding area is unaffected.
+                if store.state.cards.isEmpty {
+                    WorkspaceEmptyState()
+                }
+
                 if isAIConversationVisible {
                     AIConversationSidebar(
                         messages: conversationStore.messages(for: activeWorkspaceID),
