@@ -94,16 +94,38 @@ private final class ControllableBrain: MediatorBrain, @unchecked Sendable {
     enum Outcome { case success(MediatorCommand), failure(BrainError), hang }
     var outcome: Outcome
     let started = AsyncStream<Void>.makeStream()
+    private let lock = NSLock()
     private var release: CheckedContinuation<Void, Never>?
+    private var released = false
 
     init(_ outcome: Outcome) { self.outcome = outcome }
 
-    func releaseNow() { release?.resume(); release = nil }
+    /// Safe to call before the brain reaches its suspension point: the release
+    /// is latched, so the continuation resumes immediately when stored. Closes
+    /// the lost-wakeup window that made the busy-queue test flaky on slow CI.
+    func releaseNow() {
+        lock.lock()
+        released = true
+        let pending = release
+        release = nil
+        lock.unlock()
+        pending?.resume()
+    }
 
     func command(for utterance: String) async throws -> MediatorCommand {
         started.continuation.yield(())
         if case .hang = outcome {
-            await withCheckedContinuation { self.release = $0 }
+            await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+                lock.lock()
+                if released {
+                    released = false
+                    lock.unlock()
+                    cont.resume()
+                } else {
+                    release = cont
+                    lock.unlock()
+                }
+            }
             try Task.checkCancellation()
         }
         switch outcome {
