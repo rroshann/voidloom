@@ -152,6 +152,24 @@ extension MediatorCoordinatorTests {
         XCTAssertEqual(c.state, .idle)
     }
 
+    func testSlowChatReplyOutlivesTheParseWatchdog() async {
+        // The parse watchdog is sized for command parsing; a cold chat backend
+        // can exceed it. Entering the chat leg must re-arm a longer window.
+        let brain = ControllableBrain(.failure(.unparseable("hi")))
+        let c = MediatorSessionCoordinator(
+            brain: brain,
+            executor: CommandExecutor(store: makeStore(), terminals: MockAgentTerminals(), namePool: AgentNamePool()),
+            timeoutScale: 0.001)   // parse watchdog ≈ 10ms, chat window ≈ 30ms
+        c.chatFallback = { _ in
+            try? await Task.sleep(nanoseconds: 20_000_000)   // 20ms: beyond parse, within chat
+            return "Hey!"
+        }
+        c.submitTyped("hi")
+        for _ in 0..<8000 where c.narration.isEmpty { await Task.yield(); try? await Task.sleep(nanoseconds: 100_000) }
+        XCTAssertEqual(c.narration, "Hey!")
+        XCTAssertEqual(c.state, .idle)
+    }
+
     func testChatFallbackErrorFallsBackToRephrasePrompt() async {
         let brain = ControllableBrain(.failure(.unparseable("hi")))
         let c = MediatorSessionCoordinator(

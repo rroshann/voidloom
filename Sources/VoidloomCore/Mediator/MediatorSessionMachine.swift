@@ -48,6 +48,9 @@ public struct MediatorSessionMachine: Equatable, Sendable {
     /// 30s, not 10 — QA showed a human answering the prompt can miss 10s.
     public static let confirmationTimeout: Double = 30
     public static let parseTimeout: Double = 10
+    /// The chat-fallback leg replaces the parse watchdog with this window: a
+    /// cold chat backend (first Apple Intelligence call) can exceed 10s.
+    public static let chatTimeout: Double = 30
     static let rephrasePrompt = "Didn't catch that — try rephrasing."
     static let confirmVocabulary: Set<String> = ["confirm", "yes", "cancel", "no"]
 

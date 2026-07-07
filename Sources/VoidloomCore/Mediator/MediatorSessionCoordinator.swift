@@ -138,6 +138,7 @@ public final class MediatorSessionCoordinator: ObservableObject {
                 } catch {
                     guard !Task.isCancelled else { return }
                     if case BrainError.unparseable = error, let chat = self.chatFallback {
+                        self.perform(.scheduleTimeout(seconds: MediatorSessionMachine.chatTimeout))
                         if let reply = try? await chat(transcript), !Task.isCancelled, !reply.isEmpty {
                             self.send(.chatReply(reply))
                         } else if !Task.isCancelled {
