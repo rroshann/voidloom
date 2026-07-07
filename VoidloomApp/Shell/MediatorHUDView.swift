@@ -167,7 +167,7 @@ struct MediatorHUDView: View {
         .shadow(color: .black.opacity(0.18), radius: 12, y: 4)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("mediator.narration")
-        .transition(.move(edge: .bottom).combined(with: .opacity))
+        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
         .onChange(of: mediator.narration) { _, newValue in
             guard !newValue.isEmpty else { return }
             AccessibilityNotification.Announcement(newValue).post()

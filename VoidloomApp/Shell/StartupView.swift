@@ -15,6 +15,7 @@ struct StartupView: View {
     @State private var showAll = false
     @State private var hoveredRowID: UUID?
     @State private var keyboardSelectedID: UUID?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var sorted: [WorkspaceSummary] {
         store.library.workspaces.sorted { $0.updatedAt > $1.updatedAt }
@@ -192,7 +193,7 @@ struct StartupView: View {
         .contentShape(Rectangle())
         .onTapGesture { if editingID != ws.id { open(ws) } }
         .onHover { hovering in
-            withAnimation(.easeOut(duration: 0.14)) {
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.14)) {
                 if hovering { hoveredRowID = ws.id }
                 else if hoveredRowID == ws.id { hoveredRowID = nil }
             }
