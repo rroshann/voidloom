@@ -73,4 +73,20 @@ final class FastPathBrainTests: XCTestCase {
         let c = try await FastPathBrain().command(for: "spawn a shell named shell")
         XCTAssertEqual(c, .spawnAgents(count: 1, kind: .shell, names: ["shell"]))
     }
+
+    func testSendPromptPreservesPayloadCase() async throws {
+        // Prompts route into real shells; case corruption breaks commands.
+        let a = try await parse("ask ember to echo QA_ROUTE_OK")
+        XCTAssertEqual(a, .sendPrompt(target: "ember", text: "echo QA_ROUTE_OK"))
+        // Verb and target matching stay case-insensitive.
+        let b = try await parse("Ask Ember to cat README.md")
+        XCTAssertEqual(b, .sendPrompt(target: "ember", text: "cat README.md"))
+    }
+
+    func testCreateCardContentPreservesCase() async throws {
+        let a = try await parse("note: Buy MILK on Monday")
+        XCTAssertEqual(a, .createCard(kind: .note, content: "Buy MILK on Monday"))
+        let b = try await parse("Todo: Review PR #8")
+        XCTAssertEqual(b, .createCard(kind: .todo, content: "Review PR #8"))
+    }
 }

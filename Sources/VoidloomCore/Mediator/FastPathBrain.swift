@@ -30,8 +30,12 @@ public final class FastPathBrain: MediatorBrain {
     ]
 
     static func parse(_ utterance: String) -> MediatorCommand? {
-        let text = utterance.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
-        let words = text.split(separator: " ").map(String.init)
+        // Matching (verbs, kinds, targets) is case-insensitive, but payloads that
+        // reach a shell or a card (prompt text, card content) keep original case.
+        let original = utterance.trimmingCharacters(in: .whitespacesAndNewlines)
+        let originalWords = original.split(separator: " ").map(String.init)
+        let text = original.lowercased()
+        let words = originalWords.map { $0.lowercased() }
         guard let rawHead = words.first else { return nil }
         // `note: buy milk` tokenizes to a `note:` head; the colon belongs to the
         // card grammar, not the verb, so strip it before dispatch.
@@ -41,7 +45,7 @@ public final class FastPathBrain: MediatorBrain {
         case "spawn", "start", "open", "launch":
             return parseSpawn(Array(words.dropFirst()))
         case "ask", "tell", "prompt":
-            return parseSendPrompt(Array(words.dropFirst()))
+            return parseSendPrompt(Array(words.dropFirst()), original: Array(originalWords.dropFirst()))
         case "read", "show":
             guard words.count >= 2 else { return nil }
             return .readOutput(target: strippedName(words[1]))
@@ -66,7 +70,7 @@ public final class FastPathBrain: MediatorBrain {
             return parseBackground(Array(words.dropFirst()))
         case "note", "todo", "browser":
             let kind: CardKind = head == "note" ? .note : (head == "todo" ? .todo : .browser)
-            let content = text.dropFirst(head.count)
+            let content = original.dropFirst(head.count)
                 .trimmingCharacters(in: CharacterSet(charactersIn: ": "))
             return .createCard(kind: kind, content: content.isEmpty ? nil : content)
         default:
@@ -95,13 +99,12 @@ public final class FastPathBrain: MediatorBrain {
         return .spawnAgents(count: count, kind: kind, names: names)
     }
 
-    private static func parseSendPrompt(_ words: [String]) -> MediatorCommand? {
+    private static func parseSendPrompt(_ words: [String], original: [String]) -> MediatorCommand? {
         guard words.count >= 2 else { return nil }
         let target = strippedName(words[0])
-        var rest = Array(words.dropFirst())
-        if rest.first == "to" { rest.removeFirst() }
-        guard !rest.isEmpty else { return nil }
-        return .sendPrompt(target: target, text: rest.joined(separator: " "))
+        let promptStart = words[1] == "to" ? 2 : 1
+        guard promptStart < original.count else { return nil }
+        return .sendPrompt(target: target, text: original[promptStart...].joined(separator: " "))
     }
 
     private static func parseBackground(_ words: [String]) -> MediatorCommand? {

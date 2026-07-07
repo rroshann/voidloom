@@ -103,10 +103,10 @@ extension AgentSessionManager: LocalProcessTerminalViewDelegate {
 }
 
 extension AgentSessionManager: AgentTerminalControlling {
-    func spawn(cardID: UUID, kind: MediatorAgentKind) {
+    func spawn(cardID: UUID, kind: MediatorAgentKind, workingDirectory: String?) {
         // Every kind gets a login shell today; launching the agent CLI inside
         // it (per `kind`) is follow-up work now that PTYs are real.
-        startSession(cardID: cardID)
+        startSession(cardID: cardID, workingDirectory: workingDirectory)
     }
 
     func send(text: String, to cardID: UUID) {
