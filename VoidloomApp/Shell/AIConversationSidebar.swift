@@ -232,8 +232,18 @@ private struct MessageBubble: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        HStack {
+        HStack(alignment: .top, spacing: 7) {
             if isUser { Spacer(minLength: 32) }
+
+            // Sunday's messages carry the same accent sparkle as the pill, so the
+            // two chat surfaces read as one assistant.
+            if !isUser {
+                Image(systemName: "sparkle")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(theme.accent)
+                    .padding(.top, 6)
+                    .accessibilityHidden(true)
+            }
 
             bubbleContent
                 .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
