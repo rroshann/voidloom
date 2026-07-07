@@ -3,12 +3,14 @@ import XCTest
 
 @MainActor
 final class MockAgentTerminals: AgentTerminalControlling {
-    var spawned: [(cardID: UUID, kind: MediatorAgentKind)] = []
+    var spawned: [(cardID: UUID, kind: MediatorAgentKind, workingDirectory: String?)] = []
     var sent: [(text: String, cardID: UUID)] = []
     var terminated: [UUID] = []
     var outputByCard: [UUID: [String]] = [:]
 
-    func spawn(cardID: UUID, kind: MediatorAgentKind) { spawned.append((cardID, kind)) }
+    func spawn(cardID: UUID, kind: MediatorAgentKind, workingDirectory: String?) {
+        spawned.append((cardID, kind, workingDirectory))
+    }
     func send(text: String, to cardID: UUID) { sent.append((text, cardID)) }
     func recentOutput(of cardID: UUID, maxLines: Int) -> [String] {
         Array((outputByCard[cardID] ?? []).suffix(maxLines))
@@ -23,7 +25,7 @@ final class AgentTerminalControllingTests: XCTestCase {
         let id = UUID()
         mock.outputByCard[id] = ["a", "b", "c", "d"]
 
-        mock.spawn(cardID: id, kind: .claudeCode)
+        mock.spawn(cardID: id, kind: .claudeCode, workingDirectory: nil)
         mock.send(text: "hello", to: id)
 
         XCTAssertEqual(mock.spawned.first?.kind, .claudeCode)
@@ -153,6 +155,13 @@ final class CommandExecutorTests: XCTestCase {
 
     private func makeExecutor(_ store: WorkspaceStore, _ terminals: MockAgentTerminals) -> CommandExecutor {
         CommandExecutor(store: store, terminals: terminals, namePool: AgentNamePool())
+    }
+
+    func testSpawnPassesTheWorkspaceFolderToTerminals() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        store.setSpaceFolder("/tmp/qa-project")
+        _ = makeExecutor(store, terminals).execute(.spawnAgents(count: 1, kind: .claudeCode, names: nil))
+        XCTAssertEqual(terminals.spawned.first?.workingDirectory, "/tmp/qa-project")
     }
 
     func testSpawnAgentsCreatesTitledCardsAndSessions() {

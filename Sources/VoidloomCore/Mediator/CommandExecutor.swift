@@ -88,9 +88,10 @@ public final class CommandExecutor {
             finalNames += namePool.nextNames(count: count - finalNames.count,
                                              existing: existing.union(finalNames))
         }
+        let workingDirectory = store.state.space?.folderPath
         for name in finalNames {
             let id = store.addTitledCard(kind: .agent, title: name)
-            terminals.spawn(cardID: id, kind: kind)
+            terminals.spawn(cardID: id, kind: kind, workingDirectory: workingDirectory)
         }
         let noun = count == 1 ? "agent" : "agents"
         return .success(narration: "Spawned \(count) \(kind.rawValue) \(noun): \(finalNames.joined(separator: ", "))")
