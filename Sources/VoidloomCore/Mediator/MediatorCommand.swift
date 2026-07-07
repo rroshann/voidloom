@@ -31,4 +31,10 @@ public enum MediatorCommand: Codable, Equatable, Sendable {
     case createCard(kind: CardKind, content: String?)
     case switchSpace(name: String)
     case setBackground(spec: MediatorBackgroundSpec)
+    // Phase B — Sunday's hands: edit the cards, not just terminals.
+    case renameCard(target: String, newName: String)
+    case deleteCard(target: String)
+    case editNote(target: String, content: String, append: Bool)
+    case addTodoItem(target: String, text: String)
+    case setTodoItemDone(target: String, text: String, done: Bool)
 }

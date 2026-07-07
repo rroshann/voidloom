@@ -89,4 +89,46 @@ final class FastPathBrainTests: XCTestCase {
         let b = try await parse("Todo: Review PR #8")
         XCTAssertEqual(b, .createCard(kind: .todo, content: "Review PR #8"))
     }
+
+    // MARK: - Phase B: card CRUD verbs
+
+    func testRenameCardPreservesNewNameCase() async throws {
+        let a = try await parse("rename ember to Scout")
+        XCTAssertEqual(a, .renameCard(target: "ember", newName: "Scout"))
+        let b = try await parse("Rename New Note to Sprint Plan")
+        XCTAssertEqual(b, .renameCard(target: "New Note", newName: "Sprint Plan"))
+    }
+
+    func testDeleteAndRemoveMapToDeleteCard() async throws {
+        let a = try await parse("delete New Note")
+        XCTAssertEqual(a, .deleteCard(target: "New Note"))
+        let b = try await parse("remove chores")
+        XCTAssertEqual(b, .deleteCard(target: "chores"))
+    }
+
+    func testAppendToNoteSetsAppendTrueAndPreservesCase() async throws {
+        let a = try await parse("append Ship IT to standup")
+        XCTAssertEqual(a, .editNote(target: "standup", content: "Ship IT", append: true))
+    }
+
+    func testAddToTodoMapsToAddTodoItem() async throws {
+        let a = try await parse("add Buy Milk to chores")
+        XCTAssertEqual(a, .addTodoItem(target: "chores", text: "Buy Milk"))
+    }
+
+    func testCheckAndUncheckMapToSetTodoItemDone() async throws {
+        let checked = try await parse("check buy milk in chores")
+        XCTAssertEqual(checked, .setTodoItemDone(target: "chores", text: "buy milk", done: true))
+        let unchecked = try await parse("uncheck buy milk in chores")
+        XCTAssertEqual(unchecked, .setTodoItemDone(target: "chores", text: "buy milk", done: false))
+    }
+
+    func testCrudVerbsNeedTheirConnectorsElseUnparseable() async {
+        // No " to " / " in " → FastPath abstains and llama/chat handles it.
+        for bad in ["rename ember", "append ship it", "add buy milk", "check buy milk"] {
+            do { _ = try await parse(bad); XCTFail("\(bad) should be unparseable") }
+            catch let e as BrainError { if case .unparseable = e {} else { XCTFail("\(bad) -> \(e)") } }
+            catch { XCTFail("wrong error for \(bad)") }
+        }
+    }
 }

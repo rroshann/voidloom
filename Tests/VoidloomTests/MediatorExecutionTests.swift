@@ -320,6 +320,86 @@ final class CommandExecutorTests: XCTestCase {
         let result = makeExecutor(store, terminals).execute(.spawnAgents(count: 1, kind: .claudeCode, names: ["ember"]))
         XCTAssertEqual(result, .needsClarification(question: "An agent named ember already exists — pick a different name."))
     }
+
+    // MARK: - Phase B: card CRUD
+
+    func testRenameCardUpdatesTitle() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let id = store.addTitledCard(kind: .note, title: "New Note", content: "x")
+        let result = makeExecutor(store, terminals).execute(.renameCard(target: "New Note", newName: "Sprint"))
+        XCTAssertEqual(store.state.cards.first { $0.id == id }?.title, "Sprint")
+        XCTAssertEqual(result, .success(narration: "Renamed New Note to Sprint"))
+    }
+
+    func testDeleteCardConfirmsThenDeletes() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let id = store.addTitledCard(kind: .note, title: "Scratch", content: "x")
+        let exec = makeExecutor(store, terminals)
+
+        let prompt = exec.execute(.deleteCard(target: "Scratch"))
+        XCTAssertEqual(prompt, .needsConfirmation(prompt: "Delete Scratch?", pending: .deleteCard(target: "Scratch")))
+        XCTAssertTrue(store.state.cards.contains { $0.id == id })
+
+        let done = exec.execute(.deleteCard(target: "Scratch"), confirmed: true)
+        XCTAssertEqual(done, .success(narration: "Deleted Scratch"))
+        XCTAssertFalse(store.state.cards.contains { $0.id == id })
+    }
+
+    func testDeleteAgentCardAlsoTerminatesItsSession() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let id = store.addTitledCard(kind: .agent, title: "ember")
+        _ = makeExecutor(store, terminals).execute(.deleteCard(target: "ember"), confirmed: true)
+        XCTAssertEqual(terminals.terminated, [id])
+        XCTAssertFalse(store.state.cards.contains { $0.id == id })
+    }
+
+    func testEditNoteAppendsOrReplaces() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let id = store.addTitledCard(kind: .note, title: "Log", content: "line 1")
+        let exec = makeExecutor(store, terminals)
+
+        _ = exec.execute(.editNote(target: "Log", content: "line 2", append: true))
+        XCTAssertEqual(store.state.cards.first { $0.id == id }?.content, "line 1\nline 2")
+
+        _ = exec.execute(.editNote(target: "Log", content: "fresh", append: false))
+        XCTAssertEqual(store.state.cards.first { $0.id == id }?.content, "fresh")
+    }
+
+    func testEditNoteRefusesNonNoteCard() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        store.addTitledCard(kind: .todo, title: "Chores", content: "")
+        let result = makeExecutor(store, terminals).execute(.editNote(target: "Chores", content: "x", append: true))
+        XCTAssertEqual(result, .refused(reason: "Chores isn't a note card."))
+    }
+
+    func testAddTodoItemAppendsUncheckedLine() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let id = store.addTitledCard(kind: .todo, title: "Chores", content: "[ ] dishes")
+        let result = makeExecutor(store, terminals).execute(.addTodoItem(target: "Chores", text: "buy milk"))
+        XCTAssertEqual(store.state.cards.first { $0.id == id }?.content, "[ ] dishes\n[ ] buy milk")
+        XCTAssertEqual(result, .success(narration: "Added \"buy milk\" to Chores"))
+    }
+
+    func testSetTodoItemDoneChecksMatchingItemCaseInsensitively() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let id = store.addTitledCard(kind: .todo, title: "Chores", content: "[ ] Buy Milk\n[ ] dishes")
+        let result = makeExecutor(store, terminals).execute(.setTodoItemDone(target: "Chores", text: "buy milk", done: true))
+        XCTAssertEqual(store.state.cards.first { $0.id == id }?.content, "[x] Buy Milk\n[ ] dishes")
+        XCTAssertEqual(result, .success(narration: "Checked \"Buy Milk\" in Chores"))
+    }
+
+    func testSetTodoItemDoneOnMissingItemAsksForClarification() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        store.addTitledCard(kind: .todo, title: "Chores", content: "[ ] dishes")
+        let result = makeExecutor(store, terminals).execute(.setTodoItemDone(target: "Chores", text: "laundry", done: true))
+        XCTAssertEqual(result, .needsClarification(question: "No item matching \"laundry\" in Chores."))
+    }
+
+    func testCardCommandOnMissingCardAsksForClarification() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let result = makeExecutor(store, terminals).execute(.renameCard(target: "ghost", newName: "x"))
+        XCTAssertEqual(result, .needsClarification(question: "I don't see a card called ghost."))
+    }
 }
 
 final class PreworkCleanupTests: XCTestCase {

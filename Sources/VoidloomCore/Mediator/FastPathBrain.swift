@@ -73,9 +73,47 @@ public final class FastPathBrain: MediatorBrain {
             let content = original.dropFirst(head.count)
                 .trimmingCharacters(in: CharacterSet(charactersIn: ": "))
             return .createCard(kind: kind, content: content.isEmpty ? nil : content)
+
+        // Phase B — card CRUD. Payloads (new names, note text, todo items) keep
+        // original case; only the verb and connector words are matched lowercased.
+        case "rename":
+            guard let (target, newName) = splitOnConnector("to", in: originalWords, firstOccurrence: true) else { return nil }
+            return .renameCard(target: target, newName: newName)
+        case "delete", "remove":
+            let target = originalWords.dropFirst().joined(separator: " ").trimmingCharacters(in: .whitespaces)
+            return target.isEmpty ? nil : .deleteCard(target: target)
+        case "append":
+            guard let (content, target) = splitOnConnector("to", in: originalWords, firstOccurrence: false) else { return nil }
+            return .editNote(target: target, content: content, append: true)
+        case "add":
+            guard let (text, target) = splitOnConnector("to", in: originalWords, firstOccurrence: false) else { return nil }
+            return .addTodoItem(target: target, text: text)
+        case "check", "complete":
+            guard let (text, target) = splitOnConnector("in", in: originalWords, firstOccurrence: false) else { return nil }
+            return .setTodoItemDone(target: target, text: text, done: true)
+        case "uncheck", "uncomplete":
+            guard let (text, target) = splitOnConnector("in", in: originalWords, firstOccurrence: false) else { return nil }
+            return .setTodoItemDone(target: target, text: text, done: false)
+
         default:
             return nil
         }
+    }
+
+    /// Splits the words after the verb around a connector token ("to"/"in"),
+    /// preserving case on both sides. `firstOccurrence` chooses which connector
+    /// splits when several appear — first for "rename X to Y" (name at end),
+    /// last for "append X to Y" (target at end, payload may contain the word).
+    private static func splitOnConnector(
+        _ connector: String, in originalWords: [String], firstOccurrence: Bool
+    ) -> (before: String, after: String)? {
+        let rest = Array(originalWords.dropFirst())
+        let positions = rest.enumerated().filter { $0.element.lowercased() == connector }.map(\.offset)
+        guard let index = firstOccurrence ? positions.first : positions.last else { return nil }
+        let before = rest[..<index].joined(separator: " ").trimmingCharacters(in: .whitespaces)
+        let after = rest[(index + 1)...].joined(separator: " ").trimmingCharacters(in: .whitespaces)
+        guard !before.isEmpty, !after.isEmpty else { return nil }
+        return (before, after)
     }
 
     private static func parseSpawn(_ words: [String]) -> MediatorCommand? {

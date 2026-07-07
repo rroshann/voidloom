@@ -99,6 +99,12 @@ PTY after the shell starts (settings: per-kind launch command, default `claude`)
 
 ## Phase D — Presence (animation + voice replies)
 
+**Papercut found in Phase B QA:** after Sunday creates a card, the new card
+auto-grabs keyboard focus (autoFocusNew), so chaining another typed pill command
+needs ⌘J or a click first. Consider: mediator-created cards should NOT steal focus
+from the pill (the user is mid-conversation with Sunday, not editing the card).
+
+
 - **Pill states, animated**: idle calm waveform · listening = live level-reactive waveform (mic buffers
   already flow through AudioCaptureService) · thinking = soft pulsing ring · executing = brief flash ·
   delegating = animated dashed beam from pill to the target card + card border glow while Sunday reads it.

@@ -1,48 +1,8 @@
 import SwiftUI
 import VoidloomCore
 
-struct TodoItem: Identifiable, Equatable {
-    let id: Int
-    var isComplete: Bool
-    var text: String
-}
-
-enum TodoContentParser {
-    static func parse(_ content: String) -> [TodoItem] {
-        content
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .enumerated()
-            .compactMap { index, rawLine in
-                var line = String(rawLine)
-                guard !line.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
-
-                var isComplete = false
-
-                if line.hasPrefix("- ") {
-                    line = String(line.dropFirst(2))
-                }
-
-                if line.hasPrefix("[x]") || line.hasPrefix("[X]") {
-                    isComplete = true
-                    line = String(line.dropFirst(3))
-                } else if line.hasPrefix("[ ]") {
-                    line = String(line.dropFirst(3))
-                }
-
-                let text = line.trimmingCharacters(in: .whitespaces)
-                return TodoItem(id: index, isComplete: isComplete, text: text.isEmpty ? "Item" : text)
-            }
-    }
-
-    static func serialize(_ items: [TodoItem]) -> String {
-        items
-            .map { item in
-                let marker = item.isComplete ? "[x]" : "[ ]"
-                return "\(marker) \(item.text)"
-            }
-            .joined(separator: "\n")
-    }
-}
+// TodoItem and TodoContentParser now live in VoidloomCore so the mediator's
+// todo commands and this view share one parse/serialize authority.
 
 struct TodoCardContentView: View {
     let cardID: UUID

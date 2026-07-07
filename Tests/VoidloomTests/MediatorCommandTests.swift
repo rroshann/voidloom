@@ -38,11 +38,12 @@ final class MediatorCommandTests: XCTestCase {
 }
 
 final class MediatorCommandSchemaTests: XCTestCase {
-    func testSchemaFreezesTheEightCommandCasesInOrder() {
+    func testSchemaFreezesTheCommandCasesInOrder() {
         XCTAssertEqual(
             MediatorCommandSchema.cases.map(\.name),
             ["spawnAgents", "sendPrompt", "readOutput", "closeTerminal",
-             "arrange", "createCard", "switchSpace", "setBackground"]
+             "arrange", "createCard", "switchSpace", "setBackground",
+             "renameCard", "deleteCard", "editNote", "addTodoItem", "setTodoItemDone"]
         )
     }
 

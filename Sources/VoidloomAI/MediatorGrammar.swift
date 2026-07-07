@@ -63,6 +63,7 @@ public enum MediatorGrammar {
         switch kind {
         case .string: return "string"
         case .integer: return "integer"
+        case .bool: return #"( "true" | "false" )"#
         case .stringArray: return "string-array"
         case .agentKind:
             let alts = MediatorCommandSchema.agentKindValues.map { "\"\\\"\($0)\\\"\"" }
