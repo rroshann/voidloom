@@ -20,6 +20,7 @@ enum MenuAction {
     case paste
     case duplicate
     case setProjectFolder
+    case focusMediator
 
     static let notification = Notification.Name("voidloom.menuAction")
 
@@ -65,6 +66,8 @@ struct VoidloomCommands: Commands {
 
         CommandGroup(after: .sidebar) {
             Divider()
+            Button("Focus Mediator") { MenuAction.focusMediator.post() }
+                .keyboardShortcut("j", modifiers: .command)
             Button("Go to Launcher") { MenuAction.goToLauncher.post() }
                 .keyboardShortcut("l", modifiers: [.command, .shift, .option])
             Button("Toggle Spaces / Canvas") { MenuAction.toggleAppMode.post() }

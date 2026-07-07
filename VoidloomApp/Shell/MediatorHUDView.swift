@@ -9,6 +9,7 @@ struct MediatorHUDView: View {
     var showsPushToTalkMic: Bool = false
     @State private var input = ""
     @State private var isMicHeld = false
+    @FocusState private var inputFocused: Bool
 
     var body: some View {
         VStack(spacing: 8) {
@@ -53,6 +54,7 @@ struct MediatorHUDView: View {
                     .accessibilityHidden(true)
                 TextField("Ask the mediator — try \"start 2 claude agents\"", text: $input)
                     .textFieldStyle(.plain)
+                    .focused($inputFocused)
                     .accessibilityIdentifier("mediator.input")
                     .onSubmit(submit)
             }
@@ -60,6 +62,13 @@ struct MediatorHUDView: View {
             .padding(.vertical, 10)
             .frame(width: 420)
             .background(.ultraThinMaterial, in: Capsule())
+        }
+        // ⌘J (Focus Mediator): terminal cards hold first responder — especially
+        // after workspace restore — so the HUD needs a keyboard path back in.
+        .onReceive(NotificationCenter.default.publisher(for: MenuAction.notification)) { note in
+            if case .focusMediator = note.object as? MenuAction {
+                inputFocused = true
+            }
         }
     }
 

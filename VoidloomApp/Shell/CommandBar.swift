@@ -32,6 +32,7 @@ struct CommandBar: View {
             }
             .buttonStyle(.plain)
             .disabled(!canSubmit)
+            .accessibilityLabel("Send command")
         }
         .frame(width: 520)
         .padding(.horizontal, 18)
