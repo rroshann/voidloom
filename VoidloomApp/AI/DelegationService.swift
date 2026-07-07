@@ -23,15 +23,15 @@ final class DelegationService {
 
     func delegate(question: String, target: String?,
                   onChunk: @escaping @MainActor (String) -> Void) async -> String {
-        let provider = AgentProvider.resolve(UserDefaults.standard.string(forKey: "agent.provider"))
+        let provider = MediatorAgentKind.resolveProvider(UserDefaults.standard.string(forKey: "agent.provider"))
         let attribution = target.map { "\($0) (\(provider.displayName))" } ?? provider.displayName
         onChunk("\(attribution) is looking into it…")
 
         do {
-            let output = try await runner.run(
-                provider.printCommand(question: question),
-                in: store.state.space?.folderPath,
-                timeout: timeout)
+            guard let printCommand = provider.printCommand(question: question) else {
+                return "\(provider.displayName) can't answer questions directly."
+            }
+            let output = try await runner.run(printCommand, in: store.state.space?.folderPath, timeout: timeout)
             let answer = Self.clean(output, maxLines: maxAnswerLines)
             return answer.isEmpty ? "\(attribution) had nothing to add." : "\(attribution): \(answer)"
         } catch AgentCommandError.commandNotFound {

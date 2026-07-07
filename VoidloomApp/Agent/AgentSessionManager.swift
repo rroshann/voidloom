@@ -104,9 +104,17 @@ extension AgentSessionManager: LocalProcessTerminalViewDelegate {
 
 extension AgentSessionManager: AgentTerminalControlling {
     func spawn(cardID: UUID, kind: MediatorAgentKind, workingDirectory: String?) {
-        // Every kind gets a login shell today; launching the agent CLI inside
-        // it (per `kind`) is follow-up work now that PTYs are real.
         startSession(cardID: cardID, workingDirectory: workingDirectory)
+        // An AI agent runs its CLI inside the shell — the per-provider command
+        // from Settings (e.g. "claude --dangerously-skip-permissions"), or the
+        // provider default. The PTY buffers this until the login shell is ready.
+        guard kind.isAI else { return }
+        let key = "agent.launch.\(kind.rawValue)"
+        let configured = UserDefaults.standard.string(forKey: key) ?? kind.defaultLaunchCommand ?? ""
+        let command = configured.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !command.isEmpty {
+            sessions[cardID]?.terminal.send(txt: command + "\n")
+        }
     }
 
     func send(text: String, to cardID: UUID) {

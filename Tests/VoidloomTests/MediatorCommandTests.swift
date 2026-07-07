@@ -74,6 +74,7 @@ final class SchemaAgentKindTests: XCTestCase {
             MediatorCommandSchema.agentKindValues,
             MediatorAgentKind.allCases.map(\.rawValue)
         )
-        XCTAssertEqual(MediatorCommandSchema.agentKindValues, ["claude", "shell"])
+        XCTAssertEqual(MediatorCommandSchema.agentKindValues,
+                       ["claude", "codex", "grok", "opencode", "cursor", "shell"])
     }
 }

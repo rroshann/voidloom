@@ -379,7 +379,7 @@ private struct AISettingsTab: View {
     @AppStorage("ai.memory") private var memory: Memory = .session
     @AppStorage("ai.sendSelectedCard") private var sendSelectedCard = true
     @AppStorage("ai.customInstructions") private var customInstructions = ""
-    @AppStorage("agent.provider") private var agentProvider: AgentProvider = .claude
+    @AppStorage("agent.provider") private var agentProvider: MediatorAgentKind = .claudeCode
     @State private var persistConversations = false
     @EnvironmentObject private var modelAssets: ModelAssetManager
 
@@ -397,13 +397,21 @@ private struct AISettingsTab: View {
             }
 
             Section("Agents") {
-                Picker("Primary provider", selection: $agentProvider) {
-                    ForEach(AgentProvider.allCases) { Text($0.displayName).tag($0) }
+                Picker("Delegation provider", selection: $agentProvider) {
+                    ForEach(MediatorAgentKind.aiKinds) { Text($0.displayName).tag($0) }
                 }
-                .pickerStyle(.segmented)
-                Text("Sunday launches this CLI in terminal cards and delegates repo questions to it. More providers coming; delegation uses your own account.")
+                Text("When you don't name an agent, Sunday delegates repo questions to this provider. Delegation uses your own account.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
+
+                DisclosureGroup("Launch commands") {
+                    ForEach(MediatorAgentKind.aiKinds) { kind in
+                        LaunchCommandRow(kind: kind)
+                    }
+                    Text("Run when you spawn that kind of agent — add flags here, e.g. \"claude --dangerously-skip-permissions\".")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
             }
 
             Section("System Prompt") {
@@ -428,6 +436,27 @@ private struct AISettingsTab: View {
             LocalAISettingsSection(assets: modelAssets, persistConversations: $persistConversations)
         }
         .formStyle(.grouped)
+    }
+}
+
+/// A per-provider launch-command field. Its AppStorage key is derived from the
+/// kind at init, so each provider persists its own override independently.
+private struct LaunchCommandRow: View {
+    let kind: MediatorAgentKind
+    @AppStorage private var command: String
+
+    init(kind: MediatorAgentKind) {
+        self.kind = kind
+        _command = AppStorage(wrappedValue: kind.defaultLaunchCommand ?? "", "agent.launch.\(kind.rawValue)")
+    }
+
+    var body: some View {
+        LabeledContent(kind.displayName) {
+            TextField(kind.defaultLaunchCommand ?? "", text: $command)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.body, design: .monospaced))
+                .frame(minWidth: 240)
+        }
     }
 }
 

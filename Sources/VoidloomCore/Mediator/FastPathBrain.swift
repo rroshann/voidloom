@@ -149,7 +149,8 @@ public final class FastPathBrain: MediatorBrain {
         // Only words up to the name marker can name the process kind, so an
         // agent NAMED "shell" no longer flips a claude agent to a shell (carry-over #5).
         let kindScan = nameMarker.map { Array(words[..<$0]) } ?? words
-        let kind: MediatorAgentKind = kindScan.contains("shell") ? .shell : .claudeCode
+        // First provider keyword before the name wins; default to Claude.
+        let kind = MediatorAgentKind.allCases.first { kindScan.contains($0.rawValue) } ?? .claudeCode
 
         var names: [String]? = nil
         if let namedIdx = nameMarker {
