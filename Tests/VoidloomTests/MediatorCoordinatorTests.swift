@@ -142,13 +142,30 @@ extension MediatorCoordinatorTests {
         let c = MediatorSessionCoordinator(
             brain: brain,
             executor: CommandExecutor(store: makeStore(), terminals: MockAgentTerminals(), namePool: AgentNamePool()))
-        c.chatFallback = { utterance in
+        c.chatFallback = { utterance, _ in
             XCTAssertEqual(utterance, "hi")
             return "Hey — ready when you are."
         }
         c.submitTyped("hi")
         for _ in 0..<4000 where c.narration.isEmpty { await Task.yield() }
         XCTAssertEqual(c.narration, "Hey — ready when you are.")
+        XCTAssertEqual(c.state, .idle)
+    }
+
+    func testChatReplyStreamsChunksIntoNarrationLive() async {
+        let brain = ControllableBrain(.failure(.unparseable("tell me a joke")))
+        let c = MediatorSessionCoordinator(
+            brain: brain,
+            executor: CommandExecutor(store: makeStore(), terminals: MockAgentTerminals(), namePool: AgentNamePool()))
+        c.chatFallback = { _, onChunk in
+            onChunk("Why did")
+            onChunk("Why did the loom")
+            return "Why did the loom cross the road?"
+        }
+        c.submitTyped("tell me a joke")
+        for _ in 0..<4000 where c.narration != "Why did the loom cross the road?" { await Task.yield() }
+        XCTAssertEqual(c.narration, "Why did the loom cross the road?")
+        XCTAssertFalse(c.isStreamingReply)
         XCTAssertEqual(c.state, .idle)
     }
 
@@ -160,7 +177,7 @@ extension MediatorCoordinatorTests {
             brain: brain,
             executor: CommandExecutor(store: makeStore(), terminals: MockAgentTerminals(), namePool: AgentNamePool()),
             timeoutScale: 0.001)   // parse watchdog ≈ 10ms, chat window ≈ 30ms
-        c.chatFallback = { _ in
+        c.chatFallback = { _, _ in
             try? await Task.sleep(nanoseconds: 20_000_000)   // 20ms: beyond parse, within chat
             return "Hey!"
         }
@@ -175,7 +192,7 @@ extension MediatorCoordinatorTests {
         let c = MediatorSessionCoordinator(
             brain: brain,
             executor: CommandExecutor(store: makeStore(), terminals: MockAgentTerminals(), namePool: AgentNamePool()))
-        c.chatFallback = { _ in throw BrainError.backendFailure("chat down") }
+        c.chatFallback = { _, _ in throw BrainError.backendFailure("chat down") }
         c.submitTyped("hi")
         for _ in 0..<4000 where c.narration.isEmpty { await Task.yield() }
         XCTAssertEqual(c.narration, "Didn't catch that — try rephrasing.")
@@ -187,7 +204,7 @@ extension MediatorCoordinatorTests {
         let c = MediatorSessionCoordinator(
             brain: brain,
             executor: CommandExecutor(store: makeStore(), terminals: MockAgentTerminals(), namePool: AgentNamePool()))
-        c.chatFallback = { _ in XCTFail("chat must not swallow model-availability errors"); return "" }
+        c.chatFallback = { _, _ in XCTFail("chat must not swallow model-availability errors"); return "" }
         c.submitTyped("start 2 claude agents")
         for _ in 0..<4000 where c.narration.isEmpty { await Task.yield() }
         XCTAssertEqual(c.narration, "Local model not downloaded — open Settings › Local AI.")

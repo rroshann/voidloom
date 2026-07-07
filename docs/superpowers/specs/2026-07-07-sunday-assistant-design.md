@@ -22,7 +22,24 @@ Sunday's own brain never leaves the Mac; the agents it commands are the user's o
    answer, not a 1.7B guess. Prerequisite: agent cards must actually launch the `claude` CLI (today: bare shell).
 4. Sunday has no **presence**: no thinking animation, no streaming in the pill, no voice replies.
 
+## Provider abstraction (future)
+
+Delegation targets the user's own agent CLI. The primary provider is a Setting
+(Phase C): **Claude** and **Codex** ship first (default Claude), more later
+(Gemini, local Ollama-backed agents, custom command). Locked to Claude for this
+repo's owner. The provider only changes which CLI `spawn` launches and how a
+delegated question is phrased; the delegation flow itself is provider-agnostic.
+
 ## Phase A — Sunday knows (context + streaming + persona)
+
+**Grammar abstain (root cause of "hi doesn't work").** With the command model
+present, the GBNF grammar *forced* llama to emit some command for every input, so
+chat-like utterances were mangled into commands instead of reaching chat. Fixed by
+adding a `cmd-none` alternative ({"none":{}}) the model picks for non-commands; it
+has no `MediatorCommand` case, so it surfaces as `.unparseable` → conversational
+path. Verified live: the 0.6B model abstains on "hi"/"what cards are open"/"thanks"
+while real commands still parse and stay ≤1s.
+
 
 **WorkspaceContextBuilder (Core, pure, TDD)** produces a capped (~1,500 chars) structured snapshot:
 

@@ -13,11 +13,16 @@ public enum MediatorGrammar {
 
     public static func gbnf(from cases: [MediatorCommandSchema.Case]) -> String {
         var lines: [String] = []
-        let ruleNames = cases.map { "cmd-\($0.name)" }
+        // `cmd-none` is the abstain option: the model emits {"none":{}} when the
+        // utterance isn't a workspace command (a question, greeting, chit-chat).
+        // It has no `MediatorCommand` case, so it fails to decode and surfaces as
+        // `.unparseable` — which routes the utterance to the conversational path.
+        let ruleNames = ["cmd-none"] + cases.map { "cmd-\($0.name)" }
         // Each `cmd-<name>` is a COMPLETE command object `{"name":{…}}` (see
         // `caseBody`), so root only alternates over them plus optional surrounding
         // whitespace — it must NOT add a second pair of object braces.
         lines.append("root ::= ws ( \(ruleNames.joined(separator: " | ")) ) ws")
+        lines.append(#"cmd-none ::= "{" ws "\"none\"" ws ":" ws "{" ws "}" ws "}""#)
 
         for c in cases {
             lines.append("cmd-\(c.name) ::= \(caseBody(c))")

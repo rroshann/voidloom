@@ -6,6 +6,7 @@ struct SpacesShellView: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var sessionManager: AgentSessionManager
     @ObservedObject var conversationStore: ConversationStore
+    @EnvironmentObject private var assistantContext: AssistantContextProvider
 
     @AppStorage("spaces.defaultColumns") private var defaultColumns = 0
     @AppStorage("spaces.defaultRows") private var defaultRows = 0
@@ -67,6 +68,10 @@ struct SpacesShellView: View {
         guard let id = store.state.selectedCardID else { return nil }
         let s = store.state.linkedContext(for: id)
         return s.isEmpty ? nil : s
+    }
+
+    private var chatContext: String {
+        assistantContext.snapshot(selectedCardContext: selectedCardContext)
     }
 
     /// Builds a tiling from the global Settings defaults, used when a space has no
@@ -256,7 +261,7 @@ struct SpacesShellView: View {
                 if isAIConversationVisible {
                     AIConversationSidebar(
                         messages: conversationStore.messages(for: activeWorkspaceID),
-                        onSubmit: { conversationStore.submit(workspaceID: activeWorkspaceID, text: $0, context: selectedCardContext) },
+                        onSubmit: { conversationStore.submit(workspaceID: activeWorkspaceID, text: $0, context: chatContext) },
                         onRetry: { conversationStore.retry(workspaceID: activeWorkspaceID, messageID: $0) },
                         onClose: {
                             withAnimation(.easeInOut(duration: 0.24)) {

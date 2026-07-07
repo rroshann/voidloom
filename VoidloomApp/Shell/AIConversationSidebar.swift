@@ -104,7 +104,7 @@ struct AIConversationSidebar: View {
                 .foregroundStyle(theme.accent)
                 .accessibilityHidden(true)
 
-            Text("Assistant")
+            Text(AssistantIdentity.name)
                 .font(.system(size: 11, weight: .bold, design: .monospaced))
                 .tracking(1.4)
                 .textCase(.uppercase)
@@ -134,7 +134,7 @@ struct AIConversationSidebar: View {
                 .font(.system(size: 13, weight: .bold, design: .rounded))
                 .foregroundStyle(theme.ink(0.6))
 
-            Text("Ask the assistant to add cards, reset the canvas, or organize this workspace.")
+            Text("Ask \(AssistantIdentity.name) to add cards, reorganize this workspace, or answer questions about it.")
                 .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(theme.ink(0.38))
                 .fixedSize(horizontal: false, vertical: true)
@@ -174,7 +174,7 @@ struct AIConversationSidebar: View {
 
     private var inputBar: some View {
         HStack(spacing: 10) {
-            TextField("Message the assistant…", text: $input)
+            TextField("Message \(AssistantIdentity.name)…", text: $input)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .foregroundStyle(theme.ink(0.86))

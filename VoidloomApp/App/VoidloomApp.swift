@@ -19,15 +19,16 @@ struct VoidloomApp: App {
         let assets = ModelAssetManager()
         _modelAssets = StateObject(wrappedValue: assets)
 
+        let persona = AssistantIdentity.systemPrompt()
         let provider: ResponseProvider
         if #available(macOS 26, *), AppleTierAvailability.foundationModelsAvailable {
-            provider = FoundationModelsResponseProvider()
+            provider = FoundationModelsResponseProvider(systemPrompt: persona)
         } else if assets.state(of: LocalModelManifest.chatModel) == .ready,
                   let url = assets.localURL(of: LocalModelManifest.chatModel) {
             let engine = LazyLoadingEngine(
                 modelURL: url,
                 config: LlamaEngineConfig(contextLength: 4096))
-            provider = LocalResponseProvider(engine: engine)
+            provider = LocalResponseProvider(engine: engine, systemPrompt: persona)
         } else {
             provider = StubResponseProvider()
         }

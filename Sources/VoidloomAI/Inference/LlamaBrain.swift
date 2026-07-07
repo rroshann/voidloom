@@ -47,7 +47,8 @@ public final class LlamaBrain: MediatorBrain, @unchecked Sendable {
     /// the tiny model uppercase targets). Keep short.
     public static let defaultSystemPrompt = """
     You translate a single spoken workspace command into one JSON object matching the schema. \
-    Output ONLY the JSON. Examples:
+    Output ONLY the JSON. If the input is NOT a workspace command — a question, a greeting, \
+    chit-chat, or anything you cannot map to the schema — output {"none":{}}. Examples:
     ask ember to fix the build -> {"sendPrompt":{"target":"ember","text":"fix the build"}}
     start 4 claude agents -> {"spawnAgents":{"count":4,"kind":"claude"}}
     switch to research -> {"switchSpace":{"name":"research"}}
@@ -55,5 +56,8 @@ public final class LlamaBrain: MediatorBrain, @unchecked Sendable {
     read what slate is saying -> {"readOutput":{"target":"slate"}}
     tile the windows in a grid -> {"arrange":{"style":{"grid":{}}}}
     make a todo that says buy milk -> {"createCard":{"kind":"todo","content":"buy milk"}}
+    hi -> {"none":{}}
+    what cards do I have open -> {"none":{}}
+    thanks, that's helpful -> {"none":{}}
     """
 }

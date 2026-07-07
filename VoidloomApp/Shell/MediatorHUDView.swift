@@ -52,7 +52,7 @@ struct MediatorHUDView: View {
                 Image(systemName: stateIcon)
                     .foregroundStyle(.secondary)
                     .accessibilityHidden(true)
-                TextField("Ask the mediator — try \"start 2 claude agents\"", text: $input)
+                TextField("Ask \(AssistantIdentity.name) — try \"start 2 claude agents\"", text: $input)
                     .textFieldStyle(.plain)
                     .focused($inputFocused)
                     .accessibilityIdentifier("mediator.input")

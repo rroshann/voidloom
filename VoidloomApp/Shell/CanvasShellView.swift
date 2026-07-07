@@ -12,6 +12,7 @@ struct CanvasShellView: View {
     @ObservedObject var interaction: CanvasInteractionModel
 
     @EnvironmentObject private var newWorkspace: AppSession
+    @EnvironmentObject private var assistantContext: AssistantContextProvider
 
     @AppStorage("app.mode") private var appMode: AppMode = .canvas
     @AppStorage("isMinimapVisible") private var isMinimapVisible = false
@@ -58,6 +59,12 @@ struct CanvasShellView: View {
         guard let id = store.state.selectedCardID else { return nil }
         let s = store.state.linkedContext(for: id)
         return s.isEmpty ? nil : s
+    }
+
+    /// Full workspace context (cards, folder, git, brain tier) plus the selected
+    /// card — what the assistant needs to answer with real awareness.
+    private var chatContext: String {
+        assistantContext.snapshot(selectedCardContext: selectedCardContext)
     }
 
     /// Handles a Delete/Backspace key press for the canvas. Removes, in priority
@@ -138,7 +145,7 @@ struct CanvasShellView: View {
                 if isAIConversationVisible {
                     AIConversationSidebar(
                         messages: conversationStore.messages(for: activeWorkspaceID),
-                        onSubmit: { conversationStore.submit(workspaceID: activeWorkspaceID, text: $0, context: selectedCardContext) },
+                        onSubmit: { conversationStore.submit(workspaceID: activeWorkspaceID, text: $0, context: chatContext) },
                         onRetry: { conversationStore.retry(workspaceID: activeWorkspaceID, messageID: $0) },
                         onClose: {
                             withAnimation(.easeInOut(duration: 0.24)) {
@@ -316,7 +323,7 @@ struct CanvasShellView: View {
                         query: $paletteQuery,
                         commands: paletteCommands(in: geometry.size),
                         onAskAI: { text in
-                            conversationStore.submit(workspaceID: activeWorkspaceID, text: text, context: selectedCardContext)
+                            conversationStore.submit(workspaceID: activeWorkspaceID, text: text, context: chatContext)
                             withAnimation(.easeInOut(duration: 0.24)) {
                                 isAIConversationVisible = true
                             }
@@ -413,7 +420,7 @@ struct CanvasShellView: View {
         let trimmed = commandText.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
 
-        conversationStore.submit(workspaceID: activeWorkspaceID, text: trimmed, context: selectedCardContext)
+        conversationStore.submit(workspaceID: activeWorkspaceID, text: trimmed, context: chatContext)
         commandText = ""
 
         withAnimation(.easeInOut(duration: 0.24)) {

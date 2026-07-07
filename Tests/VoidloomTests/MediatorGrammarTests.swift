@@ -13,6 +13,13 @@ final class MediatorGrammarTests: XCTestCase {
         XCTAssertTrue(g.contains("root ::="))
     }
 
+    func testGrammarOffersTheNoneAbstainOption() {
+        let g = MediatorGrammar.rootGrammar
+        XCTAssertTrue(g.contains("cmd-none"), "root must offer the abstain option")
+        XCTAssertTrue(g.contains(#"cmd-none ::= "{" ws "\"none\"" ws ":" ws "{" ws "}" ws "}""#),
+                      "cmd-none must match exactly {\"none\":{}}")
+    }
+
     func testKindIsConstrainedToAgentKindValuesNotFreeString() {
         let g = MediatorGrammar.rootGrammar
         // spawn kind alternation lists the concrete values, no open-ended string rule for kind.

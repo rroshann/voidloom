@@ -1,0 +1,108 @@
+import Foundation
+import VoidloomAI
+import VoidloomCore
+
+/// Gathers the live workspace snapshot that grounds the assistant, and feeds it
+/// to the pure `WorkspaceContextBuilder`. Everything but git is read fresh at
+/// call time from the live store/session manager; git shells out, so its summary
+/// is cached and refreshed opportunistically (on appear, folder change, after
+/// commands). A stale-or-missing git line self-heals within a refresh.
+@MainActor
+final class AssistantContextProvider: ObservableObject {
+    private let store: WorkspaceStore
+    private let sessionManager: AgentSessionManager
+    private let modelAssets: ModelAssetManager
+
+    @Published private(set) var gitSummary: String?
+    private var lastGitFolder: String?
+
+    init(store: WorkspaceStore, sessionManager: AgentSessionManager, modelAssets: ModelAssetManager) {
+        self.store = store
+        self.sessionManager = sessionManager
+        self.modelAssets = modelAssets
+    }
+
+    /// The full context string. Synchronous and always current except for git,
+    /// which reflects the last `refreshGit()`.
+    func snapshot(selectedCardContext: String? = nil) -> String {
+        WorkspaceContextBuilder.build(.init(
+            workspaceName: workspaceName,
+            mode: modeLabel,
+            folderPath: store.state.space?.folderPath,
+            gitSummary: gitSummary,
+            brainTier: brainTier,
+            cards: cardLines(),
+            recentActivity: nil,
+            selectedCardContext: selectedCardContext))
+    }
+
+    /// Refresh the cached git summary for the current project folder. Cheap
+    /// (~tens of ms) and safe to call redundantly; a non-repo folder clears it.
+    func refreshGit() async {
+        guard let path = store.state.space?.folderPath, !path.isEmpty else {
+            gitSummary = nil; lastGitFolder = nil; return
+        }
+        lastGitFolder = path
+        let dir = URL(fileURLWithPath: path)
+        let branchResult = await Git.run(["rev-parse", "--abbrev-ref", "HEAD"], in: dir)
+        // Folder changed while we were awaiting — a newer refresh owns the cache.
+        guard lastGitFolder == path else { return }
+        guard branchResult.code == 0 else { gitSummary = nil; return }
+        let branch = branchResult.out.trimmingCharacters(in: .whitespacesAndNewlines)
+        let statusResult = await Git.run(["status", "--porcelain"], in: dir)
+        guard lastGitFolder == path else { return }
+        let changes = statusResult.out.split(separator: "\n", omittingEmptySubsequences: true).count
+        gitSummary = changes == 0
+            ? "\(branch), clean"
+            : "\(branch), \(changes) change\(changes == 1 ? "" : "s")"
+    }
+
+    // MARK: - Live inputs
+
+    private var workspaceName: String {
+        store.library.workspaces.first { $0.id == store.library.selectedWorkspaceID }?.name ?? "Workspace"
+    }
+
+    private var modeLabel: String {
+        (UserDefaults.standard.string(forKey: "app.mode") == "spaces") ? "Spaces" : "Canvas"
+    }
+
+    private var brainTier: String {
+        var parts = ["fast path"]
+        if modelAssets.state(of: LocalModelManifest.commandModel) == .ready { parts.append("local LLM") }
+        if AppleTierAvailability.foundationModelsAvailable { parts.append("Apple Intelligence") }
+        return parts.joined(separator: " + ")
+    }
+
+    private func cardLines() -> [WorkspaceContextBuilder.CardLine] {
+        store.state.cards.map { card in
+            WorkspaceContextBuilder.CardLine(
+                title: card.title,
+                kind: Self.kindLabel(card.kind),
+                detail: detail(for: card))
+        }
+    }
+
+    private func detail(for card: WorkspaceCard) -> String? {
+        switch card.kind {
+        case .agent:
+            return sessionManager.session(for: card.id)?.isRunning == true ? "running" : "idle"
+        case .note, .todo:
+            let text = card.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            return text.isEmpty ? nil : text
+        case .browser, .fileBrowser, .git:
+            return nil
+        }
+    }
+
+    private static func kindLabel(_ kind: CardKind) -> String {
+        switch kind {
+        case .agent: return "terminal"
+        case .note: return "note"
+        case .todo: return "todo"
+        case .browser: return "browser"
+        case .fileBrowser: return "file browser"
+        case .git: return "git"
+        }
+    }
+}

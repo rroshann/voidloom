@@ -52,6 +52,7 @@
 		A300000000000000000000C4 /* DockStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = A300000000000000000000D4 /* DockStyle.swift */; };
 		A300000000000000000000C3 /* StartupView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A300000000000000000000D3 /* StartupView.swift */; };
 		A40000000000000000000001 /* ConversationStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000011 /* ConversationStore.swift */; };
+		A40000000000000000000004 /* AssistantContextProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000014 /* AssistantContextProvider.swift */; };
 		A40000000000000000000002 /* AIConversationSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000012 /* AIConversationSidebar.swift */; };
 		A40000000000000000000003 /* StubResponseProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000013 /* StubResponseProvider.swift */; };
 		A50000000000000000000001 /* CommandPaletteModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000011 /* CommandPaletteModel.swift */; };
@@ -146,6 +147,7 @@
 		A300000000000000000000D4 /* DockStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/DockStyle.swift; sourceTree = "<group>"; };
 		A300000000000000000000D3 /* StartupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/StartupView.swift; sourceTree = "<group>"; };
 		A40000000000000000000011 /* ConversationStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/ConversationStore.swift; sourceTree = "<group>"; };
+		A40000000000000000000014 /* AssistantContextProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/AssistantContextProvider.swift; sourceTree = "<group>"; };
 		A40000000000000000000012 /* AIConversationSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/AIConversationSidebar.swift; sourceTree = "<group>"; };
 		A40000000000000000000013 /* StubResponseProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/StubResponseProvider.swift; sourceTree = "<group>"; };
 		A50000000000000000000011 /* CommandPaletteModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPalette/CommandPaletteModel.swift; sourceTree = "<group>"; };
@@ -307,6 +309,7 @@
 				A200000000000000000000B8 /* LocalAISettingsSection.swift */,
 				A200000000000000000000C6 /* VoiceSettingsSection.swift */,
 				A40000000000000000000011 /* ConversationStore.swift */,
+				A40000000000000000000014 /* AssistantContextProvider.swift */,
 				A40000000000000000000013 /* StubResponseProvider.swift */,
 				A200000000000000000000C2 /* CllamaEngine.swift */,
 				A200000000000000000000C3 /* AudioCaptureService.swift */,
@@ -506,6 +509,7 @@
 				A300000000000000000000C4 /* DockStyle.swift in Sources */,
 				A300000000000000000000C3 /* StartupView.swift in Sources */,
 				A40000000000000000000001 /* ConversationStore.swift in Sources */,
+				A40000000000000000000004 /* AssistantContextProvider.swift in Sources */,
 				A40000000000000000000002 /* AIConversationSidebar.swift in Sources */,
 				A40000000000000000000003 /* StubResponseProvider.swift in Sources */,
 				A200000000000000000000D3 /* CllamaEngine.swift in Sources */,

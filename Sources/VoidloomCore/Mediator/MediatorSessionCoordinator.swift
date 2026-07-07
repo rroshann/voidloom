@@ -22,8 +22,15 @@ public final class MediatorSessionCoordinator: ObservableObject {
     /// When set, an utterance NO brain tier can parse as a command is answered
     /// by the chat backend and the reply narrated in the HUD — the pill talks
     /// back instead of shrugging. Only `.unparseable` routes here; model-
-    /// availability errors keep their specific messages.
-    public var chatFallback: (@MainActor (String) async throws -> String)?
+    /// availability errors keep their specific messages. The `onChunk` callback
+    /// streams partial text into the HUD live; the returned string is the final.
+    public typealias ChatFallback =
+        @MainActor (_ utterance: String, _ onChunk: @escaping @MainActor (String) -> Void) async throws -> String
+    public var chatFallback: ChatFallback?
+
+    /// True while a chat reply is streaming into the HUD — drives the thinking
+    /// affordance. Set when the chat leg begins, cleared when it resolves.
+    @Published public private(set) var isStreamingReply: Bool = false
 
     private var machine = MediatorSessionMachine()
     private let brain: MediatorBrain
@@ -76,6 +83,7 @@ public final class MediatorSessionCoordinator: ObservableObject {
         if state == .idle {
             parseTask?.cancel(); parseTask = nil
             timeoutTask?.cancel(); timeoutTask = nil
+            isStreamingReply = false
         }
         isBusy = !(state == .idle) && !isAwaitingConfirmation
         for effect in effects { perform(effect) }
@@ -138,10 +146,21 @@ public final class MediatorSessionCoordinator: ObservableObject {
                 } catch {
                     guard !Task.isCancelled else { return }
                     if case BrainError.unparseable = error, let chat = self.chatFallback {
+                        self.isStreamingReply = true
                         self.perform(.scheduleTimeout(seconds: MediatorSessionMachine.chatTimeout))
-                        if let reply = try? await chat(transcript), !Task.isCancelled, !reply.isEmpty {
+                        let onChunk: @MainActor (String) -> Void = { [weak self] partial in
+                            guard let self, !Task.isCancelled, self.isStreamingReply else { return }
+                            // Live typing into the HUD while still .parsing; steady
+                            // progress keeps the window open, a stalled stream doesn't.
+                            self.narration = partial
+                            self.perform(.scheduleTimeout(seconds: MediatorSessionMachine.chatTimeout))
+                        }
+                        let reply = try? await chat(transcript, onChunk)
+                        self.isStreamingReply = false
+                        guard !Task.isCancelled else { return }
+                        if let reply, !reply.isEmpty {
                             self.send(.chatReply(reply))
-                        } else if !Task.isCancelled {
+                        } else {
                             self.send(.parseFailed(""))
                         }
                         return

@@ -15,6 +15,7 @@ struct RootView: View {
     @ObservedObject var interaction: CanvasInteractionModel
     @ObservedObject var modelAssets: ModelAssetManager
     @StateObject private var mediator: MediatorSessionCoordinator
+    @StateObject private var contextProvider: AssistantContextProvider
 
     @EnvironmentObject private var session: AppSession
 
@@ -62,30 +63,59 @@ struct RootView: View {
                 coordinator.wakeDetected()
             }
         }
+        let context = AssistantContextProvider(
+            store: store, sessionManager: sessionManager, modelAssets: modelAssets)
+
         // Conversational pill: utterances no brain can parse as a command go to
-        // the same chat backend the Assistant sidebar uses, replies in the HUD.
-        coordinator.chatFallback = { utterance in
-            try await withCheckedThrowingContinuation { continuation in
-                var resumed = false
-                chatProvider.generateResponse(
-                    workspaceID: UUID(),
-                    userMessage: utterance,
-                    context: nil,
-                    onStreamChunk: { _ in },
-                    onComplete: { reply in
-                        guard !resumed else { return }
-                        resumed = true
-                        continuation.resume(returning: reply)
-                    },
-                    onError: { message in
-                        guard !resumed else { return }
-                        resumed = true
-                        continuation.resume(throwing: BrainError.backendFailure(message))
-                    }
-                )
-            }
+        // the same chat backend the Assistant sidebar uses — grounded in the live
+        // workspace context and streamed into the HUD as they arrive.
+        coordinator.chatFallback = { utterance, onChunk in
+            await context.refreshGit()
+            let grounded = context.snapshot()
+            return try await Self.streamChat(
+                chatProvider,
+                workspaceID: store.library.selectedWorkspaceID,
+                message: utterance,
+                context: grounded,
+                onChunk: onChunk)
         }
         _mediator = StateObject(wrappedValue: coordinator)
+        _contextProvider = StateObject(wrappedValue: context)
+    }
+
+    /// Bridges the callback-based `ResponseProvider` to async + live chunks:
+    /// accumulates deltas, forwards the running text to `onChunk`, and resolves
+    /// with the final reply (or throws a `backendFailure`).
+    private static func streamChat(
+        _ provider: ResponseProvider,
+        workspaceID: UUID,
+        message: String,
+        context: String,
+        onChunk: @escaping @MainActor (String) -> Void
+    ) async throws -> String {
+        try await withCheckedThrowingContinuation { continuation in
+            var accumulated = ""
+            var resumed = false
+            provider.generateResponse(
+                workspaceID: workspaceID,
+                userMessage: message,
+                context: context,
+                onStreamChunk: { delta in
+                    accumulated += delta
+                    onChunk(accumulated)
+                },
+                onComplete: { reply in
+                    guard !resumed else { return }
+                    resumed = true
+                    continuation.resume(returning: reply.isEmpty ? accumulated : reply)
+                },
+                onError: { message in
+                    guard !resumed else { return }
+                    resumed = true
+                    continuation.resume(throwing: BrainError.backendFailure(message))
+                }
+            )
+        }
     }
 
     private var pushToTalkEnabled: Bool {
@@ -128,10 +158,17 @@ struct RootView: View {
             MediatorHUDView(mediator: mediator, showsPushToTalkMic: pushToTalkEnabled)
                 .padding(.bottom, 84)
         }
-        .onAppear { applyVoiceConfiguration() }
+        .environmentObject(contextProvider)
+        .onAppear {
+            applyVoiceConfiguration()
+            Task { await contextProvider.refreshGit() }
+        }
         .onChange(of: voiceMode) { _, _ in applyVoiceConfiguration() }
         .onChange(of: wakePhrase) { _, _ in applyVoiceConfiguration() }
         .onChange(of: useSpeechAnalyzer) { _, _ in applyVoiceConfiguration() }
+        .onChange(of: store.state.space?.folderPath) { _, _ in
+            Task { await contextProvider.refreshGit() }
+        }
         .onChange(of: store.library.workspaces.isEmpty) { _, isEmpty in
             // Deleting the last workspace from inside the app returns to the launcher
             // rather than leaving an empty canvas/space.
