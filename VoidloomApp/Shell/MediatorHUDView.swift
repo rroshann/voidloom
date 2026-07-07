@@ -17,6 +17,7 @@ struct MediatorHUDView: View {
     @State private var hintIndex = 0
     @State private var showNarration = false
     @State private var narrationDismissTask: Task<Void, Never>?
+    @State private var isHoveringNarration = false
     @State private var boxPulse = false
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
@@ -154,7 +155,11 @@ struct MediatorHUDView: View {
             showNarration = true
             narrationDismissTask = Task {
                 while mediator.isStreamingReply { try? await Task.sleep(nanoseconds: 200_000_000) }
-                try? await Task.sleep(nanoseconds: 3_000_000_000)
+                // Longer replies linger a little longer so they stay readable
+                // (~3s short → ~6s long); hovering pauses the dismissal.
+                let delay = max(3.0, min(6.0, 2.0 + Double(new.count) / 60.0))
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                while isHoveringNarration { try? await Task.sleep(nanoseconds: 300_000_000) }
                 guard !Task.isCancelled else { return }
                 withAnimation(.easeInOut(duration: 0.4)) { showNarration = false }
             }
@@ -246,6 +251,8 @@ struct MediatorHUDView: View {
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("mediator.narration")
         .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+        // Hovering keeps the reply up so you can finish reading a long one.
+        .onHover { isHoveringNarration = $0 }
         .onChange(of: mediator.narration) { _, newValue in
             guard !newValue.isEmpty else { return }
             AccessibilityNotification.Announcement(newValue).post()
