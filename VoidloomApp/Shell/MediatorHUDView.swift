@@ -11,7 +11,20 @@ struct MediatorHUDView: View {
     @State private var isMicHeld = false
     @FocusState private var inputFocused: Bool
     @State private var refocusTask: Task<Void, Never>?
+    @State private var hintIndex = 0
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    /// Rotating examples so users discover Sunday's breadth beyond spawning.
+    private static let hints = [
+        "start 2 claude agents", "ask ember about the build", "rename ember to scout",
+        "research how auth works", "brief slate", "make a todo: ship it",
+    ]
+    private let hintTimer = Timer.publish(every: 4, on: .main, in: .common).autoconnect()
+
+    private var placeholder: String {
+        let hint = reduceMotion ? Self.hints[0] : Self.hints[hintIndex % Self.hints.count]
+        return "Ask \(AssistantIdentity.name) — try \"\(hint)\""
+    }
 
     /// Sunday is "thinking" while parsing/executing a command or streaming a
     /// reply — the state icon animates then, unless the user reduced motion.
@@ -70,11 +83,17 @@ struct MediatorHUDView: View {
                     .symbolEffect(.variableColor.iterative, isActive: isThinking && !reduceMotion)
                     .contentTransition(.symbolEffect(.replace))
                     .accessibilityHidden(true)
-                TextField("Ask \(AssistantIdentity.name) — try \"start 2 claude agents\"", text: $input)
+                TextField(placeholder, text: $input)
                     .textFieldStyle(.plain)
                     .focused($inputFocused)
                     .accessibilityIdentifier("mediator.input")
                     .onSubmit(submit)
+                    .onReceive(hintTimer) { _ in
+                        // Rotate only while empty (never mid-typing); reduce motion
+                        // pins to the first hint.
+                        guard !reduceMotion, input.isEmpty else { return }
+                        withAnimation(.easeInOut(duration: 0.4)) { hintIndex += 1 }
+                    }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
