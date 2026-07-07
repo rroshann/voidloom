@@ -1,0 +1,15 @@
+root ::= ws ( cmd-spawnAgents | cmd-sendPrompt | cmd-readOutput | cmd-closeTerminal | cmd-arrange | cmd-createCard | cmd-switchSpace | cmd-setBackground ) ws
+cmd-spawnAgents ::= "{" ws "\"spawnAgents\"" ws ":" ws "{" ws "\"count\"" ws ":" ws integer "," ws "\"kind\"" ws ":" ws ( "\"claude\"" | "\"shell\"" ) ( "," ws "\"names\"" ws ":" ws string-array )? ws "}" ws "}"
+cmd-sendPrompt ::= "{" ws "\"sendPrompt\"" ws ":" ws "{" ws "\"target\"" ws ":" ws string "," ws "\"text\"" ws ":" ws string ws "}" ws "}"
+cmd-readOutput ::= "{" ws "\"readOutput\"" ws ":" ws "{" ws "\"target\"" ws ":" ws string ws "}" ws "}"
+cmd-closeTerminal ::= "{" ws "\"closeTerminal\"" ws ":" ws "{" ws "\"target\"" ws ":" ws string ws "}" ws "}"
+cmd-arrange ::= "{" ws "\"arrange\"" ws ":" ws "{" ws "\"style\"" ws ":" ws ( "{" ws "\"grid\"" ws ":" ws "{" ws "}" ws "}" | "{" ws "\"retile\"" ws ":" ws "{" ws "}" ws "}" | "{" ws "\"focus\"" ws ":" ws "{" ws "\"target\"" ws ":" ws string ws "}" ws "}" ) ws "}" ws "}"
+cmd-createCard ::= "{" ws "\"createCard\"" ws ":" ws "{" ws "\"kind\"" ws ":" ws ( "\"agent\"" | "\"note\"" | "\"todo\"" | "\"browser\"" | "\"fileBrowser\"" | "\"git\"" ) ( "," ws "\"content\"" ws ":" ws string )? ws "}" ws "}"
+cmd-switchSpace ::= "{" ws "\"switchSpace\"" ws ":" ws "{" ws "\"name\"" ws ":" ws string ws "}" ws "}"
+cmd-setBackground ::= "{" ws "\"setBackground\"" ws ":" ws "{" ws "\"spec\"" ws ":" ws ( "{" ws "\"atmosphere\"" ws ":" ws "{" ws "}" ws "}" | "{" ws "\"solid\"" ws ":" ws "{" ws "\"hex\"" ws ":" ws string ws "}" ws "}" ) ws "}" ws "}"
+string ::= "\"" char* "\""
+char ::= [^"\\] | "\\" ( ["\\/bfnrt] | "u" hex hex hex hex )
+hex ::= [0-9a-fA-F]
+integer ::= [1-9] [0-9]*
+string-array ::= "[" ws string ( ws "," ws string )* ws "]"
+ws ::= [ \t\n]*

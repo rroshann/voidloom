@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import VoidloomAI
 import VoidloomCore
 
 /// Right-side AI conversation drawer. Mirrors `WorkspaceSidebar` styling but
@@ -12,7 +13,8 @@ struct AIConversationSidebar: View {
     let onClose: () -> Void
 
     @State private var input = ""
-    @State private var hasAIKey = false
+    @State private var hasChatBackend = false
+    @EnvironmentObject private var modelAssets: ModelAssetManager
     @FocusState private var isInputFocused: Bool
     @Environment(\.theme) private var theme
 
@@ -23,7 +25,7 @@ struct AIConversationSidebar: View {
             VStack(alignment: .leading, spacing: 16) {
                 header
 
-                if !hasAIKey {
+                if !hasChatBackend {
                     connectAIBanner
                 }
 
@@ -67,7 +69,7 @@ struct AIConversationSidebar: View {
                     .foregroundStyle(theme.ink(0.78))
             }
 
-            Text("Add your Anthropic API key to chat with a real model. Until then, replies are simulated.")
+            Text("Chat uses Apple Intelligence when available, or the local chat model — download it in Settings. Until then, replies are simulated. A relaunch applies either change.")
                 .font(.system(size: 12, weight: .medium, design: .rounded))
                 .foregroundStyle(theme.ink(0.42))
                 .fixedSize(horizontal: false, vertical: true)
@@ -204,7 +206,8 @@ struct AIConversationSidebar: View {
     }
 
     private func refreshAIKeyState() {
-        hasAIKey = AnthropicAPIKeyStore.load() != nil
+        hasChatBackend = AppleTierAvailability.foundationModelsAvailable
+            || modelAssets.state(of: LocalModelManifest.chatModel) == .ready
     }
 
     private func openSettings() {
@@ -357,6 +360,7 @@ private struct PulsingDots: View {
         onRetry: { _ in },
         onClose: {}
     )
+    .environmentObject(ModelAssetManager())
     .frame(width: 340, height: 760)
     .preferredColorScheme(.dark)
     .background(Color(red: 0.04, green: 0.05, blue: 0.07))

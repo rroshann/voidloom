@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import VoidloomAI
 import VoidloomCore
 
 @main
@@ -7,10 +8,28 @@ import VoidloomCore
 struct VoidloomApp: App {
     @StateObject private var store = WorkspaceStore()
     @StateObject private var agentSessionManager = AgentSessionManager()
-    @StateObject private var conversationStore = ConversationStore(
-        provider: AnthropicResponseProvider()
-    )
     @StateObject private var interaction = CanvasInteractionModel()
+    @StateObject private var modelAssets: ModelAssetManager
+    @StateObject private var conversationStore: ConversationStore
+
+    init() {
+        let assets = ModelAssetManager()
+        _modelAssets = StateObject(wrappedValue: assets)
+
+        if #available(macOS 26, *), AppleTierAvailability.foundationModelsAvailable {
+            _conversationStore = StateObject(wrappedValue: ConversationStore(
+                provider: FoundationModelsResponseProvider()))
+        } else if assets.state(of: LocalModelManifest.chatModel) == .ready,
+                  let url = assets.localURL(of: LocalModelManifest.chatModel) {
+            let engine = LazyLoadingEngine(
+                modelURL: url,
+                config: LlamaEngineConfig(contextLength: 4096))
+            _conversationStore = StateObject(wrappedValue: ConversationStore(
+                provider: LocalResponseProvider(engine: engine)))
+        } else {
+            _conversationStore = StateObject(wrappedValue: ConversationStore())
+        }
+    }
 
     var body: some Scene {
         WindowGroup {
@@ -21,7 +40,8 @@ struct VoidloomApp: App {
                 store: store,
                 sessionManager: agentSessionManager,
                 conversationStore: conversationStore,
-                interaction: interaction
+                interaction: interaction,
+                modelAssets: modelAssets
             )
         }
         .windowStyle(.hiddenTitleBar)
@@ -30,6 +50,7 @@ struct VoidloomApp: App {
 
         Settings {
             SettingsView()
+                .environmentObject(modelAssets)
                 .environmentObject(store)
                 .environmentObject(agentSessionManager)
         }
@@ -45,6 +66,7 @@ private struct RootThemeHost: View {
     @ObservedObject var sessionManager: AgentSessionManager
     @ObservedObject var conversationStore: ConversationStore
     @ObservedObject var interaction: CanvasInteractionModel
+    @ObservedObject var modelAssets: ModelAssetManager
 
     /// Launch shows the startup screen; opening/creating a workspace flips this.
     @StateObject private var session = AppSession()
@@ -82,7 +104,8 @@ private struct RootThemeHost: View {
                     store: store,
                     sessionManager: sessionManager,
                     conversationStore: conversationStore,
-                    interaction: interaction
+                    interaction: interaction,
+                    modelAssets: modelAssets
                 )
             } else {
                 StartupView(store: store)
@@ -95,6 +118,7 @@ private struct RootThemeHost: View {
                 .environmentObject(session)
         }
         .environmentObject(sessionManager)
+        .environmentObject(modelAssets)
         .environment(\.theme, theme)
         .preferredColorScheme(theme.colorScheme)
         .tint(theme.accent)

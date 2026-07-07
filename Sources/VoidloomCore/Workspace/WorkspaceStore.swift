@@ -378,6 +378,24 @@ public final class WorkspaceStore: ObservableObject {
         persist()
     }
 
+    /// Adds a card with a caller-chosen title (and optional content), placed by
+    /// the same count-index + cascade rules as `addCard(kind:)`. Used by the
+    /// mediator so named agent spawns are a single atomic, persisted add.
+    @discardableResult
+    public func addTitledCard(kind: CardKind, title: String = "", content: String = "") -> UUID {
+        var card = Self.makeCard(kind: kind, index: state.cards.count)
+        if !title.isEmpty { card.title = title }
+        if !content.isEmpty { card.content = content }
+        let center = CanvasPoint(
+            x: card.position.x + card.size.width / 2,
+            y: card.position.y + card.size.height / 2
+        )
+        card.position = state.nonOverlappingOrigin(for: card.size, centeredAt: center)
+        state.addCard(card)
+        persist()
+        return card.id
+    }
+
     /// Adds a card centered on the given canvas point (e.g. the center of the
     /// visible viewport, or a click location). When that spot would overlap an
     /// existing card the origin cascades diagonally to the nearest free slot, so

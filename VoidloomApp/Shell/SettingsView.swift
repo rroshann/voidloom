@@ -1,4 +1,5 @@
 import SwiftUI
+import VoidloomAI
 import VoidloomCore
 
 // MARK: - Settings Root
@@ -374,23 +375,16 @@ private struct AISettingsTab: View {
         var id: String { rawValue }
     }
 
-    @AppStorage("ai.model") private var model: AIModelChoice = .opus
     @AppStorage("ai.streamResponses") private var streamResponses = true
     @AppStorage("ai.memory") private var memory: Memory = .session
     @AppStorage("ai.sendSelectedCard") private var sendSelectedCard = true
     @AppStorage("ai.customInstructions") private var customInstructions = ""
-    @State private var apiKey = AnthropicAPIKeyStore.load() ?? ""
-    @State private var keySavedFeedback = false
     @State private var persistConversations = false
+    @EnvironmentObject private var modelAssets: ModelAssetManager
 
     var body: some View {
         Form {
             Section("Conversation") {
-                Picker("Default model", selection: $model) {
-                    ForEach(AIModelChoice.allCases) { Text($0.rawValue).tag($0) }
-                }
-                .pickerStyle(.menu)
-
                 Toggle("Stream responses", isOn: $streamResponses)
 
                 Picker("Conversation memory", selection: $memory) {
@@ -418,44 +412,9 @@ private struct AISettingsTab: View {
                 }
             }
 
-            Section("Connection") {
-                LabeledContent("API endpoint", value: "api.anthropic.com")
+            VoiceSettingsSection()
 
-                SecureField("Anthropic API key", text: $apiKey, prompt: Text("sk-ant-…"))
-
-                HStack {
-                    Button(keySavedFeedback ? "Saved ✓" : "Save Key") {
-                        AnthropicAPIKeyStore.save(apiKey)
-                        keySavedFeedback = true
-                        Task { @MainActor in
-                            try? await Task.sleep(nanoseconds: 1_500_000_000)
-                            keySavedFeedback = false
-                        }
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .disabled(apiKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-
-                    Button("Remove Key") {
-                        AnthropicAPIKeyStore.delete()
-                        apiKey = ""
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(AnthropicAPIKeyStore.load() == nil)
-                }
-
-                Text(AnthropicAPIKeyStore.load() == nil
-                     ? "No key stored — the assistant replies with a placeholder until one is saved. Keys are kept in the login keychain."
-                     : "Key stored in the login keychain. The assistant uses the real Anthropic API.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-
-                Toggle("Persist conversations to disk", isOn: $persistConversations)
-                    .disabled(true)
-
-                Text("Conversations are session-only in this build.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
+            LocalAISettingsSection(assets: modelAssets, persistConversations: $persistConversations)
         }
         .formStyle(.grouped)
     }
@@ -695,4 +654,5 @@ private struct KeyboardShortcutRow: View {
 
 #Preview {
     SettingsView()
+        .environmentObject(ModelAssetManager())
 }

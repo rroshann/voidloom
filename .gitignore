@@ -20,5 +20,5 @@ research/
 DerivedData/
 xcuserdata/
 
-# Xcode user state
-xcuserdata/
+# Vendored native framework (built by scripts/build-llama-xcframework.sh; ~large, pinned by tag)
+Frameworks/llama.xcframework/

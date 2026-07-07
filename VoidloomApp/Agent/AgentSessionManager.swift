@@ -1,6 +1,8 @@
 import AppKit
 import Combine
+import Foundation
 import SwiftTerm
+import VoidloomCore
 
 /// Owns one live PTY-backed shell per agent card. The manager (not the SwiftUI
 /// view tree) retains each `LocalProcessTerminalView`, so terminal state —
@@ -97,5 +99,32 @@ extension AgentSessionManager: LocalProcessTerminalViewDelegate {
         MainActor.assumeIsolated {
             markTerminated(source)
         }
+    }
+}
+
+extension AgentSessionManager: AgentTerminalControlling {
+    func spawn(cardID: UUID, kind: MediatorAgentKind) {
+        // Every kind gets a login shell today; launching the agent CLI inside
+        // it (per `kind`) is follow-up work now that PTYs are real.
+        startSession(cardID: cardID)
+    }
+
+    func send(text: String, to cardID: UUID) {
+        sessions[cardID]?.terminal.send(txt: text + "\n")
+    }
+
+    func recentOutput(of cardID: UUID, maxLines: Int) -> [String] {
+        guard let terminal = sessions[cardID]?.terminal.getTerminal() else { return [] }
+        let data = terminal.getBufferAsData()
+        guard let text = String(data: data, encoding: .utf8) else { return [] }
+        var lines = text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init)
+        while let last = lines.last, last.trimmingCharacters(in: .whitespaces).isEmpty {
+            lines.removeLast()
+        }
+        return Array(lines.suffix(maxLines))
+    }
+
+    func terminate(cardID: UUID) {
+        terminateSession(cardID: cardID)
     }
 }
