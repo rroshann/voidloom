@@ -59,10 +59,13 @@ struct Theme {
             ]
             vignetteColor = .black
         } else {
-            primaryText   = Color(white: 0.08).opacity(op(0.92))
-            secondaryText = Color(white: 0.08).opacity(op(0.72))
-            tertiaryText  = Color(white: 0.08).opacity(op(0.38))
-            border        = Color.black.opacity(op(0.08))
+            // Near-black at a low opacity on a light background reads much fainter
+            // than white at the same opacity on a dark one, so boost the faint end
+            // for legibility (the strong end is already near-solid).
+            primaryText   = Color(white: 0.08).opacity(Self.lightLegibility(op(0.92)))
+            secondaryText = Color(white: 0.08).opacity(Self.lightLegibility(op(0.72)))
+            tertiaryText  = Color(white: 0.08).opacity(Self.lightLegibility(op(0.38)))
+            border        = Color.black.opacity(op(0.12))
             gridMinor     = .black.opacity(0.05 * k)
             gridMajor     = .black.opacity(0.10 * k)
             atmosphereStops = [
@@ -76,12 +79,18 @@ struct Theme {
 
     func ink(_ opacity: Double) -> Color {
         let boosted = reduceTransparency ? Swift.min(1, opacity * 1.6) : opacity
-        return isDark ? Color.white.opacity(boosted) : Color(white: 0.08).opacity(boosted)
+        return isDark ? Color.white.opacity(boosted) : Color(white: 0.08).opacity(Self.lightLegibility(boosted))
     }
 
     func surface(_ opacity: Double) -> Color {
         let boosted = reduceTransparency ? Swift.min(1, opacity * 1.6) : opacity
-        return isDark ? Color.white.opacity(boosted) : Color.black.opacity(boosted)
+        return isDark ? Color.white.opacity(boosted) : Color.black.opacity(Self.lightLegibility(boosted))
+    }
+
+    /// Lifts faint (< 0.5) opacities in light mode for legible contrast on a
+    /// light background; leaves the strong end alone.
+    private static func lightLegibility(_ opacity: Double) -> Double {
+        opacity < 0.5 ? Swift.min(1, opacity * 1.7) : opacity
     }
 }
 
