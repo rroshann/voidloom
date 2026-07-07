@@ -13,6 +13,7 @@ struct StartupView: View {
     @State private var deleteCandidate: WorkspaceSummary?
     @State private var searchText = ""
     @State private var showAll = false
+    @State private var hoveredRowID: UUID?
 
     private var sorted: [WorkspaceSummary] {
         store.library.workspaces.sorted { $0.updatedAt > $1.updatedAt }
@@ -153,32 +154,68 @@ struct StartupView: View {
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction { open(ws) }
                 Spacer(minLength: 8)
-                rowButton("pencil", help: "Rename") { beginRename(ws) }
-                rowButton("trash", help: "Delete", danger: true) { deleteCandidate = ws }
+
+                // Actions reveal on hover so a resting row is just its name —
+                // no ambient red. They stay mounted (opacity, not removal) so
+                // VoiceOver always reaches them.
+                LauncherRowButton(icon: "pencil", help: "Rename", visible: hoveredRowID == ws.id) { beginRename(ws) }
+                LauncherRowButton(icon: "trash", help: "Delete", danger: true, visible: hoveredRowID == ws.id) { deleteCandidate = ws }
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.3))
+                    .opacity(hoveredRowID == ws.id ? 1 : 0)
+                    .accessibilityHidden(true)
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.white.opacity(0.05))
+                .fill(.white.opacity(hoveredRowID == ws.id ? 0.09 : 0.05))
                 .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(.white.opacity(0.08), lineWidth: 1))
         )
         .contentShape(Rectangle())
         .onTapGesture { if editingID != ws.id { open(ws) } }
+        .onHover { hovering in
+            withAnimation(.easeOut(duration: 0.14)) {
+                if hovering { hoveredRowID = ws.id }
+                else if hoveredRowID == ws.id { hoveredRowID = nil }
+            }
+        }
     }
 
-    private func rowButton(_ icon: String, help: String, danger: Bool = false, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(danger ? Color.red.opacity(0.85) : .white.opacity(0.7))
-                .frame(width: 30, height: 30)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.white.opacity(0.06)))
+    /// A launcher row action: hidden until its row is hovered, and — for the
+    /// destructive one — muted gray until the button itself is hovered, so
+    /// delete never shouts ambiently.
+    private struct LauncherRowButton: View {
+        let icon: String
+        let help: String
+        var danger: Bool = false
+        let visible: Bool
+        let action: () -> Void
+        @State private var isHovered = false
+
+        var body: some View {
+            Button(action: action) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(foreground)
+                    .frame(width: 30, height: 30)
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(.white.opacity(isHovered ? 0.12 : 0.06)))
+            }
+            .buttonStyle(.plain)
+            .help(help)
+            .accessibilityLabel(help)
+            .opacity(visible ? 1 : 0)
+            .allowsHitTesting(visible)
+            .onHover { isHovered = $0 }
         }
-        .buttonStyle(.plain)
-        .help(help)
-        .accessibilityLabel(help)
+
+        private var foreground: Color {
+            if danger { return isHovered ? .red : .white.opacity(0.55) }
+            return .white.opacity(isHovered ? 0.95 : 0.7)
+        }
     }
 
     private var createButton: some View {
