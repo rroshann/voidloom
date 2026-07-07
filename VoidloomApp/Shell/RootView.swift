@@ -74,6 +74,11 @@ struct RootView: View {
         }
         let context = AssistantContextProvider(
             store: store, sessionManager: sessionManager, modelAssets: modelAssets, agentMemory: memory)
+        // Ground Sunday in the recent conversation for this workspace — bounded, so
+        // it recalls the last few turns (even across launches) without RAM blowup.
+        context.recentConversation = { [weak conversationStore] in
+            conversationStore?.recentRecap(for: store.library.selectedWorkspaceID)
+        }
 
         // Conversational pill: utterances no brain can parse as a command go to
         // the same chat backend the Assistant sidebar uses — grounded in the live

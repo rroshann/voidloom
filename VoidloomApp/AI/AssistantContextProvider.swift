@@ -17,6 +17,11 @@ final class AssistantContextProvider: ObservableObject {
     @Published private(set) var gitSummary: String?
     private var lastGitFolder: String?
 
+    /// Supplies a compact recap of the recent conversation for the active
+    /// workspace (set by the shell). Gives Sunday continuity across launches
+    /// without unbounded context — the recap itself is bounded by the store.
+    var recentConversation: (() -> String?)?
+
     init(store: WorkspaceStore, sessionManager: AgentSessionManager,
          modelAssets: ModelAssetManager, agentMemory: AgentMemory = AgentMemory()) {
         self.store = store
@@ -28,7 +33,7 @@ final class AssistantContextProvider: ObservableObject {
     /// The full context string. Synchronous and always current except for git,
     /// which reflects the last `refreshGit()`.
     func snapshot(selectedCardContext: String? = nil) -> String {
-        WorkspaceContextBuilder.build(.init(
+        var context = WorkspaceContextBuilder.build(.init(
             workspaceName: workspaceName,
             mode: modeLabel,
             folderPath: store.state.space?.folderPath,
@@ -37,6 +42,10 @@ final class AssistantContextProvider: ObservableObject {
             cards: cardLines(),
             recentActivity: nil,
             selectedCardContext: selectedCardContext))
+        if let recap = recentConversation?(), !recap.isEmpty {
+            context += "\n\nRecent conversation (for continuity, may span past sessions):\n" + recap
+        }
+        return context
     }
 
     /// Refresh the cached git summary for the current project folder. Cheap
