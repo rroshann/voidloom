@@ -21,6 +21,8 @@ enum MenuAction {
     case duplicate
     case setProjectFolder
     case focusMediator
+    /// Toggle the right-side assistant (Sunday) conversation sidebar.
+    case toggleAIConversation
     /// Run a command through the mediator (e.g. tapping an empty-state hint chip).
     case runMediatorCommand(String)
 
@@ -70,6 +72,8 @@ struct VoidloomCommands: Commands {
             Divider()
             Button("Focus Mediator") { MenuAction.focusMediator.post() }
                 .keyboardShortcut("j", modifiers: .command)
+            Button("Toggle Assistant") { MenuAction.toggleAIConversation.post() }
+                .keyboardShortcut("j", modifiers: [.command, .shift])
             Button("Go to Launcher") { MenuAction.goToLauncher.post() }
                 .keyboardShortcut("l", modifiers: [.command, .shift, .option])
             Button("Toggle Spaces / Canvas") { MenuAction.toggleAppMode.post() }

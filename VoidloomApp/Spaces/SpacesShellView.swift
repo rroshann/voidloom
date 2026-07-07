@@ -74,6 +74,11 @@ struct SpacesShellView: View {
         assistantContext.snapshot(selectedCardContext: selectedCardContext)
     }
 
+    private func handleMenuAction(_ note: Notification) {
+        guard case .toggleAIConversation? = note.object as? MenuAction else { return }
+        withAnimation(.easeInOut(duration: 0.24)) { isAIConversationVisible.toggle() }
+    }
+
 
     /// Builds a tiling from the global Settings defaults, used when a space has no
     /// tiling of its own. Columns 0 = Auto (fit all); Rows 0 = no pagination.
@@ -329,6 +334,7 @@ struct SpacesShellView: View {
                            paged: paged, orderedIDs: orderedIDs, freeFrames: freeFrames)
             })
             .onChange(of: store.library.selectedWorkspaceID) { _, _ in currentPage = 0 }
+            .onReceive(NotificationCenter.default.publisher(for: MenuAction.notification), perform: handleMenuAction)
             .onChange(of: store.state.space?.tiling) { _, _ in currentPage = 0 }
             .onChange(of: layoutMode, initial: true) { _, _ in
                 seedFreeFramesIfNeeded(orderedIDs: orderedIDs, tiling: tiling, viewport: geo.size)

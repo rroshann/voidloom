@@ -368,6 +368,8 @@ struct CanvasShellView: View {
                 case .zoomIn: store.zoomStep(by: 1.15, anchoredAt: anchor)
                 case .zoomOut: store.zoomStep(by: 1 / 1.15, anchoredAt: anchor)
                 case .resetViewport: store.resetViewport()
+                case .toggleAIConversation:
+                    withAnimation(.easeInOut(duration: 0.24)) { isAIConversationVisible.toggle() }
                 default: break   // store/AppStorage actions live in RootView
                 }
             }
