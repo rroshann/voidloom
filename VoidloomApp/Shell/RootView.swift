@@ -10,7 +10,6 @@ struct RootView: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var sessionManager: AgentSessionManager
     @ObservedObject var conversationStore: ConversationStore
-    @ObservedObject var interaction: CanvasInteractionModel
     @ObservedObject var modelAssets: ModelAssetManager
     @StateObject private var mediator: MediatorSessionCoordinator
     @StateObject private var contextProvider: AssistantContextProvider
@@ -32,13 +31,11 @@ struct RootView: View {
     init(store: WorkspaceStore,
          sessionManager: AgentSessionManager,
          conversationStore: ConversationStore,
-         interaction: CanvasInteractionModel,
          modelAssets: ModelAssetManager,
          chatProvider: ResponseProvider) {
         self.store = store
         self.sessionManager = sessionManager
         self.conversationStore = conversationStore
-        self.interaction = interaction
         self.modelAssets = modelAssets
 
         let router: VoiceTranscriberRouter?
@@ -146,7 +143,7 @@ struct RootView: View {
 
     var body: some View {
         ZStack {
-            // Spaces is now the only shell — the Canvas shell is being folded in.
+            // Spaces is the only shell (grid + Board layouts).
             SpacesShellView(
                 store: store,
                 sessionManager: sessionManager,

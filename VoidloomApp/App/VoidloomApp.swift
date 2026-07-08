@@ -8,7 +8,6 @@ import VoidloomCore
 struct VoidloomApp: App {
     @StateObject private var store = WorkspaceStore()
     @StateObject private var agentSessionManager = AgentSessionManager()
-    @StateObject private var interaction = CanvasInteractionModel()
     @StateObject private var modelAssets: ModelAssetManager
     @StateObject private var conversationStore: ConversationStore
     /// The launch-time chat backend, shared by the sidebar and the mediator's
@@ -45,7 +44,6 @@ struct VoidloomApp: App {
                 store: store,
                 sessionManager: agentSessionManager,
                 conversationStore: conversationStore,
-                interaction: interaction,
                 modelAssets: modelAssets,
                 chatProvider: chatProvider
             )
@@ -71,7 +69,6 @@ private struct RootThemeHost: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var sessionManager: AgentSessionManager
     @ObservedObject var conversationStore: ConversationStore
-    @ObservedObject var interaction: CanvasInteractionModel
     @ObservedObject var modelAssets: ModelAssetManager
     let chatProvider: ResponseProvider
 
@@ -111,7 +108,6 @@ private struct RootThemeHost: View {
                     store: store,
                     sessionManager: sessionManager,
                     conversationStore: conversationStore,
-                    interaction: interaction,
                     modelAssets: modelAssets,
                     chatProvider: chatProvider
                 )
