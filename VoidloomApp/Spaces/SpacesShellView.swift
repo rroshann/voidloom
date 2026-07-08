@@ -61,6 +61,16 @@ struct SpacesShellView: View {
     /// Cumulative pan translation, so each event applies only its delta.
     @State private var lastPanTranslation: CGSize = .zero
 
+    /// Points (canvas space) accumulated for the brush stroke being drawn; empty
+    /// when no draw is in progress.
+    @State private var liveStrokePoints: [CanvasPoint] = []
+    /// Live pointer (screen coords) while the eraser is armed, driving the ring.
+    @State private var eraserCursor: CGPoint?
+    /// Previous erase sample within a drag, so fast drags erase the swept path.
+    @State private var lastErasePoint: CGPoint?
+    /// Minimum spacing (canvas units) between accumulated brush points.
+    private let minStrokePointSpacing: Double = 1.5
+
     /// Extra top clearance above the tiling margin. Zero makes the top gap equal the
     /// side margin (symmetric card field); the tiling margin alone already clears the
     /// traffic-light buttons of the hidden-titlebar window, so cards sit as high as
@@ -192,6 +202,27 @@ struct SpacesShellView: View {
                     WorkspaceEmptyState()
                 }
 
+                // Brush strokes render in screen space THROUGH the Board viewport,
+                // below the cards. Persisted layer is `.equatable()` so a live
+                // draw doesn't force every committed stroke to redraw.
+                if layoutMode == .freeArrange {
+                    CanvasDrawingLayer(
+                        strokes: store.state.strokes,
+                        liveStroke: nil,
+                        viewport: store.state.spaceViewport
+                    )
+                    .equatable()
+                    .frame(width: geo.size.width, height: geo.size.height)
+
+                    CanvasDrawingLayer(
+                        strokes: [],
+                        liveStroke: liveStroke,
+                        viewport: store.state.spaceViewport
+                    )
+                    .equatable()
+                    .frame(width: geo.size.width, height: geo.size.height)
+                }
+
                 // Connections render in screen space THROUGH the Board viewport,
                 // below the cards (edges stay glued to cards during pan/zoom/drag).
                 if layoutMode == .freeArrange {
@@ -223,7 +254,9 @@ struct SpacesShellView: View {
                         orderedIDs: orderedIDs,
                         cardsByID: cardsByID,
                         viewport: store.state.spaceViewport,
-                        viewportSize: geo.size
+                        viewportSize: geo.size,
+                        textElements: store.state.textElements,
+                        editingTextID: $interaction.editingTextID
                     )
                 } else {
                 // Single ForEach + zIndex (Canvas gotcha #1 discipline: never split
@@ -313,6 +346,29 @@ struct SpacesShellView: View {
                 ))
                 }
 
+                // Armed-tool input capture for draw/erase/place-text (Board only).
+                // Sits above the cards so the tool drag is intercepted before a
+                // card drag. NOT mounted for connect (that's click-based via the
+                // ContentClickMonitor path) or idle.
+                if layoutMode == .freeArrange, boardToolArmed {
+                    CanvasInteractionOverlay(
+                        mode: interaction.mode,
+                        onMouseDown: handleOverlayDown,
+                        onMouseDragged: handleOverlayDragged,
+                        onMouseMoved: handleOverlayMoved,
+                        onMouseUp: handleOverlayUp
+                    )
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .canvasToolCursor(for: interaction.mode)
+                }
+
+                if layoutMode == .freeArrange, interaction.mode == .erasing,
+                   !interaction.isAdjustingEraserSize, let point = eraserCursor {
+                    let diameter = CGFloat(interaction.eraserThickness) * CGFloat(store.state.spaceViewport.scale)
+                    EraserFootprintRing(diameter: diameter)
+                        .position(point)
+                }
+
                 if let s = marqueeStart, let c = marqueeCurrent {
                     let rect = CGRect(x: min(s.x, c.x), y: min(s.y, c.y),
                                       width: abs(c.x - s.x), height: abs(c.y - s.y))
@@ -378,9 +434,28 @@ struct SpacesShellView: View {
                 VStack(spacing: 12) {
                     Spacer()
                     if layoutMode == .pagedGrid, paged.pageCount > 1 { pager(paged) }
+
+                    // Board tool option panels, surfaced above the dock while the
+                    // matching tool is armed (or a text element is selected).
+                    if layoutMode == .freeArrange {
+                        if interaction.isArmed(.drawing) {
+                            BrushOptionsPanel(interaction: interaction)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                        if interaction.isArmed(.erasing) {
+                            EraserOptionsPanel(interaction: interaction)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                        if interaction.isArmed(.placingText) || store.state.selectedTextID != nil {
+                            TextOptionsPanel(store: store, interaction: interaction)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                    }
+
                     SpaceBottomDock(
                         store: store,
                         sessionManager: sessionManager,
+                        interaction: interaction,
                         onReTile: {
                             reTile(orderedIDs: orderedIDs, tiling: tiling, viewport: geo.size)
                         },
@@ -458,6 +533,8 @@ struct SpacesShellView: View {
         .onPreferenceChange(ShellFrameKey.self) { shellFrame = $0 }
         .onPreferenceChange(SpacesDockHeightKey.self) { dockHeight = $0 }
         .animation(.easeInOut(duration: 0.24), value: isAIConversationVisible)
+        .animation(.easeInOut(duration: 0.22), value: interaction.mode)
+        .animation(.easeInOut(duration: 0.22), value: store.state.selectedTextID)
     }
 
     /// Window-scoped key handling for Spaces. Delete/Backspace removes the marquee
@@ -478,6 +555,15 @@ struct SpacesShellView: View {
             if let id = store.state.selectedCardID {
                 terminateAgentSessions(for: [id])
                 store.deleteCard(id: id)
+                return true
+            }
+            if let textID = store.state.selectedTextID {
+                store.deleteTextElement(id: textID)
+                return true
+            }
+            if let edgeID = interaction.selectedConnectionID {
+                store.deleteConnection(id: edgeID)
+                interaction.selectedConnectionID = nil
                 return true
             }
             return false
@@ -537,6 +623,127 @@ struct SpacesShellView: View {
                               y: (endpoints.start.y + endpoints.end.y) / 2)
         let screen = store.state.spaceViewport.screenPoint(forCanvasPoint: mid)
         return CGPoint(x: screen.x, y: screen.y)
+    }
+
+    // MARK: - Board armed tools (text / brush / eraser)
+
+    /// Whether a freehand/place tool owns Board input this frame — so the shell's
+    /// click-selection stays out of the way while the overlay captures the drag.
+    private var boardToolArmed: Bool {
+        switch interaction.mode {
+        case .drawing, .erasing, .placingText: return true
+        default: return false
+        }
+    }
+
+    private func handleOverlayDown(_ point: CGPoint) {
+        switch interaction.mode {
+        case .drawing:
+            liveStrokePoints = [canvasPoint(from: point)]
+        case .erasing:
+            eraserCursor = point
+            erase(at: point)
+        default:
+            break
+        }
+    }
+
+    private func handleOverlayDragged(_ point: CGPoint) {
+        switch interaction.mode {
+        case .drawing:
+            appendLivePoint(canvasPoint(from: point))
+        case .erasing:
+            eraserCursor = point
+            erase(at: point)
+        default:
+            break
+        }
+    }
+
+    private func handleOverlayMoved(_ point: CGPoint) {
+        if interaction.mode == .erasing { eraserCursor = point }
+    }
+
+    private func handleOverlayUp(_ point: CGPoint) {
+        switch interaction.mode {
+        case .drawing:
+            appendLivePoint(canvasPoint(from: point))
+            commitLiveStroke()
+        case .erasing:
+            erase(at: point)
+            store.flushErase()
+            lastErasePoint = nil
+        case .placingText:
+            let id = store.addTextElement(
+                centeredAt: canvasPoint(from: point),
+                fontSize: interaction.textFontSize,
+                colorHex: interaction.textColor.hexStringRGBA,
+                fontName: interaction.textFontName
+            )
+            interaction.editingTextID = id
+            interaction.disarm()
+        default:
+            break
+        }
+    }
+
+    /// Converts an overlay view point into canvas space via the Board viewport.
+    private func canvasPoint(from view: CGPoint) -> CanvasPoint {
+        store.state.spaceViewport.canvasPoint(forScreenPoint: ScreenPoint(x: view.x, y: view.y))
+    }
+
+    private func appendLivePoint(_ point: CanvasPoint) {
+        guard interaction.mode == .drawing else { return }
+        if let last = liveStrokePoints.last,
+           hypot(point.x - last.x, point.y - last.y) < minStrokePointSpacing { return }
+        liveStrokePoints.append(point)
+    }
+
+    private func commitLiveStroke() {
+        defer { liveStrokePoints = [] }
+        guard liveStrokePoints.count >= 2 else { return }
+        store.addStroke(
+            DrawingStroke(points: liveStrokePoints, color: currentBrushRGBA(), thickness: interaction.brushThickness)
+        )
+    }
+
+    private var liveStroke: DrawingStroke? {
+        guard interaction.mode == .drawing, !liveStrokePoints.isEmpty else { return nil }
+        return DrawingStroke(points: liveStrokePoints, color: currentBrushRGBA(), thickness: interaction.brushThickness)
+    }
+
+    private func currentBrushRGBA() -> RGBAColor {
+        let resolved = NSColor(interaction.brushColor).usingColorSpace(.sRGB) ?? NSColor.white
+        return RGBAColor(
+            red: Double(resolved.redComponent),
+            green: Double(resolved.greenComponent),
+            blue: Double(resolved.blueComponent),
+            opacity: interaction.brushOpacity
+        )
+    }
+
+    /// Erases under the eraser disc, sampling along the segment from the previous
+    /// sample so a fast drag erases the whole swept path (no gaps).
+    private func erase(at view: CGPoint) {
+        let radius = interaction.eraserThickness / 2
+        let mode = interaction.eraserMode
+        defer { lastErasePoint = view }
+        guard let last = lastErasePoint else {
+            store.erase(at: canvasPoint(from: view), radius: radius, mode: mode)
+            return
+        }
+        let distance = hypot(view.x - last.x, view.y - last.y)
+        let radiusScreen = CGFloat(radius) * CGFloat(store.state.spaceViewport.scale)
+        let step = max(radiusScreen / 2, 1)
+        let samples = max(Int((distance / step).rounded(.up)), 1)
+        for index in 1...samples {
+            let fraction = CGFloat(index) / CGFloat(samples)
+            let sample = CGPoint(
+                x: last.x + ((view.x - last.x) * fraction),
+                y: last.y + ((view.y - last.y) * fraction)
+            )
+            store.erase(at: canvasPoint(from: sample), radius: radius, mode: mode)
+        }
     }
 
     /// Terminates the agent session for every `.agent` card in `ids`, mirroring the
@@ -686,6 +893,10 @@ struct SpacesShellView: View {
         paged: SpaceGrid.PagedLayout, orderedIDs: [UUID],
         freeFrames: [UUID: SpaceFreeFrame]
     ) {
+        // A freehand/place tool owns Board input via the overlay; ignore the
+        // click here so drawing/erasing/placing doesn't also select a card.
+        if boardToolArmed { return }
+
         let hitID: UUID?
         let tileTopY: CGFloat
         if isPagedGrid {

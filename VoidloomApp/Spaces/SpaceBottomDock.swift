@@ -10,6 +10,8 @@ import VoidloomCore
 struct SpaceBottomDock: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var sessionManager: AgentSessionManager
+    /// The armed-tool spine, driving Board tool highlights + arming.
+    @ObservedObject var interaction: CanvasInteractionModel
     let onReTile: () -> Void
     /// Creates a card of the given kind (Spaces appends + handles the page jump).
     let onAddCard: (CardKind) -> Void
@@ -102,6 +104,18 @@ struct SpaceBottomDock: View {
                         activeColor: theme.accent,
                         action: onToggleConnect
                     )
+                }
+                // Board annotation tools: text, brush, eraser.
+                if layoutMode == .freeArrange {
+                    DockIconButton(icon: "textformat", help: "Text",
+                                   isActive: interaction.isArmed(.placingText),
+                                   activeColor: theme.accent, action: { interaction.armText() })
+                    DockIconButton(icon: "paintbrush.pointed", help: "Brush",
+                                   isActive: interaction.isArmed(.drawing),
+                                   activeColor: theme.accent, action: { interaction.armBrush() })
+                    DockIconButton(icon: "eraser", help: "Eraser",
+                                   isActive: interaction.isArmed(.erasing),
+                                   activeColor: theme.accent, action: { interaction.armEraser() })
                 }
                 barButton("rectangle.grid.2x2", help: "Re-tile", action: onReTile)
                 barButton("square.grid.3x3", help: "Layout") { showLayoutPopover = true }

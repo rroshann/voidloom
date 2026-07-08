@@ -15,6 +15,9 @@ struct SpaceFreeArrangeLayer: View {
     /// The Board pan/zoom this layer renders through (identity until panned).
     let viewport: CanvasViewport
     let viewportSize: CGSize
+    /// On-canvas text elements, rendered in the same transformed group as cards.
+    let textElements: [TextElement]
+    @Binding var editingTextID: UUID?
 
     /// The grabbed card (raised while dragging), or nil when idle.
     @State private var draggingCardID: UUID?
@@ -88,6 +91,18 @@ struct SpaceFreeArrangeLayer: View {
                     .offset(x: card.position.x, y: card.position.y)
                     .zIndex(zIndex(for: id, at: index, isDragged: isDragged))
                 }
+            }
+
+            // Text elements share the transformed group, so they pan/zoom with
+            // the cards. Each applies its own `.offset(position)`.
+            ForEach(textElements) { element in
+                TextElementView(
+                    element: element,
+                    store: store,
+                    viewportScale: viewport.scale,
+                    editingTextID: $editingTextID
+                )
+                .zIndex(element.id == store.state.selectedTextID ? 9_500 : 5_000)
             }
         }
         .frame(width: viewportSize.width, height: viewportSize.height, alignment: .topLeading)
