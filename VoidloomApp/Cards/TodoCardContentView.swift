@@ -14,6 +14,7 @@ struct TodoCardContentView: View {
 
     @State private var items: [TodoItem]
     @State private var newItemText = ""
+    @State private var hoveredItemID: Int?
     @FocusState private var isNewItemFocused: Bool
 
     init(cardID: UUID, content: String, store: WorkspaceStore, isSelected: Bool) {
@@ -28,15 +29,37 @@ struct TodoCardContentView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 8) {
                 ForEach($items) { $item in
-                    Toggle(isOn: $item.isComplete) {
-                        Text(item.text)
-                            .font(.system(size: 13 * theme.fontScale, weight: .semibold, design: .monospaced))
-                            .foregroundStyle(theme.ink(item.isComplete ? 0.45 : 0.78))
-                            .strikethrough(item.isComplete, color: theme.ink(0.35))
+                    HStack(spacing: 6) {
+                        Toggle(isOn: $item.isComplete) {
+                            Text(item.text)
+                                .font(.system(size: 13 * theme.fontScale, weight: .semibold, design: .monospaced))
+                                .foregroundStyle(theme.ink(item.isComplete ? 0.45 : 0.78))
+                                .strikethrough(item.isComplete, color: theme.ink(0.35))
+                        }
+                        .toggleStyle(TodoCheckboxToggleStyle())
+                        .onChange(of: item.isComplete) { _, _ in
+                            persistItems()
+                        }
+
+                        Spacer(minLength: 0)
+
+                        // Remove-item affordance, revealed on hover so the list stays
+                        // clean until you reach for it — a todo you can't prune is only
+                        // half a list.
+                        if hoveredItemID == item.id {
+                            Button { deleteItem(item) } label: {
+                                Image(systemName: "xmark")
+                                    .font(.system(size: 10, weight: .bold))
+                                    .foregroundStyle(theme.ink(0.4))
+                            }
+                            .buttonStyle(.plain)
+                            .help("Remove item")
+                        }
                     }
-                    .toggleStyle(TodoCheckboxToggleStyle())
-                    .onChange(of: item.isComplete) { _, _ in
-                        persistItems()
+                    .contentShape(Rectangle())
+                    .onHover { hovering in
+                        if hovering { hoveredItemID = item.id }
+                        else if hoveredItemID == item.id { hoveredItemID = nil }
                     }
                 }
 
@@ -76,6 +99,11 @@ struct TodoCardContentView: View {
 
         items.append(TodoItem(id: items.count, isComplete: false, text: trimmed))
         newItemText = ""
+        persistItems()
+    }
+
+    private func deleteItem(_ item: TodoItem) {
+        items.removeAll { $0.id == item.id }
         persistItems()
     }
 
