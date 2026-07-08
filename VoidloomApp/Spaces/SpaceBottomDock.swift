@@ -91,39 +91,13 @@ struct SpaceBottomDock: View {
                 barButton("arrow.triangle.branch", help: "Add git card") { addGitCard() }
             }
 
-            // Space customization: layout mode, re-tile, layout, background.
+            // Space layout: mode toggle, re-tile, layout, background.
             HStack(spacing: DockMetrics.iconGap) {
                 barButton(
                     layoutMode == .pagedGrid ? "rectangle.3.group" : "square.grid.2x2",
-                    help: layoutMode == .pagedGrid ? "Free-arrange" : "Grid"
+                    help: layoutMode == .pagedGrid ? "Board" : "Grid"
                 ) {
                     store.setSpaceLayoutMode(layoutMode == .pagedGrid ? .freeArrange : .pagedGrid)
-                }
-                if let onToggleConnect {
-                    DockIconButton(
-                        icon: "link",
-                        help: "Connect cards",
-                        isActive: isConnecting,
-                        activeColor: theme.accent,
-                        action: onToggleConnect
-                    )
-                }
-                // Board annotation tools: text, brush, eraser.
-                if layoutMode == .freeArrange {
-                    DockIconButton(icon: "textformat", help: "Text",
-                                   isActive: interaction.isArmed(.placingText),
-                                   activeColor: theme.accent, action: { interaction.armText() })
-                    DockIconButton(icon: "paintbrush.pointed", help: "Brush",
-                                   isActive: interaction.isArmed(.drawing),
-                                   activeColor: theme.accent, action: { interaction.armBrush() })
-                    DockIconButton(icon: "eraser", help: "Eraser",
-                                   isActive: interaction.isArmed(.erasing),
-                                   activeColor: theme.accent, action: { interaction.armEraser() })
-                    if let onToggleMinimap {
-                        DockIconButton(icon: "map", help: "Minimap",
-                                       isActive: isMinimapVisible,
-                                       activeColor: theme.accent, action: onToggleMinimap)
-                    }
                 }
                 barButton("rectangle.grid.2x2", help: "Re-tile", action: onReTile)
                 barButton("square.grid.3x3", help: "Layout") { showLayoutPopover = true }
@@ -136,6 +110,35 @@ struct SpaceBottomDock: View {
                     .popover(isPresented: $showBackgroundPopover, arrowEdge: .top) {
                         backgroundPopover.padding(16).frame(width: 260)
                     }
+            }
+
+            // Canvas tools — a distinct cluster from layout so the Board dock reads
+            // as ordered groups, not one long run: connect, and (Board only) text,
+            // brush, eraser, minimap.
+            if onToggleConnect != nil || layoutMode == .freeArrange {
+                HStack(spacing: DockMetrics.iconGap) {
+                    if let onToggleConnect {
+                        DockIconButton(icon: "link", help: "Connect cards",
+                                       isActive: isConnecting, activeColor: theme.accent,
+                                       action: onToggleConnect)
+                    }
+                    if layoutMode == .freeArrange {
+                        DockIconButton(icon: "textformat", help: "Text",
+                                       isActive: interaction.isArmed(.placingText),
+                                       activeColor: theme.accent, action: { interaction.armText() })
+                        DockIconButton(icon: "paintbrush.pointed", help: "Brush",
+                                       isActive: interaction.isArmed(.drawing),
+                                       activeColor: theme.accent, action: { interaction.armBrush() })
+                        DockIconButton(icon: "eraser", help: "Eraser",
+                                       isActive: interaction.isArmed(.erasing),
+                                       activeColor: theme.accent, action: { interaction.armEraser() })
+                        if let onToggleMinimap {
+                            DockIconButton(icon: "map", help: "Minimap",
+                                           isActive: isMinimapVisible,
+                                           activeColor: theme.accent, action: onToggleMinimap)
+                        }
+                    }
+                }
             }
 
             // Board zoom (Board mode only): out / percentage-resets / in.
