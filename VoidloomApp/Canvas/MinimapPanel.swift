@@ -2,8 +2,8 @@ import SwiftUI
 import VoidloomCore
 
 /// A fixed ~200×150 overview panel showing all cards in canvas space and a
-/// "you are here" viewport rect. Hosted bottom-right in CanvasShellView when
-/// the minimap dock toggle is on. Clicking the map recenters the viewport on
+/// "you are here" viewport rect. Hosted bottom-right by the shell when the
+/// minimap toggle is on. Clicking the map recenters the viewport on
 /// the clicked canvas point (pan only — zoom is preserved).
 struct MinimapPanel: View {
     @ObservedObject var store: WorkspaceStore

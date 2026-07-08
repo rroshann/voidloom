@@ -75,6 +75,9 @@ struct SpacesShellView: View {
     @State private var isMinimapVisible = false
     /// Right-click location (shell-local) for the create-card context menu, or nil.
     @State private var contextMenuLocation: CGPoint?
+    /// Command palette (⌘K) visibility + live query.
+    @State private var isCommandPaletteVisible = false
+    @State private var paletteQuery = ""
 
     /// Extra top clearance above the tiling margin. Zero makes the top gap equal the
     /// side margin (symmetric card field); the tiling margin alone already clears the
@@ -478,6 +481,22 @@ struct SpacesShellView: View {
                     .zIndex(1)
                 }
 
+                if isCommandPaletteVisible {
+                    CommandPaletteView(
+                        query: $paletteQuery,
+                        commands: paletteCommands(viewportSize: geo.size),
+                        onAskAI: { text in
+                            withAnimation(.easeInOut(duration: 0.24)) { isAIConversationVisible = true }
+                            conversationStore.submit(workspaceID: activeWorkspaceID, text: text, context: chatContext)
+                            withAnimation(.easeInOut(duration: 0.15)) { isCommandPaletteVisible = false }
+                        },
+                        onClose: {
+                            withAnimation(.easeInOut(duration: 0.15)) { isCommandPaletteVisible = false }
+                        }
+                    )
+                    .zIndex(10)
+                }
+
                 VStack(spacing: 12) {
                     Spacer()
                     if layoutMode == .pagedGrid, paged.pageCount > 1 { pager(paged) }
@@ -655,6 +674,11 @@ struct SpacesShellView: View {
                   event.modifierFlags.contains(.shift), !isPagedGrid else { return false }
             isMinimapVisible.toggle()
             return true
+        case 40:    // ⌘K → command palette
+            guard !typing, event.modifierFlags.contains(.command) else { return false }
+            paletteQuery = ""
+            withAnimation(.easeInOut(duration: 0.15)) { isCommandPaletteVisible = true }
+            return true
         default:
             return false
         }
@@ -671,6 +695,118 @@ struct SpacesShellView: View {
     }
     private func clampedMenuY(_ y: CGFloat, in height: CGFloat) -> CGFloat {
         max(8, min(y, height - 220 - 8))
+    }
+
+    private func openSettings() {
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+    }
+
+    /// Command palette (⌘K) actions for the current state, grouped by section.
+    /// View/zoom/text entries are Board-only; the dead Canvas "switch mode" entry
+    /// is gone (Spaces is the only shell).
+    private func paletteCommands(viewportSize size: CGSize) -> [PaletteCommand] {
+        let isBoard = (store.state.space?.layoutMode ?? .pagedGrid) == .freeArrange
+        let zoomAnchor = ScreenPoint(x: size.width / 2, y: size.height / 2)
+        let boardCenter = store.state.spaceViewport.canvasPoint(forScreenPoint: zoomAnchor)
+        var commands: [PaletteCommand] = []
+
+        // Create
+        let cardKinds: [(CardKind, String, String)] = [
+            (.agent, "New Terminal Card", "terminal"),
+            (.note, "New Note Card", "note.text"),
+            (.todo, "New Todo Card", "checklist"),
+            (.browser, "New Browser Card", "safari"),
+            (.fileBrowser, "New File Browser Card", "folder"),
+            (.git, "New Git Card", "arrow.triangle.branch"),
+        ]
+        for (kind, title, icon) in cardKinds {
+            commands.append(PaletteCommand(id: "new-\(kind.rawValue)", title: title, section: .create,
+                                           systemImage: icon, keywords: ["add", "create"]) {
+                store.addCard(kind: kind)
+            })
+        }
+        if isBoard {
+            commands.append(PaletteCommand(id: "new-text", title: "New Text", section: .create,
+                                           systemImage: "textformat", keywords: ["add", "label", "annotation"]) {
+                interaction.editingTextID = store.addTextElement(
+                    centeredAt: boardCenter,
+                    fontSize: interaction.textFontSize,
+                    colorHex: interaction.textColor.hexStringRGBA,
+                    fontName: interaction.textFontName
+                )
+            })
+        }
+
+        // Workspaces
+        commands.append(PaletteCommand(id: "new-workspace", title: "New Workspace", section: .workspaces,
+                                       systemImage: "plus.rectangle.on.rectangle", keywords: ["add", "create"]) {
+            store.createWorkspace(named: "New Space")
+        })
+        for workspace in store.library.workspaces where workspace.id != activeWorkspaceID {
+            commands.append(PaletteCommand(id: "switch-\(workspace.id)", title: "Switch to \(workspace.name)",
+                                           section: .workspaces, systemImage: "rectangle.on.rectangle",
+                                           keywords: ["open", "go"]) {
+                sessionManager.terminateAllSessions()
+                store.switchWorkspace(id: workspace.id)
+            })
+        }
+
+        // View
+        commands.append(PaletteCommand(id: "toggle-layout",
+                                       title: isBoard ? "Switch to Grid" : "Switch to Board",
+                                       section: .view,
+                                       systemImage: isBoard ? "square.grid.2x2" : "rectangle.3.group") {
+            store.setSpaceLayoutMode(isBoard ? .pagedGrid : .freeArrange)
+        })
+        if isBoard {
+            commands.append(PaletteCommand(id: "reset-zoom", title: "Reset Zoom", section: .view,
+                                           systemImage: "scope", keywords: ["fit", "center"]) {
+                store.resetSpaceViewport()
+            })
+            commands.append(PaletteCommand(id: "zoom-in", title: "Zoom In", section: .view,
+                                           systemImage: "plus.magnifyingglass") {
+                store.zoomStepSpaceViewport(by: 1.2, anchoredAt: zoomAnchor)
+            })
+            commands.append(PaletteCommand(id: "zoom-out", title: "Zoom Out", section: .view,
+                                           systemImage: "minus.magnifyingglass") {
+                store.zoomStepSpaceViewport(by: 1 / 1.2, anchoredAt: zoomAnchor)
+            })
+            commands.append(PaletteCommand(id: "toggle-minimap",
+                                           title: isMinimapVisible ? "Hide Minimap" : "Show Minimap",
+                                           section: .view, systemImage: "map") {
+                isMinimapVisible.toggle()
+            })
+        }
+
+        // Go to card
+        for card in store.state.cards {
+            let cardPalette = CardPalette(kind: card.kind)
+            let trimmed = card.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let title = trimmed.isEmpty ? cardPalette.eyebrow : trimmed
+            let cardID = card.id
+            let center = CanvasPoint(x: card.position.x + card.size.width / 2,
+                                     y: card.position.y + card.size.height / 2)
+            commands.append(PaletteCommand(id: "goto-\(card.id)", title: title, section: .cards,
+                                           systemImage: cardPalette.symbol,
+                                           keywords: [trimmed, cardPalette.eyebrow, "go", "card"].filter { !$0.isEmpty }) {
+                store.selectCard(id: cardID)
+                if isBoard {
+                    store.centerSpaceViewport(on: center, viewportSize: ScreenPoint(x: size.width, y: size.height))
+                }
+            })
+        }
+
+        // App
+        commands.append(PaletteCommand(id: "open-settings", title: "Open Settings", section: .app,
+                                       systemImage: "gearshape", keywords: ["preferences"]) {
+            openSettings()
+        })
+        commands.append(PaletteCommand(id: "open-ai", title: "Open AI Conversation", section: .app,
+                                       systemImage: "bubble.left.and.bubble.right", keywords: ["chat", "assistant"]) {
+            withAnimation(.easeInOut(duration: 0.24)) { isAIConversationVisible = true }
+        })
+
+        return commands
     }
 
     /// The selected connection edge's midpoint in shell-local screen coords

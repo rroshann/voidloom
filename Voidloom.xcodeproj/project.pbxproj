@@ -13,7 +13,6 @@
 		A10000000000000000000002 /* RootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000012 /* RootView.swift */; };
 		A100000000000000000000F0 /* CanvasKeyMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A100000000000000000000F1 /* CanvasKeyMonitor.swift */; };
 		A8000000000000000000000C /* ContentClickMonitor.swift in Sources */ = {isa = PBXBuildFile; fileRef = A8000000000000000000001C /* ContentClickMonitor.swift */; };
-		A10000000000000000000003 /* CanvasWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000013 /* CanvasWorkspaceView.swift */; };
 		A10000000000000000000004 /* WorkspaceCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000014 /* WorkspaceCardView.swift */; };
 		A10000000000000000000005 /* PreviewSupport.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000015 /* PreviewSupport.swift */; };
 		A10000000000000000000006 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000016 /* Assets.xcassets */; };
@@ -29,11 +28,9 @@
 		A200000000000000000000D7 /* VoiceSettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000000000000000000C6 /* VoiceSettingsSection.swift */; };
 		A200000000000000000000F5 /* FluidAudio in Frameworks */ = {isa = PBXBuildFile; productRef = A200000000000000000000F4 /* FluidAudio */; };
 		A20000000000000000000001 /* AtmosphereBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000011 /* AtmosphereBackground.swift */; };
-		A20000000000000000000003 /* ToolRail.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000013 /* ToolRail.swift */; };
 		A20000000000000000000004 /* CommandBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000014 /* CommandBar.swift */; };
 		A200000000000000000000A7 /* MediatorHUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000000000000000000B7 /* MediatorHUDView.swift */; };
 		A200000000000000000000A8 /* LocalAISettingsSection.swift in Sources */ = {isa = PBXBuildFile; fileRef = A200000000000000000000B8 /* LocalAISettingsSection.swift */; };
-		A20000000000000000000005 /* DraggableWorkspaceCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000015 /* DraggableWorkspaceCard.swift */; };
 		A20000000000000000000006 /* CanvasGrid.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000016 /* CanvasGrid.swift */; };
 		A20000000000000000000007 /* CardPalette.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000017 /* CardPalette.swift */; };
 		A20000000000000000000009 /* CanvasZoomControls.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000000000000000000019 /* CanvasZoomControls.swift */; };
@@ -81,8 +78,6 @@
 		A90000000000000000000001 /* BrowserLoadModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A90000000000000000000011 /* BrowserLoadModel.swift */; };
 		AB0000000000000000000002 /* Color+Hex.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000001 /* Color+Hex.swift */; };
 		AB0000000000000000000004 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB0000000000000000000003 /* Theme.swift */; };
-		AC0000000000000000000001 /* AppMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC0000000000000000000011 /* AppMode.swift */; };
-		A80000000000000000000002 /* CanvasShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000012 /* CanvasShellView.swift */; };
 		A80000000000000000000003 /* SpacesShellView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000013 /* SpacesShellView.swift */; };
 		A80000000000000000000004 /* SpaceBackgroundView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000014 /* SpaceBackgroundView.swift */; };
 		A80000000000000000000005 /* SpaceTileCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A80000000000000000000015 /* SpaceTileCard.swift */; };
@@ -123,18 +118,15 @@
 		A10000000000000000000012 /* RootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/RootView.swift; sourceTree = "<group>"; };
 		A100000000000000000000F1 /* CanvasKeyMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/CanvasKeyMonitor.swift; sourceTree = "<group>"; };
 		A8000000000000000000001C /* ContentClickMonitor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/ContentClickMonitor.swift; sourceTree = "<group>"; };
-		A10000000000000000000013 /* CanvasWorkspaceView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/CanvasWorkspaceView.swift; sourceTree = "<group>"; };
 		A10000000000000000000014 /* WorkspaceCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/WorkspaceCardView.swift; sourceTree = "<group>"; };
 		A10000000000000000000015 /* PreviewSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewSupport/PreviewSupport.swift; sourceTree = "<group>"; };
 		A10000000000000000000016 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A10000000000000000000017 /* Voidloom.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Voidloom.entitlements; sourceTree = "<group>"; };
 		A10000000000000000000018 /* Package.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Package.swift; sourceTree = SOURCE_ROOT; };
 		A20000000000000000000011 /* AtmosphereBackground.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/AtmosphereBackground.swift; sourceTree = "<group>"; };
-		A20000000000000000000013 /* ToolRail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/ToolRail.swift; sourceTree = "<group>"; };
 		A20000000000000000000014 /* CommandBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/CommandBar.swift; sourceTree = "<group>"; };
 		A200000000000000000000B7 /* MediatorHUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/MediatorHUDView.swift; sourceTree = "<group>"; };
 		A200000000000000000000B8 /* LocalAISettingsSection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/LocalAISettingsSection.swift; sourceTree = "<group>"; };
-		A20000000000000000000015 /* DraggableWorkspaceCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/DraggableWorkspaceCard.swift; sourceTree = "<group>"; };
 		A20000000000000000000016 /* CanvasGrid.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/CanvasGrid.swift; sourceTree = "<group>"; };
 		A20000000000000000000017 /* CardPalette.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/CardPalette.swift; sourceTree = "<group>"; };
 		A20000000000000000000019 /* CanvasZoomControls.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/CanvasZoomControls.swift; sourceTree = "<group>"; };
@@ -182,8 +174,6 @@
 		A90000000000000000000011 /* BrowserLoadModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Cards/BrowserLoadModel.swift; sourceTree = "<group>"; };
 		AB0000000000000000000001 /* Color+Hex.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Color+Hex.swift"; sourceTree = "<group>"; };
 		AB0000000000000000000003 /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
-		AC0000000000000000000011 /* AppMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/AppMode.swift; sourceTree = "<group>"; };
-		A80000000000000000000012 /* CanvasShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/CanvasShellView.swift; sourceTree = "<group>"; };
 		A80000000000000000000013 /* SpacesShellView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spaces/SpacesShellView.swift; sourceTree = "<group>"; };
 		A80000000000000000000014 /* SpaceBackgroundView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spaces/SpaceBackgroundView.swift; sourceTree = "<group>"; };
 		A80000000000000000000015 /* SpaceTileCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spaces/SpaceTileCard.swift; sourceTree = "<group>"; };
@@ -284,8 +274,6 @@
 				A10000000000000000000011 /* VoidloomApp.swift */,
 				A80000000000000000000018 /* AppCommands.swift */,
 				A10000000000000000000012 /* RootView.swift */,
-				AC0000000000000000000011 /* AppMode.swift */,
-				A80000000000000000000012 /* CanvasShellView.swift */,
 				A80000000000000000000013 /* SpacesShellView.swift */,
 				A80000000000000000000014 /* SpaceBackgroundView.swift */,
 				A80000000000000000000015 /* SpaceTileCard.swift */,
@@ -315,7 +303,6 @@
 				A70000000000000000000011 /* ConnectionHitLayer.swift */,
 				A70000000000000000000012 /* TextElementEditor.swift */,
 				A70000000000000000000013 /* TextOptionsPanel.swift */,
-				A20000000000000000000013 /* ToolRail.swift */,
 				A20000000000000000000014 /* CommandBar.swift */,
 				A200000000000000000000B7 /* MediatorHUDView.swift */,
 				A30000000000000000000018 /* SettingsView.swift */,
@@ -343,8 +330,6 @@
 				A300000000000000000000D3 /* StartupView.swift */,
 				A300000000000000000000E2 /* WorkspaceEmptyState.swift */,
 				A20000000000000000000019 /* CanvasZoomControls.swift */,
-				A10000000000000000000013 /* CanvasWorkspaceView.swift */,
-				A20000000000000000000015 /* DraggableWorkspaceCard.swift */,
 				A20000000000000000000016 /* CanvasGrid.swift */,
 				A50000000000000000000013 /* CanvasContextMenu.swift */,
 				A10000000000000000000014 /* WorkspaceCardView.swift */,
@@ -501,12 +486,9 @@
 				A100000000000000000000F0 /* CanvasKeyMonitor.swift in Sources */,
 				A8000000000000000000000C /* ContentClickMonitor.swift in Sources */,
 				A20000000000000000000001 /* AtmosphereBackground.swift in Sources */,
-				A20000000000000000000003 /* ToolRail.swift in Sources */,
 				A20000000000000000000004 /* CommandBar.swift in Sources */,
 				A200000000000000000000A7 /* MediatorHUDView.swift in Sources */,
 				A200000000000000000000A8 /* LocalAISettingsSection.swift in Sources */,
-				A10000000000000000000003 /* CanvasWorkspaceView.swift in Sources */,
-				A20000000000000000000005 /* DraggableWorkspaceCard.swift in Sources */,
 				A20000000000000000000006 /* CanvasGrid.swift in Sources */,
 				A10000000000000000000004 /* WorkspaceCardView.swift in Sources */,
 				A20000000000000000000007 /* CardPalette.swift in Sources */,
@@ -559,8 +541,6 @@
 				A70000000000000000000002 /* TextElementEditor.swift in Sources */,
 				A70000000000000000000003 /* TextOptionsPanel.swift in Sources */,
 				A90000000000000000000001 /* BrowserLoadModel.swift in Sources */,
-				AC0000000000000000000001 /* AppMode.swift in Sources */,
-				A80000000000000000000002 /* CanvasShellView.swift in Sources */,
 				A80000000000000000000003 /* SpacesShellView.swift in Sources */,
 				A80000000000000000000004 /* SpaceBackgroundView.swift in Sources */,
 				A80000000000000000000005 /* SpaceTileCard.swift in Sources */,

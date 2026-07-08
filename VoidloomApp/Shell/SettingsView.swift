@@ -224,7 +224,6 @@ private struct CanvasSettingsTab: View {
     @AppStorage("canvas.zoomTowardCursor") private var zoomTowardCursor = true
     @AppStorage("canvas.defaultZoom") private var defaultZoom = 100
     @AppStorage("canvas.momentumPanning") private var momentumPanning = true
-    @AppStorage("canvas.selectionBoxModifier") private var selectionBoxModifier: SelectionBoxModifier = .none
 
     var body: some View {
         Form {
@@ -244,15 +243,6 @@ private struct CanvasSettingsTab: View {
                 }
 
                 Toggle("Zoom toward cursor", isOn: $zoomTowardCursor)
-
-                Picker("Selection box modifier", selection: $selectionBoxModifier) {
-                    ForEach(SelectionBoxModifier.allCases) { Text($0.label).tag($0) }
-                }
-                .pickerStyle(.menu)
-
-                Text("None: a plain mouse drag draws a selection box. Pick a modifier to keep plain drag as pan and require that key for the selection box. Two-finger trackpad always pans.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
             }
 
             Section("View") {

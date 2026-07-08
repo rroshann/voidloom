@@ -2,15 +2,11 @@ import SwiftUI
 import VoidloomCore
 
 /// An app-wide menu action. Menu items post these through NotificationCenter;
-/// the view that owns the right context performs them — RootView for store and
-/// AppStorage toggles, CanvasShellView for zoom (it owns the window geometry
-/// the zoom anchor needs).
+/// the view that owns the right context performs them (mostly RootView). Board
+/// zoom/minimap live on `SpacesShellView`'s own key monitor (⌘=/-/0, ⌘⇧M), not
+/// here, since they need the Board viewport + window geometry.
 enum MenuAction {
-    case toggleMinimap
     case addCard(CardKind)
-    case zoomIn
-    case zoomOut
-    case resetViewport
     case goToLauncher
     case undo
     case redo
@@ -75,17 +71,8 @@ struct VoidloomCommands: Commands {
                 .keyboardShortcut("j", modifiers: [.command, .shift])
             Button("Go to Launcher") { MenuAction.goToLauncher.post() }
                 .keyboardShortcut("l", modifiers: [.command, .shift, .option])
-            Button("Toggle Minimap") { MenuAction.toggleMinimap.post() }
-                .keyboardShortcut("m", modifiers: [.command, .shift])
             Divider()
             Button("Set Project Folder…") { MenuAction.setProjectFolder.post() }
-            Divider()
-            Button("Zoom In") { MenuAction.zoomIn.post() }
-                .keyboardShortcut("+", modifiers: .command)
-            Button("Zoom Out") { MenuAction.zoomOut.post() }
-                .keyboardShortcut("-", modifiers: .command)
-            Button("Reset Viewport") { MenuAction.resetViewport.post() }
-                .keyboardShortcut("0", modifiers: .command)
         }
     }
 }

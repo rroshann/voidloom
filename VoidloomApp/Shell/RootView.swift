@@ -4,10 +4,8 @@ import AppKit
 import VoidloomAI
 import VoidloomCore
 
-/// Top-level shell: switches between the free pan/zoom Canvas presentation and
-/// the auto-tiled Spaces presentation based on the persisted `app.mode` flag.
-/// Both shells render the same active `WorkspaceState`; the flag is UI-only and
-/// never touches workspace data, so switching is lossless.
+/// Top-level shell: mounts the single `SpacesShellView` (grid + Board layouts)
+/// over the active `WorkspaceState` and hosts the mediator HUD + voice bridge.
 struct RootView: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var sessionManager: AgentSessionManager
@@ -19,7 +17,6 @@ struct RootView: View {
 
     @EnvironmentObject private var session: AppSession
 
-    @AppStorage("isMinimapVisible") private var isMinimapVisible = false
     @AppStorage("voice.mode") private var voiceMode: VoiceInputMode = .pushToTalk
     @AppStorage("voice.wakePhrase") private var wakePhrase = "hey sunday"
     @AppStorage("voice.useSpeechAnalyzer") private var useSpeechAnalyzer = false
@@ -203,8 +200,6 @@ struct RootView: View {
         .onReceive(NotificationCenter.default.publisher(for: MenuAction.notification)) { note in
             guard let action = note.object as? MenuAction else { return }
             switch action {
-            case .toggleMinimap:
-                isMinimapVisible.toggle()
             case .addCard(let kind):
                 store.addCard(kind: kind)
             case .goToLauncher:
@@ -260,9 +255,7 @@ struct RootView: View {
             case .runMediatorCommand(let text):
                 mediator.submitTyped(text)
             case .toggleAIConversation:
-                break   // owned by the active shell (Canvas/Spaces), which holds the state
-            case .zoomIn, .zoomOut, .resetViewport:
-                break   // handled by CanvasShellView, which owns the zoom anchor
+                break   // owned by SpacesShellView, which holds the sidebar state
             }
         }
     }
