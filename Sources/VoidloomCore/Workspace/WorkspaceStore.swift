@@ -1365,7 +1365,7 @@ public final class WorkspaceStore: ObservableObject {
                 position: .zero,
                 size: CardSize(width: 440, height: 300),
                 title: "New Note",
-                content: "Capture spatial context here."
+                content: ""
             )
         case .todo:
             return WorkspaceCard(
