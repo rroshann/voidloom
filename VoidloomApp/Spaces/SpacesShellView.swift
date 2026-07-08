@@ -86,6 +86,10 @@ struct SpacesShellView: View {
     private static let topPadding: CGFloat = 0
     private static let bottomPadding: CGFloat = 12
     private static let dockGap: CGFloat = 16
+    /// Width of the assistant conversation sidebar (matches AIConversationSidebar's
+    /// fixed frame). The bottom dock shifts left by this when the sidebar is open,
+    /// so its right-side controls never hide behind the panel.
+    private static let aiSidebarWidth: CGFloat = 340
 
     private var topInset: Double { Double(Self.topPadding) }
     private var bottomInset: Double { Double(dockHeight + Self.bottomPadding + Self.dockGap) }
@@ -574,6 +578,10 @@ struct SpacesShellView: View {
                     })
                     .padding(.bottom, Self.bottomPadding)
                 }
+                // Keep the dock + its tool panels out of the assistant sidebar's
+                // fixed lane, so the right-side controls (zoom, AI toggle) never
+                // hide behind it when it's open.
+                .padding(.trailing, isAIConversationVisible ? Self.aiSidebarWidth : 0)
             }
             .onChange(of: paged.pageCount, initial: true) { _, newCount in
                 pageCount = newCount
