@@ -17,9 +17,6 @@ struct SettingsView: View {
             AppearanceSettingsTab()
                 .tabItem { Label("Appearance", systemImage: "paintbrush") }
 
-            CanvasSettingsTab()
-                .tabItem { Label("Canvas", systemImage: "square.grid.3x3") }
-
             SpacesSettingsTab()
                 .tabItem { Label("Spaces", systemImage: "rectangle.grid.2x2") }
 
@@ -212,51 +209,6 @@ private struct AccentSwatch: View {
         }
         .buttonStyle(.plain)
         .help("Use \(hex)")
-    }
-}
-
-// MARK: - Canvas
-
-private struct CanvasSettingsTab: View {
-    @AppStorage("canvas.scrollZooms") private var scrollZooms = true
-    @AppStorage("canvas.invertPan") private var invertPan = false
-    @AppStorage("canvas.zoomSensitivity") private var zoomSensitivity = 1.0
-    @AppStorage("canvas.zoomTowardCursor") private var zoomTowardCursor = true
-    @AppStorage("canvas.defaultZoom") private var defaultZoom = 100
-    @AppStorage("canvas.momentumPanning") private var momentumPanning = true
-
-    var body: some View {
-        Form {
-            Section("Navigation") {
-                Toggle("Scroll wheel zooms", isOn: $scrollZooms)
-                Toggle("Invert pan direction", isOn: $invertPan)
-
-                LabeledContent("Zoom sensitivity") {
-                    Slider(value: $zoomSensitivity, in: 0.25...3.0) {
-                        Text("Zoom sensitivity")
-                    } minimumValueLabel: {
-                        Text("Slow")
-                    } maximumValueLabel: {
-                        Text("Fast")
-                    }
-                    .frame(width: 240)
-                }
-
-                Toggle("Zoom toward cursor", isOn: $zoomTowardCursor)
-            }
-
-            Section("View") {
-                Stepper(value: $defaultZoom, in: 25...400, step: 25) {
-                    LabeledContent("Default zoom level", value: "\(defaultZoom)%")
-                }
-
-                Toggle("Momentum panning", isOn: $momentumPanning)
-
-                KeyboardShortcutRow(title: "Reset view", keys: ["⌘", "0"])
-                KeyboardShortcutRow(title: "Zoom to fit", keys: ["⇧", "⌘", "0"])
-            }
-        }
-        .formStyle(.grouped)
     }
 }
 
