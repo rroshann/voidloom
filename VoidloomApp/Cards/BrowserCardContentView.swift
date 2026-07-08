@@ -154,7 +154,7 @@ struct BrowserCardContentView: View {
             return liveURL.absoluteString
         }
         let trimmed = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty ? "https://voidloom.local" : trimmed
+        return trimmed.isEmpty ? "" : trimmed
     }
 
     private func commitURL() {

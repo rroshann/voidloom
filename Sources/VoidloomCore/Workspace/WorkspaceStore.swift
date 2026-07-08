@@ -1378,7 +1378,7 @@ public final class WorkspaceStore: ObservableObject {
                 position: .zero,
                 size: CardSize(width: 520, height: 340),
                 title: "New Preview",
-                content: "Browser card placeholder."
+                content: ""
             )
         case .fileBrowser:
             return WorkspaceCard(

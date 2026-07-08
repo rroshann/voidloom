@@ -2224,6 +2224,13 @@ final class WorkspaceModelTests: XCTestCase {
         XCTAssertNotNil(BrowserURLResolver.resolve(from: ""))   // fallback, never nil
     }
 
+    func testBrowserResolverEmptyResolvesToBlankNotAFakeDomain() {
+        // Empty/invalid input must resolve to a clean blank page — not a made-up
+        // domain that DNS-errors in the web view (the new-browser-card impression).
+        XCTAssertEqual(BrowserURLResolver.resolve(from: "").absoluteString, "about:blank")
+        XCTAssertEqual(BrowserURLResolver.resolve(from: "not a url at all").absoluteString, "about:blank")
+    }
+
     // MARK: - C1: Chat models + reducer
 
     func testReducerAppendsUserThenPendingAssistant() {
