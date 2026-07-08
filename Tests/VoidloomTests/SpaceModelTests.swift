@@ -749,3 +749,77 @@ extension SpaceModelTests {
         XCTAssertEqual(decoded.cards[1].position, CanvasPoint(x: 1, y: 0))
     }
 }
+
+// MARK: - Stage 6: per-space Board viewport (pan/zoom)
+
+extension SpaceModelTests {
+    func testSpaceConfigViewportDefaultsNil() {
+        XCTAssertNil(SpaceConfig().viewport)
+    }
+
+    /// The Board viewport is the identity transform until the user pans/zooms,
+    /// and is kept strictly separate from `WorkspaceState.viewport` (the Canvas
+    /// one, which can be non-identity on migrated files).
+    func testSpaceViewportHelperDefaultsToIdentityWhenNil() {
+        let state = stateWithCards(1)   // no space at all
+        XCTAssertEqual(state.spaceViewport, CanvasViewport())
+    }
+
+    func testSpaceConfigDecodesLegacyJSONWithoutViewportKey() throws {
+        let data = try JSONEncoder().encode(SpaceConfig(backgroundDimming: 0.5))
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        object.removeValue(forKey: "viewport")
+        let legacy = try JSONSerialization.data(withJSONObject: object)
+        let decoded = try JSONDecoder().decode(SpaceConfig.self, from: legacy)
+        XCTAssertNil(decoded.viewport)
+    }
+
+    func testSpaceConfigRoundTripsViewport() throws {
+        var config = SpaceConfig()
+        config.viewport = CanvasViewport(origin: CanvasPoint(x: 12, y: -34), scale: 1.5)
+        let decoded = try JSONDecoder().decode(SpaceConfig.self, from: JSONEncoder().encode(config))
+        XCTAssertEqual(decoded.viewport, config.viewport)
+        XCTAssertEqual(decoded, config)
+    }
+
+    func testPanSpaceViewportMaterializesConfigAndPans() {
+        var state = stateWithCards(1)   // no space yet
+        state.panSpaceViewport(by: CanvasVector(dx: 40, dy: -15))
+        XCTAssertEqual(state.space?.viewport?.origin, CanvasPoint(x: 40, y: -15))
+        XCTAssertEqual(state.spaceViewport.origin, CanvasPoint(x: 40, y: -15))
+    }
+
+    func testZoomSpaceViewportKeepsAnchorPinned() {
+        var state = stateWithCards(1)
+        let anchor = ScreenPoint(x: 200, y: 120)
+        state.zoomSpaceViewport(by: 2, anchoredAt: anchor)
+        XCTAssertEqual(state.spaceViewport.scale, 2, accuracy: 0.0001)
+        // The canvas point under the cursor stays under the cursor after zoom.
+        let screen = state.spaceViewport.screenPoint(
+            forCanvasPoint: CanvasViewport().canvasPoint(forScreenPoint: anchor)
+        )
+        XCTAssertEqual(screen.x, anchor.x, accuracy: 0.0001)
+        XCTAssertEqual(screen.y, anchor.y, accuracy: 0.0001)
+    }
+
+    func testResetSpaceViewportReturnsToIdentity() {
+        var state = stateWithCards(1)
+        state.zoomSpaceViewport(by: 2, anchoredAt: ScreenPoint(x: 100, y: 100))
+        state.panSpaceViewport(by: CanvasVector(dx: 50, dy: 50))
+        state.resetSpaceViewport()
+        XCTAssertEqual(state.spaceViewport, CanvasViewport())
+    }
+
+    /// A screen-space drag delta becomes a canvas delta scaled by the Board
+    /// viewport, so a card tracks the cursor at every zoom level.
+    func testMoveSpaceCardsFreelyDividesByBoardViewportScale() {
+        var state = stateWithCards(1)
+        let id = state.cards[0].id
+        state.setSpaceLayoutMode(.freeArrange)
+        state.cards[0].position = CanvasPoint(x: 0, y: 0)
+        state.space?.viewport = CanvasViewport(scale: 0.5)   // zoomed out 2x
+        state.moveSpaceCardsFreely(ids: [id], byScreen: ScreenPoint(x: 100, y: 40))
+        // 100 screen px at scale 0.5 = 200 canvas units.
+        XCTAssertEqual(state.cards[0].position, CanvasPoint(x: 200, y: 80))
+    }
+}

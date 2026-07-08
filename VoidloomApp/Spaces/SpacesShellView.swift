@@ -44,6 +44,19 @@ struct SpacesShellView: View {
     @State private var marqueeAdditive = false
     @State private var isAIConversationVisible = false
 
+    /// Live pointer (shell-local coords), tracked while idle so a Board pinch can
+    /// anchor at the cursor. Nil when the pointer isn't over the empty background.
+    @State private var hoverLocation: CGPoint?
+    /// Pinch anchor captured once on the first magnification tick, so the zoom
+    /// stays anchored at one point for the whole gesture instead of drifting.
+    @State private var pinchAnchor: CGPoint?
+    /// Previous cumulative pinch magnification, so each tick applies only its delta.
+    @State private var lastMagnification: CGFloat = 1
+    /// What an empty-background drag resolved to, decided once on its first move.
+    @State private var idleDragMode: BoardIdleDragMode = .none
+    /// Cumulative pan translation, so each event applies only its delta.
+    @State private var lastPanTranslation: CGSize = .zero
+
     /// Extra top clearance above the tiling margin. Zero makes the top gap equal the
     /// side margin (symmetric card field); the tiling margin alone already clears the
     /// traffic-light buttons of the hidden-titlebar window, so cards sit as high as
@@ -145,10 +158,31 @@ struct SpacesShellView: View {
                         // terminal can't keep swallowing keystrokes.
                         NSApp.keyWindow?.makeFirstResponder(nil)
                     }
+                    .onContinuousHover(coordinateSpace: .local) { phase in
+                        if case let .active(point) = phase { hoverLocation = point }
+                        else { hoverLocation = nil }
+                    }
                     .gesture(marqueeGesture(
                         paged: paged, orderedIDs: orderedIDs,
                         freeFrames: layoutMode == .freeArrange ? freeFrames : nil
                     ))
+                    .simultaneousGesture(boardZoomGesture(viewportSize: geo.size))
+
+                // Two-finger trackpad pan for Board mode only — exactly one
+                // scroll monitor, mounted here and torn down when Board exits.
+                if layoutMode == .freeArrange {
+                    SpaceTrackpadPanView { translation, cursorInView in
+                        // Over the selected card, yield the scroll to that card's
+                        // own scroll view instead of panning the Board.
+                        if let cursorInView, cursorOverSelectedCard(cursorInView, freeFrames: freeFrames) {
+                            return false
+                        }
+                        store.panSpaceViewport(by: translation)
+                        return true
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .allowsHitTesting(false)
+                }
 
                 if orderedIDs.isEmpty {
                     WorkspaceEmptyState()
@@ -160,7 +194,7 @@ struct SpacesShellView: View {
                         sessionManager: sessionManager,
                         orderedIDs: orderedIDs,
                         cardsByID: cardsByID,
-                        effectiveFrames: freeFrames,
+                        viewport: store.state.spaceViewport,
                         viewportSize: geo.size
                     )
                 } else {
@@ -317,7 +351,11 @@ struct SpacesShellView: View {
                         },
                         errorMessage: store.lastPersistenceError,
                         isAIActive: isAIConversationVisible,
-                        onToggleAI: { isAIConversationVisible.toggle() }
+                        onToggleAI: { isAIConversationVisible.toggle() },
+                        boardZoomScale: layoutMode == .freeArrange ? store.state.spaceViewport.scale : nil,
+                        onZoomIn: { store.zoomStepSpaceViewport(by: 1.2, anchoredAt: boardZoomCenter) },
+                        onZoomOut: { store.zoomStepSpaceViewport(by: 1 / 1.2, anchoredAt: boardZoomCenter) },
+                        onResetZoom: { store.resetSpaceViewport() }
                     )
                     .background(GeometryReader { p in
                         Color.clear.preference(key: SpacesDockHeightKey.self, value: p.size.height)
@@ -388,9 +426,26 @@ struct SpacesShellView: View {
             guard !typing, pageCount > 1, isPagedGrid else { return false }
             goToPage(currentPage + 1)
             return true
+        case 24:    // ⌘= / ⌘+ → Board zoom in
+            guard !typing, event.modifierFlags.contains(.command), !isPagedGrid else { return false }
+            store.zoomStepSpaceViewport(by: 1.2, anchoredAt: boardZoomCenter)
+            return true
+        case 27:    // ⌘- → Board zoom out
+            guard !typing, event.modifierFlags.contains(.command), !isPagedGrid else { return false }
+            store.zoomStepSpaceViewport(by: 1 / 1.2, anchoredAt: boardZoomCenter)
+            return true
+        case 29:    // ⌘0 → reset Board zoom
+            guard !typing, event.modifierFlags.contains(.command), !isPagedGrid else { return false }
+            store.resetSpaceViewport()
+            return true
         default:
             return false
         }
+    }
+
+    /// The Board-zoom anchor for keyboard/dock zoom: the center of the shell.
+    private var boardZoomCenter: ScreenPoint {
+        ScreenPoint(x: shellFrame.width / 2, y: shellFrame.height / 2)
     }
 
     /// Terminates the agent session for every `.agent` card in `ids`, mirroring the
@@ -403,7 +458,10 @@ struct SpacesShellView: View {
 
     private func reTile(orderedIDs: [UUID], tiling: SpaceTiling, viewport: CGSize) {
         if (store.state.space?.layoutMode ?? .pagedGrid) == .freeArrange {
-            // Snap every free-arranged card back to the tidy fit-all grid.
+            // Snap every Board card back to the tidy fit-all grid. Reset the Board
+            // viewport to identity first so the grid slots (screen space) land on
+            // the matching canvas coordinates and the whole field is back in view.
+            store.resetSpaceViewport()
             store.setSpaceFreeFrames(
                 defaultFreeFrames(orderedIDs: orderedIDs, tiling: tiling, viewport: viewport)
             )
@@ -437,32 +495,81 @@ struct SpacesShellView: View {
         return frames
     }
 
-    /// The frame each card renders at this pass: a placed card's own
-    /// `position`/`size` (screen == canvas at identity), overlaid on grid-derived
-    /// defaults so a card not yet seeded still renders somewhere sensible.
+    /// The on-screen rect of each card THIS frame — a placed card's `position`
+    /// mapped through the Board viewport (`screenPoint`, size ×scale), overlaid on
+    /// grid-derived defaults for cards not yet seeded. Screen-space, so the shell's
+    /// marquee/click/hit-testing all agree with where cards render.
     private func effectiveFreeFrames(
         orderedIDs: [UUID], tiling: SpaceTiling, viewport: CGSize
     ) -> [UUID: SpaceFreeFrame] {
+        let vp = store.state.spaceViewport
         var frames = defaultFreeFrames(orderedIDs: orderedIDs, tiling: tiling, viewport: viewport)
         let placed = store.state.space?.freePlaced ?? []
         for card in store.state.cards where placed.contains(card.id) {
+            let screen = vp.screenPoint(forCanvasPoint: card.position)
             frames[card.id] = SpaceFreeFrame(
-                origin: ScreenPoint(x: card.position.x, y: card.position.y),
-                size: ScreenPoint(x: card.size.width, y: card.size.height)
+                origin: ScreenPoint(x: screen.x, y: screen.y),
+                size: ScreenPoint(x: card.size.width * vp.scale, y: card.size.height * vp.scale)
             )
         }
         return frames
     }
 
-    /// Seeds a grid-derived position onto any free-arrange card not yet placed.
-    /// Runs on mode entry and card additions; never touches a placed card.
+    /// Seeds a grid-derived position onto any Board card not yet placed. Runs on
+    /// mode entry and card additions; never touches a placed card. The grid slots
+    /// are computed in screen space, so map each through the Board viewport into
+    /// canvas space before storing (identity ⇒ screen == canvas, unchanged).
     private func seedFreeFramesIfNeeded(orderedIDs: [UUID], tiling: SpaceTiling, viewport: CGSize) {
         guard (store.state.space?.layoutMode ?? .pagedGrid) == .freeArrange else { return }
+        let vp = store.state.spaceViewport
         let placed = store.state.space?.freePlaced ?? []
         let missing = defaultFreeFrames(orderedIDs: orderedIDs, tiling: tiling, viewport: viewport)
             .filter { !placed.contains($0.key) }
         guard !missing.isEmpty else { return }
-        store.seedSpaceFreeFrames(missing)
+        var canvasFrames: [UUID: SpaceFreeFrame] = [:]
+        for (id, frame) in missing {
+            let origin = vp.canvasPoint(forScreenPoint: frame.origin)
+            canvasFrames[id] = SpaceFreeFrame(
+                origin: ScreenPoint(x: origin.x, y: origin.y),
+                size: ScreenPoint(x: frame.size.x / vp.scale, y: frame.size.y / vp.scale)
+            )
+        }
+        store.seedSpaceFreeFrames(canvasFrames)
+    }
+
+    /// Pinch-to-zoom the Board, anchored at the cursor. Applies each tick's delta
+    /// magnification (the anchor is captured once so it doesn't drift). Inert in
+    /// grid mode. Commits per tick — fine for a Board of cards; the Canvas
+    /// live-preview optimization matters once strokes/connections land (stage 8).
+    private func boardZoomGesture(viewportSize: CGSize) -> some Gesture {
+        MagnificationGesture()
+            .onChanged { value in
+                guard (store.state.space?.layoutMode ?? .pagedGrid) == .freeArrange, value > 0 else { return }
+                let anchor: CGPoint
+                if let captured = pinchAnchor {
+                    anchor = captured
+                } else {
+                    anchor = hoverLocation ?? CGPoint(x: viewportSize.width / 2, y: viewportSize.height / 2)
+                    pinchAnchor = anchor
+                    lastMagnification = 1
+                }
+                let delta = value / lastMagnification
+                store.zoomSpaceViewport(by: Double(delta), anchoredAt: ScreenPoint(x: anchor.x, y: anchor.y))
+                lastMagnification = value
+            }
+            .onEnded { _ in
+                pinchAnchor = nil
+                lastMagnification = 1
+            }
+    }
+
+    /// Whether `point` (shell-local coords) is inside the selected card's on-screen
+    /// rect, so a two-finger scroll there scrolls the card instead of panning.
+    private func cursorOverSelectedCard(_ point: CGPoint, freeFrames: [UUID: SpaceFreeFrame]) -> Bool {
+        guard let id = store.state.selectedCardID ?? store.state.activeCardID,
+              let frame = freeFrames[id] else { return false }
+        let rect = CGRect(x: frame.origin.x, y: frame.origin.y, width: frame.size.x, height: frame.size.y)
+        return rect.contains(point)
     }
 
     /// Animated, direction-aware page change (drives the horizontal slide between
@@ -521,7 +628,12 @@ struct SpacesShellView: View {
             return
         }
 
-        let inHeader = point.y - tileTopY < WorkspaceCardView.approximateHeaderHeight
+        // The header band scales with the Board zoom (grid tiles never zoom), so
+        // the select-vs-activate split lands on the visible header at any zoom.
+        let headerBand = isPagedGrid
+            ? WorkspaceCardView.approximateHeaderHeight
+            : WorkspaceCardView.approximateHeaderHeight * store.state.spaceViewport.scale
+        let inHeader = point.y - tileTopY < headerBand
         if inHeader {
             if store.state.selectedCardID != hitID
                 || store.state.activeCardID != nil
@@ -557,33 +669,55 @@ struct SpacesShellView: View {
         return nil
     }
 
-    /// Left-drag on empty background draws a selection box; ⌘-drag extends the
-    /// existing selection. Coordinates are `.local` to the shell, matching the
+    /// Empty-background drag, resolved once on its first move. In Board mode an
+    /// ⌥-drag pans the surface (mouse users' pan, alongside two-finger trackpad
+    /// pan); every other drag draws a selection box (⌘ extends it). Grid mode is
+    /// marquee-only. Coordinates are `.local` to the shell, matching the
     /// `SpaceGrid` tile origins used by `tileIndices`.
     private func marqueeGesture(
         paged: SpaceGrid.PagedLayout,
         orderedIDs: [UUID],
         freeFrames: [UUID: SpaceFreeFrame]?
     ) -> some Gesture {
-        DragGesture(minimumDistance: 1)
+        let isBoard = freeFrames != nil
+        return DragGesture(minimumDistance: 1)
             .onChanged { value in
-                if marqueeStart == nil {
-                    marqueeStart = value.startLocation
-                    marqueeAdditive = NSEvent.modifierFlags.contains(.command)
-                    if marqueeAdditive {
-                        var base = store.state.marqueeSelectedCardIDs
-                        if let single = store.state.selectedCardID { base.insert(single) }
-                        marqueeBase = base
+                if idleDragMode == .none {
+                    if isBoard && NSEvent.modifierFlags.contains(.option) {
+                        idleDragMode = .pan
+                        lastPanTranslation = .zero
                     } else {
-                        marqueeBase = []
+                        idleDragMode = .marquee
+                        marqueeStart = value.startLocation
+                        marqueeAdditive = NSEvent.modifierFlags.contains(.command)
+                        if marqueeAdditive {
+                            var base = store.state.marqueeSelectedCardIDs
+                            if let single = store.state.selectedCardID { base.insert(single) }
+                            marqueeBase = base
+                        } else {
+                            marqueeBase = []
+                        }
                     }
                 }
-                marqueeCurrent = value.location
-                let hits = marqueeHits(start: value.startLocation, current: value.location,
-                                       paged: paged, orderedIDs: orderedIDs, freeFrames: freeFrames)
-                store.selectCardsInSpace(ids: marqueeAdditive ? marqueeBase.union(hits) : hits)
+
+                switch idleDragMode {
+                case .pan:
+                    let delta = CGSize(width: value.translation.width - lastPanTranslation.width,
+                                       height: value.translation.height - lastPanTranslation.height)
+                    store.panSpaceViewport(by: CanvasVector(dx: delta.width, dy: delta.height))
+                    lastPanTranslation = value.translation
+                case .marquee:
+                    marqueeCurrent = value.location
+                    let hits = marqueeHits(start: value.startLocation, current: value.location,
+                                           paged: paged, orderedIDs: orderedIDs, freeFrames: freeFrames)
+                    store.selectCardsInSpace(ids: marqueeAdditive ? marqueeBase.union(hits) : hits)
+                case .none:
+                    break
+                }
             }
             .onEnded { _ in
+                idleDragMode = .none
+                lastPanTranslation = .zero
                 marqueeStart = nil
                 marqueeCurrent = nil
                 marqueeBase = []
@@ -636,6 +770,13 @@ struct SpacesShellView: View {
         .overlay(Capsule().stroke(.white.opacity(0.12), lineWidth: 1))
         .shadow(color: .black.opacity(0.3), radius: 16, y: 8)
     }
+}
+
+/// What an empty-background drag resolved to, decided once on its first move.
+private enum BoardIdleDragMode {
+    case none
+    case pan
+    case marquee
 }
 
 struct ShellFrameKey: PreferenceKey {

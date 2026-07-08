@@ -17,6 +17,11 @@ struct SpaceBottomDock: View {
     let errorMessage: String?
     let isAIActive: Bool
     let onToggleAI: () -> Void
+    /// Board zoom, shown only in Board mode (nil ⇒ grid mode, no zoom controls).
+    var boardZoomScale: Double? = nil
+    var onZoomIn: () -> Void = {}
+    var onZoomOut: () -> Void = {}
+    var onResetZoom: () -> Void = {}
 
     @State private var showBackgroundPopover = false
     @State private var showLayoutPopover = false
@@ -97,6 +102,23 @@ struct SpaceBottomDock: View {
                     .popover(isPresented: $showBackgroundPopover, arrowEdge: .top) {
                         backgroundPopover.padding(16).frame(width: 260)
                     }
+            }
+
+            // Board zoom (Board mode only): out / percentage-resets / in.
+            if let boardZoomScale {
+                HStack(spacing: DockMetrics.iconGap) {
+                    barButton("minus.magnifyingglass", help: "Zoom out", action: onZoomOut)
+                    Button(action: onResetZoom) {
+                        Text("\(Int((boardZoomScale * 100).rounded()))%")
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .foregroundStyle(.white.opacity(0.72))
+                            .frame(minWidth: 40)
+                    }
+                    .buttonStyle(.plain)
+                    .pointerCursor()
+                    .help("Reset zoom to 100%")
+                    barButton("plus.magnifyingglass", help: "Zoom in", action: onZoomIn)
+                }
             }
 
             DockIconButton(

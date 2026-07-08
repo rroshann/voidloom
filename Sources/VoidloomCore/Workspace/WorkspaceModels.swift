@@ -841,6 +841,12 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         return kept + appended
     }
 
+    /// The Board (free-arrange) pan/zoom, identity until the user pans/zooms.
+    /// Board render + move math key off THIS, never `viewport` (the Canvas one).
+    public var spaceViewport: CanvasViewport {
+        space?.viewport ?? CanvasViewport()
+    }
+
     /// Materializes a default `SpaceConfig` on first edit; never overwrites an
     /// existing one.
     public mutating func ensureSpaceConfig() {
@@ -893,6 +899,36 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         space?.layoutMode = mode
     }
 
+    /// Pans the Board viewport by a screen-space translation (materializing it).
+    public mutating func panSpaceViewport(by screenTranslation: CanvasVector) {
+        ensureSpaceConfig()
+        var vp = spaceViewport
+        vp.pan(by: screenTranslation)
+        space?.viewport = vp
+    }
+
+    /// Pinch-zooms the Board viewport, keeping `anchor`'s canvas point pinned.
+    public mutating func zoomSpaceViewport(by magnification: Double, anchoredAt anchor: ScreenPoint) {
+        ensureSpaceConfig()
+        var vp = spaceViewport
+        vp.zoom(by: magnification, anchoredAt: anchor)
+        space?.viewport = vp
+    }
+
+    /// Discrete Board zoom step (the dock +/- and ⌘=/⌘-), snapping to 100%.
+    public mutating func zoomStepSpaceViewport(by magnification: Double, anchoredAt anchor: ScreenPoint) {
+        ensureSpaceConfig()
+        var vp = spaceViewport
+        vp.zoomStep(by: magnification, anchoredAt: anchor)
+        space?.viewport = vp
+    }
+
+    /// Resets the Board viewport to identity (⌘0).
+    public mutating func resetSpaceViewport() {
+        ensureSpaceConfig()
+        space?.viewport = CanvasViewport()
+    }
+
     /// Writes a grid-derived free-arrange frame onto the card at `index` (identity
     /// mapping: a screen point equals a canvas point) and records it as placed.
     private mutating func placeFreeCard(at index: Int, frame: SpaceFreeFrame) {
@@ -933,18 +969,21 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         space?.freePlaced.insert(id)
     }
 
-    /// Shifts every card in `ids` by the same screen-space delta at identity scale
-    /// — free-arrange is a scale-1 world, so a screen delta is a canvas delta —
-    /// marking each placed. Drives header drag for a single card (`[id]`) or a
-    /// marquee group. Deliberately identity, not `state.viewport`-relative: the
-    /// free layer renders at scale 1 regardless of any zoom persisted by the old
-    /// Canvas shell. Unknown ids are ignored; an empty set is a no-op.
+    /// Shifts every card in `ids` by the same screen-space delta, converted to a
+    /// canvas delta through the **Board** viewport (a screen delta is `delta /
+    /// scale` canvas units), marking each placed. Drives header drag for a single
+    /// card (`[id]`) or a marquee group. Uses the Board viewport, never
+    /// `state.viewport` (the dead Canvas one, non-identity on migrated files).
+    /// Unknown ids are ignored; an empty set is a no-op.
     public mutating func moveSpaceCardsFreely(ids: Set<UUID>, byScreen delta: ScreenPoint) {
         guard !ids.isEmpty else { return }
         ensureSpaceConfig()
+        let scale = spaceViewport.scale
+        let dx = delta.x / scale
+        let dy = delta.y / scale
         for index in cards.indices where ids.contains(cards[index].id) {
-            cards[index].position.x += delta.x
-            cards[index].position.y += delta.y
+            cards[index].position.x += dx
+            cards[index].position.y += dy
             space?.freePlaced.insert(cards[index].id)
         }
     }

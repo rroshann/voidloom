@@ -655,11 +655,37 @@ public final class WorkspaceStore: ObservableObject {
     }
 
     /// Debounced free-arrange move for a single card (`[id]`) or a marquee group,
-    /// by a screen-space delta at identity scale. Drives the header drag handle.
+    /// by a screen-space delta through the Board viewport. Drives header drag.
     public func moveSpaceCardsFreely(ids: Set<UUID>, byScreen delta: ScreenPoint) {
         guard !ids.isEmpty, delta != ScreenPoint(x: 0, y: 0) else { return }
         recordUndo("fmove")
         state.moveSpaceCardsFreely(ids: ids, byScreen: delta)
+        schedulePersistence()
+    }
+
+    // MARK: - Board (free-arrange) viewport
+
+    /// Debounced like the Canvas pan — a trackpad/drag pan emits many deltas.
+    public func panSpaceViewport(by screenTranslation: CanvasVector) {
+        state.panSpaceViewport(by: screenTranslation)
+        schedulePersistence()
+    }
+
+    /// Debounced — a pinch commits once on end, but keep it off the immediate path.
+    public func zoomSpaceViewport(by magnification: Double, anchoredAt anchor: ScreenPoint) {
+        state.zoomSpaceViewport(by: magnification, anchoredAt: anchor)
+        schedulePersistence()
+    }
+
+    /// Discrete Board zoom step (dock +/-, ⌘=/⌘-), snapping to 100%.
+    public func zoomStepSpaceViewport(by magnification: Double, anchoredAt anchor: ScreenPoint) {
+        state.zoomStepSpaceViewport(by: magnification, anchoredAt: anchor)
+        schedulePersistence()
+    }
+
+    /// Resets the Board viewport to identity (⌘0).
+    public func resetSpaceViewport() {
+        state.resetSpaceViewport()
         schedulePersistence()
     }
 
