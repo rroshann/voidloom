@@ -449,23 +449,30 @@ struct SpacesShellView: View {
         return frames
     }
 
-    /// Persisted free frames overlaid on grid-derived defaults, so a card that
-    /// hasn't been seeded yet still renders somewhere sensible this frame.
+    /// The frame each card renders at this pass: a placed card's own
+    /// `position`/`size` (screen == canvas at identity), overlaid on grid-derived
+    /// defaults so a card not yet seeded still renders somewhere sensible.
     private func effectiveFreeFrames(
         orderedIDs: [UUID], tiling: SpaceTiling, viewport: CGSize
     ) -> [UUID: SpaceFreeFrame] {
         var frames = defaultFreeFrames(orderedIDs: orderedIDs, tiling: tiling, viewport: viewport)
-        frames.merge(store.state.space?.freeFrames ?? [:]) { _, persisted in persisted }
+        let placed = store.state.space?.freePlaced ?? []
+        for card in store.state.cards where placed.contains(card.id) {
+            frames[card.id] = SpaceFreeFrame(
+                origin: ScreenPoint(x: card.position.x, y: card.position.y),
+                size: ScreenPoint(x: card.size.width, y: card.size.height)
+            )
+        }
         return frames
     }
 
-    /// Persists default frames for any free-arrange card that lacks one. Runs on
-    /// mode entry and card additions; never touches an existing frame.
+    /// Seeds a grid-derived position onto any free-arrange card not yet placed.
+    /// Runs on mode entry and card additions; never touches a placed card.
     private func seedFreeFramesIfNeeded(orderedIDs: [UUID], tiling: SpaceTiling, viewport: CGSize) {
         guard (store.state.space?.layoutMode ?? .pagedGrid) == .freeArrange else { return }
-        let persisted = store.state.space?.freeFrames ?? [:]
+        let placed = store.state.space?.freePlaced ?? []
         let missing = defaultFreeFrames(orderedIDs: orderedIDs, tiling: tiling, viewport: viewport)
-            .filter { persisted[$0.key] == nil }
+            .filter { !placed.contains($0.key) }
         guard !missing.isEmpty else { return }
         store.seedSpaceFreeFrames(missing)
     }

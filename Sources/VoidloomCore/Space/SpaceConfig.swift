@@ -15,7 +15,15 @@ public struct SpaceConfig: Codable, Equatable, Sendable {
     public var backgroundDimming: Double   // 0…1 scrim over the background
     public var cardOrder: [UUID]?          // nil = follow the cards array order
     public var layoutMode: SpaceLayoutMode
-    public var freeFrames: [UUID: SpaceFreeFrame]   // free-arrange only; grid derives
+    /// Legacy free-arrange placement (screen points). No longer the source of
+    /// truth — `WorkspaceCard.position`/`.size` is. Kept decodable so old files
+    /// upcast losslessly (see `WorkspaceState.init(from:)`), then cleared in
+    /// memory so a re-save can never re-clobber a moved card.
+    public var freeFrames: [UUID: SpaceFreeFrame]
+    /// Ids of cards the user has explicitly placed in free-arrange mode. Seeding
+    /// leaves these alone (a moved card stays put); unplaced cards are seeded a
+    /// grid-derived position on first render into the mode.
+    public var freePlaced: Set<UUID>
     /// Absolute path to this space's project folder. Powers file-browser and git
     /// cards; nil until the user picks one. Not sandboxed, so a plain path works.
     public var folderPath: String?
@@ -27,6 +35,7 @@ public struct SpaceConfig: Codable, Equatable, Sendable {
         cardOrder: [UUID]? = nil,
         layoutMode: SpaceLayoutMode = .pagedGrid,
         freeFrames: [UUID: SpaceFreeFrame] = [:],
+        freePlaced: Set<UUID> = [],
         folderPath: String? = nil
     ) {
         self.background = background
@@ -35,11 +44,12 @@ public struct SpaceConfig: Codable, Equatable, Sendable {
         self.cardOrder = cardOrder
         self.layoutMode = layoutMode
         self.freeFrames = freeFrames
+        self.freePlaced = freePlaced
         self.folderPath = folderPath
     }
 
     private enum CodingKeys: String, CodingKey {
-        case background, tiling, backgroundDimming, cardOrder, layoutMode, freeFrames, folderPath
+        case background, tiling, backgroundDimming, cardOrder, layoutMode, freeFrames, freePlaced, folderPath
     }
 
     // Custom decode so configs persisted before free-arrange existed still load.
@@ -51,6 +61,9 @@ public struct SpaceConfig: Codable, Equatable, Sendable {
         cardOrder = try container.decodeIfPresent([UUID].self, forKey: .cardOrder)
         layoutMode = try container.decodeIfPresent(SpaceLayoutMode.self, forKey: .layoutMode) ?? .pagedGrid
         freeFrames = try container.decodeIfPresent([UUID: SpaceFreeFrame].self, forKey: .freeFrames) ?? [:]
+        // A file written before `freePlaced` existed kept its ledger implicitly in
+        // the frame keys, so fall back to exactly those cards.
+        freePlaced = try container.decodeIfPresent(Set<UUID>.self, forKey: .freePlaced) ?? Set(freeFrames.keys)
         folderPath = try container.decodeIfPresent(String.self, forKey: .folderPath)
     }
 }

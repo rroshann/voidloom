@@ -293,6 +293,7 @@ extension SpaceModelTests {
         let config = SpaceConfig()
         XCTAssertEqual(config.layoutMode, .pagedGrid)
         XCTAssertTrue(config.freeFrames.isEmpty)
+        XCTAssertTrue(config.freePlaced.isEmpty)
     }
 
     func testSpaceConfigDecodesLegacyJSONWithoutLayoutKeys() throws {
@@ -302,11 +303,13 @@ extension SpaceModelTests {
         var object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
         object.removeValue(forKey: "layoutMode")
         object.removeValue(forKey: "freeFrames")
+        object.removeValue(forKey: "freePlaced")
         let legacy = try JSONSerialization.data(withJSONObject: object)
 
         let decoded = try JSONDecoder().decode(SpaceConfig.self, from: legacy)
         XCTAssertEqual(decoded.layoutMode, .pagedGrid)
         XCTAssertTrue(decoded.freeFrames.isEmpty)
+        XCTAssertTrue(decoded.freePlaced.isEmpty)
         XCTAssertEqual(decoded.backgroundDimming, 0.5, accuracy: 0.0001)
     }
 
@@ -320,6 +323,36 @@ extension SpaceModelTests {
         XCTAssertEqual(decoded, config)
     }
 
+    /// A file written before `freePlaced` existed carried its placement ledger
+    /// implicitly in the `freeFrames` keys. On decode, `freePlaced` falls back to
+    /// exactly those keys, so previously-placed cards are still treated as placed
+    /// (and never re-seeded from the grid).
+    func testSpaceConfigDecodesFreePlacedFallbackFromFreeFrameKeys() throws {
+        var config = SpaceConfig()
+        let a = UUID(), b = UUID()
+        config.layoutMode = .freeArrange
+        config.freeFrames = [
+            a: SpaceFreeFrame(origin: ScreenPoint(x: 10, y: 20), size: ScreenPoint(x: 300, y: 200)),
+            b: SpaceFreeFrame(origin: ScreenPoint(x: 40, y: 60), size: ScreenPoint(x: 320, y: 220)),
+        ]
+        let data = try JSONEncoder().encode(config)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        object.removeValue(forKey: "freePlaced")   // an older file has no such key
+        let legacy = try JSONSerialization.data(withJSONObject: object)
+
+        let decoded = try JSONDecoder().decode(SpaceConfig.self, from: legacy)
+        XCTAssertEqual(decoded.freePlaced, [a, b])
+    }
+
+    func testSpaceConfigRoundTripsFreePlaced() throws {
+        var config = SpaceConfig()
+        let id = UUID()
+        config.freePlaced = [id]
+        let decoded = try JSONDecoder().decode(SpaceConfig.self, from: JSONEncoder().encode(config))
+        XCTAssertEqual(decoded.freePlaced, [id])
+        XCTAssertEqual(decoded, config)
+    }
+
     func testSetSpaceLayoutModeMaterializesAndSets() {
         var state = stateWithCards(1)
         state.setSpaceLayoutMode(.freeArrange)
@@ -328,81 +361,89 @@ extension SpaceModelTests {
         XCTAssertEqual(state.space?.layoutMode, .pagedGrid)
     }
 
-    func testSeedMissingFreeFramesOnlyFillsAbsentEntries() {
+    func testSeedMissingFreeFramesOnlyPlacesUnplacedCards() {
         var state = stateWithCards(2)
         let (a, b) = (state.cards[0].id, state.cards[1].id)
-        let existing = SpaceFreeFrame(origin: ScreenPoint(x: 5, y: 5), size: ScreenPoint(x: 100, y: 80))
         state.setSpaceLayoutMode(.freeArrange)
-        state.space?.freeFrames[a] = existing
+        // `a` is already placed; seeding must leave it untouched.
+        state.space?.freePlaced = [a]
+        state.cards[0].position = CanvasPoint(x: 5, y: 5)
 
         let seedA = SpaceFreeFrame(origin: ScreenPoint(x: 900, y: 900), size: ScreenPoint(x: 1, y: 1))
         let seedB = SpaceFreeFrame(origin: ScreenPoint(x: 50, y: 60), size: ScreenPoint(x: 300, y: 200))
         state.seedMissingFreeFrames([a: seedA, b: seedB])
 
-        XCTAssertEqual(state.space?.freeFrames[a], existing)   // never overwritten
-        XCTAssertEqual(state.space?.freeFrames[b], seedB)
+        // `a` keeps its placement; `b` is seeded from the grid and marked placed.
+        XCTAssertEqual(state.cards.first { $0.id == a }?.position, CanvasPoint(x: 5, y: 5))
+        XCTAssertEqual(state.cards.first { $0.id == b }?.position, CanvasPoint(x: 50, y: 60))
+        XCTAssertEqual(state.cards.first { $0.id == b }?.size, CardSize(width: 300, height: 200))
+        XCTAssertEqual(state.space?.freePlaced, [a, b])
     }
 
-    func testMoveSpaceCardFreelyUpdatesOriginKeepingSize() {
+    func testMoveSpaceCardFreelyUpdatesCardPositionKeepingSize() {
         var state = stateWithCards(1)
         let id = state.cards[0].id
         state.setSpaceLayoutMode(.freeArrange)
-        state.seedMissingFreeFrames([id: SpaceFreeFrame(origin: ScreenPoint(x: 10, y: 10),
-                                                        size: ScreenPoint(x: 300, y: 200))])
+        state.cards[0].size = CardSize(width: 300, height: 200)
         state.moveSpaceCardFreely(id: id, to: ScreenPoint(x: 120, y: 140))
-        XCTAssertEqual(state.space?.freeFrames[id]?.origin, ScreenPoint(x: 120, y: 140))
-        XCTAssertEqual(state.space?.freeFrames[id]?.size, ScreenPoint(x: 300, y: 200))
+        XCTAssertEqual(state.cards[0].position, CanvasPoint(x: 120, y: 140))
+        XCTAssertEqual(state.cards[0].size, CardSize(width: 300, height: 200))
+        XCTAssertEqual(state.space?.freePlaced, [id])   // a moved card is placed
     }
 
-    func testResizeSpaceCardFreelyUpdatesSizeKeepingOrigin() {
+    func testResizeSpaceCardFreelyUpdatesCardSizeKeepingPosition() {
         var state = stateWithCards(1)
         let id = state.cards[0].id
         state.setSpaceLayoutMode(.freeArrange)
-        state.seedMissingFreeFrames([id: SpaceFreeFrame(origin: ScreenPoint(x: 40, y: 50),
-                                                        size: ScreenPoint(x: 300, y: 200))])
+        state.cards[0].position = CanvasPoint(x: 40, y: 50)
         state.resizeSpaceCardFreely(id: id, to: ScreenPoint(x: 500, y: 380))
-        XCTAssertEqual(state.space?.freeFrames[id]?.size, ScreenPoint(x: 500, y: 380))
-        XCTAssertEqual(state.space?.freeFrames[id]?.origin, ScreenPoint(x: 40, y: 50))
+        XCTAssertEqual(state.cards[0].size, CardSize(width: 500, height: 380))
+        XCTAssertEqual(state.cards[0].position, CanvasPoint(x: 40, y: 50))
+        XCTAssertEqual(state.space?.freePlaced, [id])   // a resized card is placed
     }
 
     func testResizeSpaceCardFreelyClampsToCardMinimums() {
         var state = stateWithCards(1)
         let id = state.cards[0].id
         state.setSpaceLayoutMode(.freeArrange)
-        state.seedMissingFreeFrames([id: SpaceFreeFrame(origin: ScreenPoint(x: 0, y: 0),
-                                                        size: ScreenPoint(x: 300, y: 200))])
         state.resizeSpaceCardFreely(id: id, to: ScreenPoint(x: 10, y: 10))
-        XCTAssertEqual(state.space?.freeFrames[id]?.size.x ?? 0, CardSize.minimumWidth)
-        XCTAssertEqual(state.space?.freeFrames[id]?.size.y ?? 0, CardSize.minimumHeight)
+        XCTAssertEqual(state.cards[0].size.width, CardSize.minimumWidth)
+        XCTAssertEqual(state.cards[0].size.height, CardSize.minimumHeight)
     }
 
     func testResizeSpaceCardFreelyUnknownIDIsNoOp() {
         var state = stateWithCards(1)
+        let originalSize = state.cards[0].size
         state.setSpaceLayoutMode(.freeArrange)
         state.resizeSpaceCardFreely(id: UUID(), to: ScreenPoint(x: 400, y: 300))
-        XCTAssertTrue(state.space?.freeFrames.isEmpty ?? false)
+        XCTAssertEqual(state.cards[0].size, originalSize)
+        XCTAssertTrue(state.space?.freePlaced.isEmpty ?? false)
     }
 
     func testMoveSpaceCardFreelyUnknownIDIsNoOp() {
         var state = stateWithCards(1)
+        let originalPosition = state.cards[0].position
         state.setSpaceLayoutMode(.freeArrange)
         state.moveSpaceCardFreely(id: UUID(), to: ScreenPoint(x: 1, y: 1))
-        XCTAssertTrue(state.space?.freeFrames.isEmpty ?? false)
+        XCTAssertEqual(state.cards[0].position, originalPosition)
+        XCTAssertTrue(state.space?.freePlaced.isEmpty ?? false)
     }
 
-    func testDeleteCardPrunesItsFreeFrame() {
+    func testDeleteCardPrunesItsFreePlacedEntry() {
         var state = stateWithCards(2)
         let (a, b) = (state.cards[0].id, state.cards[1].id)
         state.setSpaceLayoutMode(.freeArrange)
-        let frame = SpaceFreeFrame(origin: ScreenPoint(x: 0, y: 0), size: ScreenPoint(x: 10, y: 10))
-        state.seedMissingFreeFrames([a: frame, b: frame])
+        state.seedMissingFreeFrames([
+            a: SpaceFreeFrame(origin: ScreenPoint(x: 0, y: 0), size: ScreenPoint(x: 300, y: 200)),
+            b: SpaceFreeFrame(origin: ScreenPoint(x: 0, y: 0), size: ScreenPoint(x: 300, y: 200)),
+        ])
+        XCTAssertEqual(state.space?.freePlaced, [a, b])
 
         state.deleteCard(id: a)
-        XCTAssertNil(state.space?.freeFrames[a])
-        XCTAssertNotNil(state.space?.freeFrames[b])
+        XCTAssertEqual(state.space?.freePlaced, [b])
 
         state.deleteCards(ids: [b])
-        XCTAssertTrue(state.space?.freeFrames.isEmpty ?? false)
+        XCTAssertTrue(state.space?.freePlaced.isEmpty ?? false)
     }
 
     func testActivateCardSetsActiveAndClearsSelection() {
@@ -461,15 +502,26 @@ extension SpaceModelTests {
         XCTAssertNil(decoded.activeCardID)
     }
 
-    func testSetSpaceFreeFramesReplacesAll() {
+    /// Re-tile snaps every listed card to its frame — overwriting even an
+    /// already-placed card (unlike seeding, which leaves placed cards alone) —
+    /// and marks them all placed.
+    func testSetSpaceFreeFramesSnapsAllCardsAndMarksPlaced() {
         var state = stateWithCards(2)
         let (a, b) = (state.cards[0].id, state.cards[1].id)
-        let f1 = SpaceFreeFrame(origin: ScreenPoint(x: 1, y: 1), size: ScreenPoint(x: 10, y: 10))
-        let f2 = SpaceFreeFrame(origin: ScreenPoint(x: 2, y: 2), size: ScreenPoint(x: 20, y: 20))
-        state.seedMissingFreeFrames([a: f1])
-        state.setSpaceFreeFrames([b: f2])
-        XCTAssertNil(state.space?.freeFrames[a])
-        XCTAssertEqual(state.space?.freeFrames[b], f2)
+        state.setSpaceLayoutMode(.freeArrange)
+        // `a` is already placed somewhere; Re-tile must still move it.
+        state.space?.freePlaced = [a]
+        state.cards[0].position = CanvasPoint(x: 999, y: 999)
+
+        let fa = SpaceFreeFrame(origin: ScreenPoint(x: 1, y: 1), size: ScreenPoint(x: 300, y: 200))
+        let fb = SpaceFreeFrame(origin: ScreenPoint(x: 2, y: 2), size: ScreenPoint(x: 320, y: 220))
+        state.setSpaceFreeFrames([a: fa, b: fb])
+
+        XCTAssertEqual(state.cards.first { $0.id == a }?.position, CanvasPoint(x: 1, y: 1))
+        XCTAssertEqual(state.cards.first { $0.id == a }?.size, CardSize(width: 300, height: 200))
+        XCTAssertEqual(state.cards.first { $0.id == b }?.position, CanvasPoint(x: 2, y: 2))
+        XCTAssertEqual(state.cards.first { $0.id == b }?.size, CardSize(width: 320, height: 220))
+        XCTAssertEqual(state.space?.freePlaced, [a, b])
     }
 
     func testFreeFrameHitTestOverlapsAndMisses() {
@@ -593,8 +645,16 @@ extension SpaceModelTests {
             id1: SpaceFreeFrame(origin: ScreenPoint(x: 40, y: 410), size: ScreenPoint(x: 260, y: 200)),
         ]
 
+        // Simulate a real pre-Stage-4 file: it has freeFrames but no freePlaced
+        // key (the ledger didn't exist yet), so decode must fall it back to the
+        // frame keys.
         let data = try JSONEncoder().encode(state)
-        let decoded = try JSONDecoder().decode(WorkspaceState.self, from: data)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        var spaceObject = try XCTUnwrap(object["space"] as? [String: Any])
+        spaceObject.removeValue(forKey: "freePlaced")
+        object["space"] = spaceObject
+        let legacy = try JSONSerialization.data(withJSONObject: object)
+        let decoded = try JSONDecoder().decode(WorkspaceState.self, from: legacy)
 
         let c0 = try XCTUnwrap(decoded.cards.first { $0.id == id0 })
         XCTAssertEqual(c0.position, CanvasPoint(x: 320, y: 90))
@@ -603,7 +663,41 @@ extension SpaceModelTests {
         XCTAssertEqual(c1.position, CanvasPoint(x: 40, y: 410))
         XCTAssertEqual(c1.size, CardSize(width: 260, height: 200))
 
-        XCTAssertEqual(decoded.space?.freeFrames.count, 2, "freeFrames stays readable")
+        // Stage 4: after the upcast copies each frame onto its card, freeFrames is
+        // cleared in memory so a re-save can never re-clobber a moved card, and the
+        // placement ledger captures exactly the upcast ids.
+        XCTAssertTrue(decoded.space?.freeFrames.isEmpty ?? false, "freeFrames cleared after upcast")
+        XCTAssertEqual(decoded.space?.freePlaced, [id0, id1])
+    }
+
+    /// The load→move→save→reload round trip: an older file holds placement in
+    /// `freeFrames`; after loading, the user drags the card elsewhere (writing
+    /// `card.position`); a re-save + reload must keep the MOVED position, never
+    /// snapping back to the stale frame. Guards the "clear freeFrames after upcast"
+    /// invariant end-to-end.
+    func testMovedFreeArrangeCardSurvivesReDecodeWithoutClobber() throws {
+        var onDisk = stateWithCards(1)
+        let id = onDisk.cards[0].id
+        onDisk.ensureSpaceConfig()
+        onDisk.space?.layoutMode = .freeArrange
+        onDisk.space?.freeFrames = [
+            id: SpaceFreeFrame(origin: ScreenPoint(x: 100, y: 100), size: ScreenPoint(x: 300, y: 200)),
+        ]
+        let savedOld = try JSONEncoder().encode(onDisk)
+
+        // Load: the frame upcasts onto the card, then freeFrames is cleared.
+        var launched = try JSONDecoder().decode(WorkspaceState.self, from: savedOld)
+        XCTAssertEqual(launched.cards[0].position, CanvasPoint(x: 100, y: 100))
+
+        // Drag the card to a new spot (writes card.position, not freeFrames).
+        launched.moveSpaceCardFreely(id: id, to: ScreenPoint(x: 640, y: 480))
+
+        // Re-save and reload.
+        let savedNew = try JSONEncoder().encode(launched)
+        let relaunched = try JSONDecoder().decode(WorkspaceState.self, from: savedNew)
+
+        XCTAssertEqual(relaunched.cards[0].position, CanvasPoint(x: 640, y: 480),
+                       "moved position must survive; the stale frame must not clobber it")
     }
 
     /// A file with no `freeFrames` (e.g. a Canvas-origin workspace) keeps its
