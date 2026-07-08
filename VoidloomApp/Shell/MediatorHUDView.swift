@@ -126,12 +126,18 @@ struct MediatorHUDView: View {
                 if showsPushToTalkMic {
                     micButton
                 }
-                Image(systemName: stateIcon)
-                    .foregroundStyle(isBoxActive ? AnyShapeStyle(stateColor) : AnyShapeStyle(.secondary))
-                    .symbolEffect(.variableColor.iterative, isActive: (isThinking || isSpeaking) && !reduceMotion)
-                    .contentTransition(.symbolEffect(.replace))
-                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: stateColor)
-                    .accessibilityHidden(true)
+                if isListening {
+                    // Live voice bars that dance with the mic level — proof Sunday
+                    // is genuinely hearing you.
+                    voiceLevelBars
+                } else {
+                    Image(systemName: stateIcon)
+                        .foregroundStyle(isBoxActive ? AnyShapeStyle(stateColor) : AnyShapeStyle(.secondary))
+                        .symbolEffect(.variableColor.iterative, isActive: (isThinking || isSpeaking) && !reduceMotion)
+                        .contentTransition(.symbolEffect(.replace))
+                        .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: stateColor)
+                        .accessibilityHidden(true)
+                }
                 if isListening {
                     // Voice: show what Sunday is hearing, live, in place of the field.
                     Text(listeningTranscript?.isEmpty == false ? listeningTranscript! : "Listening…")
@@ -268,6 +274,28 @@ struct MediatorHUDView: View {
         case .success: .green
         case .error: .orange
         }
+    }
+
+    /// Four bars that rise and fall with the live mic level — the "it's really
+    /// listening" moment. Colored by the listening state hue.
+    private var voiceLevelBars: some View {
+        HStack(spacing: 2.5) {
+            ForEach(0..<4, id: \.self) { i in
+                Capsule(style: .continuous)
+                    .fill(stateColor)
+                    .frame(width: 2.5, height: barHeight(i))
+            }
+        }
+        .frame(width: 20, height: 16)
+        .animation(reduceMotion ? nil : .easeOut(duration: 0.12), value: mediator.inputLevel)
+        .accessibilityHidden(true)
+    }
+
+    private func barHeight(_ i: Int) -> CGFloat {
+        // Center bars taller so the cluster reads as a little equalizer, not a row.
+        let weights: [CGFloat] = [0.55, 1.0, 0.85, 0.6]
+        let level = CGFloat(max(0, min(1, mediator.inputLevel)))
+        return 3 + level * 12 * weights[i]
     }
 
     private var narrationBubble: some View {

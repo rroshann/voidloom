@@ -38,6 +38,11 @@ final class ParakeetTranscriber: SpeechTranscribing {
 
     init() {
         prepareTask = Task { await prepareModels() }
+        // Forward mic loudness to the HUD (fires only while capture runs). Hops to
+        // the main actor since onEvent is main-isolated; ~12/sec, cheap.
+        capture.onLevel = { [weak self] level in
+            Task { @MainActor in self?.onEvent?(.level(level)) }
+        }
     }
 
     deinit {

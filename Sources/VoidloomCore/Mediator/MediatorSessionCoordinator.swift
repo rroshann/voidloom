@@ -50,6 +50,10 @@ public final class MediatorSessionCoordinator: ObservableObject {
     /// distinct signatures instead of one identical bubble.
     @Published public private(set) var narrationKind: NarrationKind = .info
 
+    /// Live mic input level (0…1) while capturing — lets the HUD visibly react to
+    /// the user's voice. Zero when not listening.
+    @Published public private(set) var inputLevel: Float = 0
+
     /// Runs a delegated question through an agent CLI and relays the answer.
     /// Always returns user-facing text (owns its own errors + timeout); streams
     /// progress via `onChunk`. Set by the app; nil disables delegation.
@@ -189,14 +193,19 @@ public final class MediatorSessionCoordinator: ObservableObject {
         case .partial(let text):
             send(.transcriptDelta(text))
         case .final(let text):
+            inputLevel = 0
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return }
             if handleConfirmationUtterance(trimmed) { return }
             lastInputWasVoice = true
             send(.transcriptFinal(trimmed))
         case .unavailable(let message):
+            inputLevel = 0
             if case .capturing = state { send(.cancelRequested) }
             perform(.narrate(message))
+        case .level(let level):
+            // Only meaningful while capturing; ignore stray levels otherwise.
+            if case .capturing = state { inputLevel = level } else { inputLevel = 0 }
         }
     }
 
