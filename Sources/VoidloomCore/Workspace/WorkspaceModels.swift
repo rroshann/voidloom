@@ -112,6 +112,20 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         textElements = try container.decodeIfPresent([TextElement].self, forKey: .textElements) ?? []
         selectedTextID = try container.decodeIfPresent(UUID.self, forKey: .selectedTextID)
         space = try container.decodeIfPresent(SpaceConfig.self, forKey: .space)
+
+        // Migration: unify free-arrange placement onto card.position/size. Older
+        // files stored it in SpaceConfig.freeFrames (screen points); at the identity
+        // viewport a screen point equals a canvas point, so copy each frame onto its
+        // card. freeFrames stays readable for back-compat; card.position/size is the
+        // source of truth going forward.
+        if let frames = space?.freeFrames, !frames.isEmpty {
+            for i in cards.indices {
+                if let frame = frames[cards[i].id] {
+                    cards[i].position = CanvasPoint(x: frame.origin.x, y: frame.origin.y)
+                    cards[i].size = CardSize(width: frame.size.x, height: frame.size.y)
+                }
+            }
+        }
     }
 
     /// Normalizes two opposite corners into a top-left origin and a positive

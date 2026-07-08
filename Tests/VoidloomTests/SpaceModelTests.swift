@@ -575,3 +575,44 @@ extension SpaceModelTests {
         XCTAssertNil(store.state.selectedCardID)
     }
 }
+
+// MARK: - Stage 3: free-arrange placement unifies onto card.position/size on decode
+
+extension SpaceModelTests {
+    /// Older files kept free-arrange placement in `SpaceConfig.freeFrames` (screen
+    /// points). At the identity viewport a screen point equals a canvas point, so
+    /// on decode those frames upcast onto `card.position`/`card.size` losslessly,
+    /// and `freeFrames` stays readable for back-compat.
+    func testDecodeUpcastsFreeFramesOntoCardPositionAndSize() throws {
+        var state = stateWithCards(2)
+        let id0 = state.cards[0].id
+        let id1 = state.cards[1].id
+        state.ensureSpaceConfig()
+        state.space?.freeFrames = [
+            id0: SpaceFreeFrame(origin: ScreenPoint(x: 320, y: 90), size: ScreenPoint(x: 500, y: 300)),
+            id1: SpaceFreeFrame(origin: ScreenPoint(x: 40, y: 410), size: ScreenPoint(x: 260, y: 200)),
+        ]
+
+        let data = try JSONEncoder().encode(state)
+        let decoded = try JSONDecoder().decode(WorkspaceState.self, from: data)
+
+        let c0 = try XCTUnwrap(decoded.cards.first { $0.id == id0 })
+        XCTAssertEqual(c0.position, CanvasPoint(x: 320, y: 90))
+        XCTAssertEqual(c0.size, CardSize(width: 500, height: 300))
+        let c1 = try XCTUnwrap(decoded.cards.first { $0.id == id1 })
+        XCTAssertEqual(c1.position, CanvasPoint(x: 40, y: 410))
+        XCTAssertEqual(c1.size, CardSize(width: 260, height: 200))
+
+        XCTAssertEqual(decoded.space?.freeFrames.count, 2, "freeFrames stays readable")
+    }
+
+    /// A file with no `freeFrames` (e.g. a Canvas-origin workspace) keeps its
+    /// existing `card.position`/`size` untouched — the upcast only fires per frame.
+    func testDecodeWithoutFreeFramesPreservesCardPositions() throws {
+        let state = stateWithCards(2)   // no space, no freeFrames
+        let data = try JSONEncoder().encode(state)
+        let decoded = try JSONDecoder().decode(WorkspaceState.self, from: data)
+        XCTAssertEqual(decoded.cards[0].position, CanvasPoint(x: 0, y: 0))
+        XCTAssertEqual(decoded.cards[1].position, CanvasPoint(x: 1, y: 0))
+    }
+}
