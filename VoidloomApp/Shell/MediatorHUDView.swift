@@ -166,6 +166,14 @@ struct MediatorHUDView: View {
             HStack(spacing: 8) {
                 if showsPushToTalkMic {
                     micButton
+                } else if mediator.isMicPermissionDenied {
+                    // Always-listening mode shows no mic button, so a denied mic was
+                    // invisible — this standing badge makes "voice is off" clear.
+                    Image(systemName: "mic.slash.fill")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(.red.opacity(0.85))
+                        .help("Microphone access is off — enable it in System Settings › Privacy & Security › Microphone")
+                        .accessibilityLabel("Microphone access denied")
                 }
                 if isListening {
                     // Live voice bars that dance with the mic level — proof Sunday
@@ -248,7 +256,13 @@ struct MediatorHUDView: View {
             // fade it ~3s after it settles. The stored copy lives in the sidebar.
             narrationDismissTask?.cancel()
             guard !new.isEmpty else { showNarration = false; return }
-            showNarration = true
+            if showNarration {
+                showNarration = true   // already visible (streaming update) — no re-spring
+            } else {
+                withAnimation(reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.72)) {
+                    showNarration = true
+                }
+            }
             narrationDismissTask = Task {
                 while mediator.isStreamingReply { try? await Task.sleep(nanoseconds: 200_000_000) }
                 // Longer replies linger a little longer so they stay readable
@@ -410,7 +424,12 @@ struct MediatorHUDView: View {
         .shadow(color: .black.opacity(0.18), radius: 12, y: 4)
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("mediator.narration")
-        .transition(reduceMotion ? .opacity : .move(edge: .bottom).combined(with: .opacity))
+        // Feels SPOKEN from the pill it sits above: it grows up out of the pill's
+        // top edge on a spring rather than sliding in like a system toast, and
+        // dismisses by gently fading rather than leaving the way it came.
+        .transition(reduceMotion ? .opacity : .asymmetric(
+            insertion: .scale(scale: 0.82, anchor: .bottom).combined(with: .opacity),
+            removal: .opacity))
         // Hovering keeps the reply up so you can finish reading a long one.
         .onHover { isHoveringNarration = $0 }
         .onChange(of: mediator.narration) { _, newValue in
