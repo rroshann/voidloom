@@ -27,6 +27,9 @@ struct SpaceBottomDock: View {
     /// Board connect tool (nil ⇒ grid mode, no connect tool).
     var isConnecting: Bool = false
     var onToggleConnect: (() -> Void)? = nil
+    /// Board minimap toggle (nil ⇒ grid mode, no minimap).
+    var isMinimapVisible: Bool = false
+    var onToggleMinimap: (() -> Void)? = nil
 
     @State private var showBackgroundPopover = false
     @State private var showLayoutPopover = false
@@ -116,6 +119,11 @@ struct SpaceBottomDock: View {
                     DockIconButton(icon: "eraser", help: "Eraser",
                                    isActive: interaction.isArmed(.erasing),
                                    activeColor: theme.accent, action: { interaction.armEraser() })
+                    if let onToggleMinimap {
+                        DockIconButton(icon: "map", help: "Minimap",
+                                       isActive: isMinimapVisible,
+                                       activeColor: theme.accent, action: onToggleMinimap)
+                    }
                 }
                 barButton("rectangle.grid.2x2", help: "Re-tile", action: onReTile)
                 barButton("square.grid.3x3", help: "Layout") { showLayoutPopover = true }

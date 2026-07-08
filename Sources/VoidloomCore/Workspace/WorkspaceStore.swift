@@ -689,6 +689,12 @@ public final class WorkspaceStore: ObservableObject {
         schedulePersistence()
     }
 
+    /// Recenters the Board viewport on a canvas point (minimap click), zoom kept.
+    public func centerSpaceViewport(on point: CanvasPoint, viewportSize: ScreenPoint) {
+        state.centerSpaceViewport(on: point, viewportSize: viewportSize)
+        schedulePersistence()
+    }
+
     /// Debounced like `resizeCard` — a resize drag emits many sizes.
     public func resizeSpaceCardFreely(id: UUID, to size: ScreenPoint) {
         recordUndo("fresize:\(id)")

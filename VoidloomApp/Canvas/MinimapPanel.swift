@@ -9,6 +9,11 @@ struct MinimapPanel: View {
     @ObservedObject var store: WorkspaceStore
     /// The on-screen viewport size (geometry.size from the shell).
     let viewportSize: CGSize
+    /// The pan/zoom the map depicts — the Canvas viewport in the Canvas shell,
+    /// the Board (space) viewport in Spaces.
+    let viewport: CanvasViewport
+    /// Recenters that viewport on a clicked canvas point (pan only, zoom kept).
+    let onRecenter: (CanvasPoint) -> Void
 
     @Environment(\.theme) private var theme
 
@@ -37,7 +42,7 @@ struct MinimapPanel: View {
     var body: some View {
         ZStack {
             Canvas { ctx, size in
-                let vp = store.state.viewport
+                let vp = viewport
                 let vpTL = vp.canvasPoint(forScreenPoint: ScreenPoint(x: 0, y: 0))
                 let vpBR = vp.canvasPoint(
                     forScreenPoint: ScreenPoint(
@@ -100,11 +105,7 @@ struct MinimapPanel: View {
         .contentShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .onTapGesture { location in
             let proj = projection(panelSize: CGSize(width: panelWidth, height: panelHeight))
-            store.centerViewport(
-                on: proj.canvasPoint(forPanelPoint: location),
-                viewportSize: ScreenPoint(x: Double(viewportSize.width),
-                                          y: Double(viewportSize.height))
-            )
+            onRecenter(proj.canvasPoint(forPanelPoint: location))
         }
     }
 
@@ -121,7 +122,7 @@ struct MinimapPanel: View {
     ///    screenful of space instead of filling the whole panel.
     /// Panning moves the viewport center, so the map follows into empty space.
     private func projection(panelSize size: CGSize) -> Projection {
-        let vp = store.state.viewport
+        let vp = viewport
         let vpCenter = vp.canvasPoint(
             forScreenPoint: ScreenPoint(
                 x: Double(viewportSize.width) / 2,

@@ -929,6 +929,16 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         space?.viewport = CanvasViewport()
     }
 
+    /// Pans the Board viewport so `point` (canvas) appears at the viewport center,
+    /// preserving zoom. Drives minimap recenter.
+    public mutating func centerSpaceViewport(on point: CanvasPoint, viewportSize: ScreenPoint) {
+        guard viewportSize.x > 0, viewportSize.y > 0 else { return }
+        ensureSpaceConfig()
+        var vp = spaceViewport
+        vp.pan(soCanvasPoint: point, appearsAt: ScreenPoint(x: viewportSize.x / 2, y: viewportSize.y / 2))
+        space?.viewport = vp
+    }
+
     /// Writes a grid-derived free-arrange frame onto the card at `index` (identity
     /// mapping: a screen point equals a canvas point) and records it as placed.
     private mutating func placeFreeCard(at index: Int, frame: SpaceFreeFrame) {

@@ -810,6 +810,20 @@ extension SpaceModelTests {
         XCTAssertEqual(state.spaceViewport, CanvasViewport())
     }
 
+    /// Minimap recenter pans the Board viewport so a canvas point lands at the
+    /// viewport center, preserving zoom.
+    func testCenterSpaceViewportPutsPointAtBoardCenter() {
+        var state = stateWithCards(1)
+        state.ensureSpaceConfig()
+        state.space?.viewport = CanvasViewport(scale: 1.5)
+        let target = CanvasPoint(x: 500, y: -300)
+        state.centerSpaceViewport(on: target, viewportSize: ScreenPoint(x: 1200, y: 800))
+        let screen = state.spaceViewport.screenPoint(forCanvasPoint: target)
+        XCTAssertEqual(screen.x, 600, accuracy: 0.0001)
+        XCTAssertEqual(screen.y, 400, accuracy: 0.0001)
+        XCTAssertEqual(state.spaceViewport.scale, 1.5, accuracy: 0.0001)   // zoom preserved
+    }
+
     /// A screen-space drag delta becomes a canvas delta scaled by the Board
     /// viewport, so a card tracks the cursor at every zoom level.
     func testMoveSpaceCardsFreelyDividesByBoardViewportScale() {

@@ -71,6 +71,11 @@ struct SpacesShellView: View {
     /// Minimum spacing (canvas units) between accumulated brush points.
     private let minStrokePointSpacing: Double = 1.5
 
+    /// Whether the Board minimap overview is shown (dock toggle / ⌘⇧M).
+    @State private var isMinimapVisible = false
+    /// Right-click location (shell-local) for the create-card context menu, or nil.
+    @State private var contextMenuLocation: CGPoint?
+
     /// Extra top clearance above the tiling margin. Zero makes the top gap equal the
     /// side margin (symmetric card field); the tiling margin alone already clears the
     /// traffic-light buttons of the hidden-titlebar window, so cards sit as high as
@@ -196,6 +201,12 @@ struct SpacesShellView: View {
                     }
                     .frame(width: geo.size.width, height: geo.size.height)
                     .allowsHitTesting(false)
+                }
+
+                // Right-click on empty Board opens a create-card menu at the point.
+                if layoutMode == .freeArrange {
+                    CanvasRightClickCatcher { point in contextMenuLocation = point }
+                        .frame(width: geo.size.width, height: geo.size.height)
                 }
 
                 if orderedIDs.isEmpty {
@@ -369,6 +380,42 @@ struct SpacesShellView: View {
                         .position(point)
                 }
 
+                // Board minimap overview, pinned bottom-right (dock is centered).
+                if layoutMode == .freeArrange, isMinimapVisible {
+                    MinimapPanel(
+                        store: store,
+                        viewportSize: geo.size,
+                        viewport: store.state.spaceViewport,
+                        onRecenter: { point in
+                            store.centerSpaceViewport(
+                                on: point,
+                                viewportSize: ScreenPoint(x: geo.size.width, y: geo.size.height)
+                            )
+                        }
+                    )
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 16)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .transition(.opacity)
+                }
+
+                // Right-click create-card menu at the click point.
+                if layoutMode == .freeArrange, let location = contextMenuLocation {
+                    Color.clear
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .contentShape(Rectangle())
+                        .onTapGesture { contextMenuLocation = nil }
+                    CanvasContextMenu { kind in
+                        let canvas = store.state.spaceViewport.canvasPoint(
+                            forScreenPoint: ScreenPoint(x: location.x, y: location.y)
+                        )
+                        store.addCard(kind: kind, centeredAt: canvas)
+                        contextMenuLocation = nil
+                    }
+                    .offset(x: clampedMenuX(location.x, in: geo.size.width),
+                            y: clampedMenuY(location.y, in: geo.size.height))
+                }
+
                 if let s = marqueeStart, let c = marqueeCurrent {
                     let rect = CGRect(x: min(s.x, c.x), y: min(s.y, c.y),
                                       width: abs(c.x - s.x), height: abs(c.y - s.y))
@@ -497,6 +544,10 @@ struct SpacesShellView: View {
                         isConnecting: interaction.isArmed(.connecting(source: nil)),
                         onToggleConnect: layoutMode == .freeArrange
                             ? { interaction.armConnect(preselectedSource: store.state.selectedCardID) }
+                            : nil,
+                        isMinimapVisible: isMinimapVisible,
+                        onToggleMinimap: layoutMode == .freeArrange
+                            ? { isMinimapVisible.toggle() }
                             : nil
                     )
                     .background(GeometryReader { p in
@@ -599,6 +650,11 @@ struct SpacesShellView: View {
             guard !typing, event.modifierFlags.contains(.command), !isPagedGrid else { return false }
             store.resetSpaceViewport()
             return true
+        case 46:    // ⌘⇧M → toggle Board minimap
+            guard !typing, event.modifierFlags.contains(.command),
+                  event.modifierFlags.contains(.shift), !isPagedGrid else { return false }
+            isMinimapVisible.toggle()
+            return true
         default:
             return false
         }
@@ -607,6 +663,14 @@ struct SpacesShellView: View {
     /// The Board-zoom anchor for keyboard/dock zoom: the center of the shell.
     private var boardZoomCenter: ScreenPoint {
         ScreenPoint(x: shellFrame.width / 2, y: shellFrame.height / 2)
+    }
+
+    /// Keeps the right-click context menu fully on-screen (~196×220).
+    private func clampedMenuX(_ x: CGFloat, in width: CGFloat) -> CGFloat {
+        max(8, min(x, width - 196 - 8))
+    }
+    private func clampedMenuY(_ y: CGFloat, in height: CGFloat) -> CGFloat {
+        max(8, min(y, height - 220 - 8))
     }
 
     /// The selected connection edge's midpoint in shell-local screen coords

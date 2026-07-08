@@ -317,7 +317,17 @@ struct CanvasShellView: View {
                 // The dock is centered, so the corner is clear — no need to lift it
                 // above the dock height.
                 if isMinimapVisible {
-                    MinimapPanel(store: store, viewportSize: geometry.size)
+                    MinimapPanel(
+                        store: store,
+                        viewportSize: geometry.size,
+                        viewport: store.state.viewport,
+                        onRecenter: { point in
+                            store.centerViewport(
+                                on: point,
+                                viewportSize: ScreenPoint(x: geometry.size.width, y: geometry.size.height)
+                            )
+                        }
+                    )
                         .padding(.trailing, Self.bottomChromePadding)
                         .padding(.bottom, Self.bottomChromePadding)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
