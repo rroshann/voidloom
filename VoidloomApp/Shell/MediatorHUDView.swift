@@ -220,6 +220,9 @@ struct MediatorHUDView: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
             .frame(width: 420)
+            // Crossfade the bars/transcript ⇄ icon/field swap so listening starts
+            // and ends with a breath, not a blink.
+            .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: isListening)
             .background(.ultraThinMaterial, in: Capsule())
             .overlay(
                 // A soft bloom that BREATHES rather than blinks — always faintly
@@ -255,6 +258,15 @@ struct MediatorHUDView: View {
             }
             flashProgress = 0
             withAnimation(.easeOut(duration: 0.55)) { flashProgress = 1 }
+        }
+        .onChange(of: isListening) { _, listening in
+            // A beat when capture opens ("heard you, go ahead") — matters most for
+            // wake-word starts, where nothing else confirms Sunday woke. Shares the
+            // ring safely: a wake beat opens a turn, an outcome beat closes one.
+            guard listening, !reduceMotion else { return }
+            flashColor = .accentColor
+            flashProgress = 0
+            withAnimation(.easeOut(duration: 0.45)) { flashProgress = 1 }
         }
         .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: mediator.queuedUtterance)
         .onChange(of: mediator.narration) { _, new in
