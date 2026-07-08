@@ -8,6 +8,10 @@ struct SpacesShellView: View {
     @ObservedObject var conversationStore: ConversationStore
     @EnvironmentObject private var assistantContext: AssistantContextProvider
 
+    /// The armed-tool spine for Board mode. Stage 7 uses only its connect state;
+    /// stage 8 extends it to text/brush/eraser.
+    @StateObject private var interaction = CanvasInteractionModel()
+
     @AppStorage("spaces.defaultColumns") private var defaultColumns = 0
     @AppStorage("spaces.defaultRows") private var defaultRows = 0
 
@@ -188,6 +192,30 @@ struct SpacesShellView: View {
                     WorkspaceEmptyState()
                 }
 
+                // Connections render in screen space THROUGH the Board viewport,
+                // below the cards (edges stay glued to cards during pan/zoom/drag).
+                if layoutMode == .freeArrange {
+                    ConnectionsLayer(
+                        connections: store.state.connections,
+                        cards: store.state.cards,
+                        viewport: store.state.spaceViewport,
+                        selectedConnectionID: interaction.selectedConnectionID
+                    )
+                    .frame(width: geo.size.width, height: geo.size.height)
+
+                    ConnectionHitLayer(
+                        interaction: interaction,
+                        connections: store.state.connections,
+                        cards: store.state.cards,
+                        viewport: store.state.spaceViewport,
+                        onSelect: { id in
+                            store.clearSelection()
+                            interaction.selectedConnectionID = id
+                        }
+                    )
+                    .frame(width: geo.size.width, height: geo.size.height)
+                }
+
                 if layoutMode == .freeArrange {
                     SpaceFreeArrangeLayer(
                         store: store,
@@ -296,6 +324,41 @@ struct SpacesShellView: View {
                         .allowsHitTesting(false)
                 }
 
+                // Connect tool: highlight the pending source card and draw a
+                // dashed follow-line from it to the cursor while picking a target.
+                if layoutMode == .freeArrange,
+                   case let .connecting(source) = interaction.mode,
+                   let source, let rect = freeFrames[source].map({
+                       CGRect(x: $0.origin.x, y: $0.origin.y, width: $0.size.x, height: $0.size.y)
+                   }) {
+                    let accent = store.state.cards.first { $0.id == source }
+                        .map { CardPalette(kind: $0.kind).accent } ?? Color.accentColor
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(accent, lineWidth: 2)
+                        .frame(width: rect.width, height: rect.height)
+                        .position(x: rect.midX, y: rect.midY)
+                        .allowsHitTesting(false)
+                    if let cursor = hoverLocation {
+                        Path { p in
+                            p.move(to: CGPoint(x: rect.midX, y: rect.midY))
+                            p.addLine(to: cursor)
+                        }
+                        .stroke(accent.opacity(0.6), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+                        .allowsHitTesting(false)
+                    }
+                }
+
+                // Floating delete control at the selected edge's screen midpoint.
+                if layoutMode == .freeArrange,
+                   let id = interaction.selectedConnectionID,
+                   let mid = connectionMidpointScreen(id) {
+                    ConnectionDeleteButton {
+                        store.deleteConnection(id: id)
+                        interaction.selectedConnectionID = nil
+                    }
+                    .position(x: mid.x, y: mid.y)
+                }
+
                 if isAIConversationVisible {
                     AIConversationSidebar(
                         messages: conversationStore.messages(for: activeWorkspaceID),
@@ -355,7 +418,11 @@ struct SpacesShellView: View {
                         boardZoomScale: layoutMode == .freeArrange ? store.state.spaceViewport.scale : nil,
                         onZoomIn: { store.zoomStepSpaceViewport(by: 1.2, anchoredAt: boardZoomCenter) },
                         onZoomOut: { store.zoomStepSpaceViewport(by: 1 / 1.2, anchoredAt: boardZoomCenter) },
-                        onResetZoom: { store.resetSpaceViewport() }
+                        onResetZoom: { store.resetSpaceViewport() },
+                        isConnecting: interaction.isArmed(.connecting(source: nil)),
+                        onToggleConnect: layoutMode == .freeArrange
+                            ? { interaction.armConnect(preselectedSource: store.state.selectedCardID) }
+                            : nil
                     )
                     .background(GeometryReader { p in
                         Color.clear.preference(key: SpacesDockHeightKey.self, value: p.size.height)
@@ -416,6 +483,14 @@ struct SpacesShellView: View {
             return false
         case 53:        // escape
             guard !typing else { return false }
+            if interaction.mode != .idle {
+                interaction.disarm()
+                return true
+            }
+            if interaction.selectedConnectionID != nil {
+                interaction.selectedConnectionID = nil
+                return true
+            }
             store.clearSelection()
             return true
         case 123:   // left arrow
@@ -446,6 +521,22 @@ struct SpacesShellView: View {
     /// The Board-zoom anchor for keyboard/dock zoom: the center of the shell.
     private var boardZoomCenter: ScreenPoint {
         ScreenPoint(x: shellFrame.width / 2, y: shellFrame.height / 2)
+    }
+
+    /// The selected connection edge's midpoint in shell-local screen coords
+    /// (through the Board viewport), or nil if the edge/its cards are gone.
+    private func connectionMidpointScreen(_ id: UUID) -> CGPoint? {
+        guard let connection = store.state.connections.first(where: { $0.id == id }),
+              let fromCard = store.state.cards.first(where: { $0.id == connection.from }),
+              let toCard = store.state.cards.first(where: { $0.id == connection.to }) else { return nil }
+        let endpoints = connectionEndpoints(
+            from: CanvasRect(origin: fromCard.position, size: fromCard.size),
+            to: CanvasRect(origin: toCard.position, size: toCard.size)
+        )
+        let mid = CanvasPoint(x: (endpoints.start.x + endpoints.end.x) / 2,
+                              y: (endpoints.start.y + endpoints.end.y) / 2)
+        let screen = store.state.spaceViewport.screenPoint(forCanvasPoint: mid)
+        return CGPoint(x: screen.x, y: screen.y)
     }
 
     /// Terminates the agent session for every `.agent` card in `ids`, mirroring the
@@ -622,6 +713,20 @@ struct SpacesShellView: View {
             tileTopY = hitID.flatMap { freeFrames[$0]?.origin.y }.map { CGFloat($0) } ?? 0
         }
         guard let hitID else { return }
+
+        // Connect tool: a click picks the source card, then a distinct target,
+        // then disarms. Takes precedence over normal select/activate.
+        if case let .connecting(source) = interaction.mode {
+            if let source {
+                if source != hitID {
+                    store.addConnection(from: source, to: hitID)
+                    interaction.disarm()
+                }
+            } else {
+                interaction.setConnectSource(hitID)
+            }
+            return
+        }
 
         if commandHeld {
             store.toggleCardInSelection(id: hitID)

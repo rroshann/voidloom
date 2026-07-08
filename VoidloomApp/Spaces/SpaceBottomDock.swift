@@ -22,6 +22,9 @@ struct SpaceBottomDock: View {
     var onZoomIn: () -> Void = {}
     var onZoomOut: () -> Void = {}
     var onResetZoom: () -> Void = {}
+    /// Board connect tool (nil ⇒ grid mode, no connect tool).
+    var isConnecting: Bool = false
+    var onToggleConnect: (() -> Void)? = nil
 
     @State private var showBackgroundPopover = false
     @State private var showLayoutPopover = false
@@ -90,6 +93,15 @@ struct SpaceBottomDock: View {
                     help: layoutMode == .pagedGrid ? "Free-arrange" : "Grid"
                 ) {
                     store.setSpaceLayoutMode(layoutMode == .pagedGrid ? .freeArrange : .pagedGrid)
+                }
+                if let onToggleConnect {
+                    DockIconButton(
+                        icon: "link",
+                        help: "Connect cards",
+                        isActive: isConnecting,
+                        activeColor: theme.accent,
+                        action: onToggleConnect
+                    )
                 }
                 barButton("rectangle.grid.2x2", help: "Re-tile", action: onReTile)
                 barButton("square.grid.3x3", help: "Layout") { showLayoutPopover = true }
