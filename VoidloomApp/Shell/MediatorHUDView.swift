@@ -33,9 +33,31 @@ struct MediatorHUDView: View {
         if case .capturing = mediator.state { return true }
         return false
     }
-    /// The whole pill glows/pulses while Sunday is listening, working, or speaking,
-    /// so the user knows something is happening (not just a small icon).
-    private var isBoxActive: Bool { isListening || isThinking || isSpeaking }
+    /// The whole pill glows/pulses while Sunday is listening, working, speaking, or
+    /// waiting on a confirmation, so the user knows something is happening.
+    private var isBoxActive: Bool {
+        isListening || isThinking || isSpeaking || isAwaitingConfirmation
+    }
+
+    private var isAwaitingConfirmation: Bool {
+        if case .awaitingConfirmation = mediator.state { return true }
+        return false
+    }
+
+    /// Each state gets its OWN hue so the mode is legible at a glance — not seven
+    /// states sharing one accent. Confirmation/consulting are warm (they want you);
+    /// thinking is contemplative; listening/executing ride the app accent.
+    private var stateColor: Color {
+        if isAwaitingConfirmation { return .orange }         // you owe a yes/no
+        if mediator.isDelegating { return Color(red: 0.98, green: 0.72, blue: 0.30) } // amber: another mind
+        if isSpeaking { return .mint }                       // speaking back
+        if isListening { return .accentColor }               // attentive
+        switch mediator.state {
+        case .parsing: return .indigo                        // thinking
+        case .executing: return .accentColor                 // doing
+        default: return .accentColor
+        }
+    }
 
     /// Rotating examples so users discover Sunday's breadth beyond spawning.
     private static let hints = [
@@ -105,9 +127,10 @@ struct MediatorHUDView: View {
                     micButton
                 }
                 Image(systemName: stateIcon)
-                    .foregroundStyle(isThinking || isSpeaking ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    .foregroundStyle(isBoxActive ? AnyShapeStyle(stateColor) : AnyShapeStyle(.secondary))
                     .symbolEffect(.variableColor.iterative, isActive: (isThinking || isSpeaking) && !reduceMotion)
                     .contentTransition(.symbolEffect(.replace))
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: stateColor)
                     .accessibilityHidden(true)
                 if isListening {
                     // Voice: show what Sunday is hearing, live, in place of the field.
@@ -141,9 +164,10 @@ struct MediatorHUDView: View {
                 // The whole pill glows while listening/working — a bigger, calmer
                 // signal than the small icon that something is happening.
                 Capsule()
-                    .strokeBorder(.tint, lineWidth: 1.5)
+                    .strokeBorder(stateColor, lineWidth: 1.5)
                     .opacity(isBoxActive ? (boxPulse ? 0.85 : 0.28) : 0)
                     .animation(reduceMotion ? nil : .easeInOut(duration: 0.7).repeatForever(autoreverses: true), value: boxPulse)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: stateColor)
             )
         }
         .onChange(of: isBoxActive) { _, active in
