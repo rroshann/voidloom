@@ -537,6 +537,10 @@ private struct AboutSettingsTab: View {
         Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
     }
 
+    private func openURL(_ string: String) {
+        if let url = URL(string: string) { NSWorkspace.shared.open(url) }
+    }
+
     var body: some View {
         Form {
             Section("Voidloom") {
@@ -568,17 +572,12 @@ private struct AboutSettingsTab: View {
 
             Section("Resources") {
                 Button("Release notes") {
-                    // Placeholder: opens changelog.
-                }
-                .buttonStyle(.link)
-
-                Button("Acknowledgements") {
-                    // Placeholder: opens open-source licenses sheet.
+                    openURL("https://github.com/rroshann/voidloom/releases")
                 }
                 .buttonStyle(.link)
 
                 Button("Report an issue") {
-                    // Placeholder: opens issue tracker.
+                    openURL("https://github.com/rroshann/voidloom/issues")
                 }
                 .buttonStyle(.link)
             }
