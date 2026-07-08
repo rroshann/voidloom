@@ -213,6 +213,9 @@ struct MediatorHUDView: View {
                             withAnimation(.easeInOut(duration: 0.4)) { hintIndex += 1 }
                         }
                 }
+                if let started = mediator.workStartedAt, !isListening {
+                    workingHeartbeat(started)
+                }
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 10)
@@ -377,6 +380,22 @@ struct MediatorHUDView: View {
         .transition(.opacity.combined(with: .move(edge: .bottom)))
         .id(text)
         .accessibilityLabel("Queued command: \(text)")
+    }
+
+    /// A ticking elapsed count once a wait passes ~2s — the least ambiguous
+    /// "I'm alive, still working" signal (a cold model or 30s chat won't read as
+    /// a hang). A moving number is perceptually distinct from every in-place pulse.
+    private func workingHeartbeat(_ started: Date) -> some View {
+        TimelineView(.periodic(from: started, by: 1)) { context in
+            let elapsed = Int(context.date.timeIntervalSince(started))
+            if elapsed >= 2 {
+                Text("\(elapsed)s")
+                    .font(.system(size: 11, weight: .medium, design: .rounded).monospacedDigit())
+                    .foregroundStyle(.secondary)
+                    .transition(.opacity)
+            }
+        }
+        .accessibilityHidden(true)
     }
 
     /// Four bars that rise and fall with the live mic level — the "it's really

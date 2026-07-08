@@ -54,6 +54,11 @@ public final class MediatorSessionCoordinator: ObservableObject {
     /// the user's voice. Zero when not listening.
     @Published public private(set) var inputLevel: Float = 0
 
+    /// When the current thinking/executing/streaming work began, so the HUD can
+    /// show an elapsed "still working" heartbeat — a cold model or a 30s chat is
+    /// otherwise indistinguishable from a hang. Nil when idle.
+    @Published public private(set) var workStartedAt: Date?
+
     /// Runs a delegated question through an agent CLI and relays the answer.
     /// Always returns user-facing text (owns its own errors + timeout); streams
     /// progress via `onChunk`. Set by the app; nil disables delegation.
@@ -120,6 +125,9 @@ public final class MediatorSessionCoordinator: ObservableObject {
             timeoutTask?.cancel(); timeoutTask = nil
             isStreamingReply = false
             isDelegating = false
+            workStartedAt = nil
+        } else if workStartedAt == nil, Self.isWorkingState(state) {
+            workStartedAt = Date()   // start the "still working" heartbeat
         }
         isBusy = !(state == .idle) && !isAwaitingConfirmation
         for effect in effects { perform(effect) }
@@ -129,6 +137,13 @@ public final class MediatorSessionCoordinator: ObservableObject {
     private var isAwaitingConfirmation: Bool {
         if case .awaitingConfirmation = state { return true }
         return false
+    }
+
+    private static func isWorkingState(_ s: MediatorState) -> Bool {
+        switch s {
+        case .parsing, .executing: return true
+        default: return false
+        }
     }
 
     /// Tags the upcoming narration with a severity so the HUD can distinguish a
