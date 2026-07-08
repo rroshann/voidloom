@@ -48,14 +48,49 @@ struct MediatorHUDView: View {
     /// states sharing one accent. Confirmation/consulting are warm (they want you);
     /// thinking is contemplative; listening/executing ride the app accent.
     private var stateColor: Color {
-        if isAwaitingConfirmation { return .orange }         // you owe a yes/no
-        if mediator.isDelegating { return Color(red: 0.98, green: 0.72, blue: 0.30) } // amber: another mind
+        // Warm orange is RESERVED for "you must act" (confirmation). Consulting is
+        // a distinct violet ("another mind"), so the two never blur together.
+        if isAwaitingConfirmation { return .orange }
+        if mediator.isDelegating { return Color(red: 0.70, green: 0.45, blue: 0.98) }
         if isSpeaking { return .mint }                       // speaking back
         if isListening { return .accentColor }               // attentive
         switch mediator.state {
         case .parsing: return .indigo                        // thinking
         case .executing: return .accentColor                 // doing
         default: return .accentColor
+        }
+    }
+
+    /// Breath tempo per state — the peripheral rhythm you feel without reading the
+    /// hue: urgent for confirmation, quick for listening, slow at idle.
+    private var pulsePeriod: Double {
+        if isAwaitingConfirmation { return 0.5 }             // urgent — you're blocking
+        if isListening { return 0.55 }                       // alert
+        if isSpeaking { return 0.9 }
+        if mediator.isDelegating { return 0.8 }
+        switch mediator.state {
+        case .parsing, .executing: return 1.1                // considered
+        default: return 2.4                                  // idle: slow resting breath
+        }
+    }
+
+    /// The bloom breathes between these bounds. Even at idle it stays faintly lit,
+    /// so Sunday reads as present-and-waiting rather than powered off.
+    private var glowOpacity: Double {
+        if reduceMotion { return isBoxActive ? 0.5 : 0.12 }
+        if isBoxActive { return boxPulse ? 0.9 : 0.32 }
+        return boxPulse ? 0.2 : 0.08                         // idle whisper
+    }
+
+    /// (Re)starts the perpetual breath at the current state's tempo. A running
+    /// `repeatForever` won't adopt a new duration, so a state change re-arms it.
+    private func restartBreath() {
+        guard !reduceMotion else { boxPulse = false; return }
+        boxPulse = false
+        DispatchQueue.main.async {
+            withAnimation(.easeInOut(duration: pulsePeriod).repeatForever(autoreverses: true)) {
+                boxPulse = true
+            }
         }
     }
 
@@ -167,18 +202,20 @@ struct MediatorHUDView: View {
             .frame(width: 420)
             .background(.ultraThinMaterial, in: Capsule())
             .overlay(
-                // The whole pill glows while listening/working — a bigger, calmer
-                // signal than the small icon that something is happening.
+                // A soft bloom that BREATHES rather than blinks — always faintly
+                // present at idle (Sunday is here, not asleep) and swelling into the
+                // state hue when active. Tempo varies by state (pulsePeriod).
                 Capsule()
-                    .strokeBorder(stateColor, lineWidth: 1.5)
-                    .opacity(isBoxActive ? (boxPulse ? 0.85 : 0.28) : 0)
-                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.7).repeatForever(autoreverses: true), value: boxPulse)
-                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: stateColor)
+                    .stroke(stateColor, lineWidth: 2.5)
+                    .blur(radius: 6)
+                    .opacity(glowOpacity)
+                    .scaleEffect(boxPulse ? 1.015 : 1.0)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.35), value: stateColor)
+                    .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: isBoxActive)
             )
         }
-        .onChange(of: isBoxActive) { _, active in
-            boxPulse = active && !reduceMotion
-        }
+        .onAppear { restartBreath() }
+        .onChange(of: pulsePeriod) { _, _ in restartBreath() }
         .onChange(of: mediator.narration) { _, new in
             // Sunday's reply is transient: show it, keep it up while streaming, then
             // fade it ~3s after it settles. The stored copy lives in the sidebar.
