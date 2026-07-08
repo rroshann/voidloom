@@ -55,7 +55,10 @@ struct MediatorHUDView: View {
         // a distinct violet ("another mind"), so the two never blur together.
         if isAwaitingConfirmation { return .orange }
         if mediator.isDelegating { return Color(red: 0.70, green: 0.45, blue: 0.98) }
-        if isSpeaking { return .mint }                       // speaking back
+        // Coral, not mint — mint sits too close to the default teal accent, and
+        // listening (accent) vs speaking are the two states a conversation most
+        // needs to tell apart.
+        if isSpeaking { return Color(red: 1.0, green: 0.55, blue: 0.45) }
         if isListening { return .accentColor }               // attentive
         switch mediator.state {
         case .parsing: return .indigo                        // thinking
@@ -244,7 +247,7 @@ struct MediatorHUDView: View {
             guard !reduceMotion else { return }
             switch kind {
             case .success: flashColor = .green
-            case .error: flashColor = .orange
+            case .error: flashColor = .red
             case .info: return
             }
             flashProgress = 0
@@ -350,7 +353,7 @@ struct MediatorHUDView: View {
         switch mediator.narrationKind {
         case .info: .accentColor
         case .success: .green
-        case .error: .orange
+        case .error: .red        // red = failed; orange stays reserved for "confirm?"
         }
     }
 
