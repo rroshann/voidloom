@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 import VoidloomCore
 
@@ -99,7 +100,19 @@ struct WorkspaceCardView: View {
         .padding(.horizontal, 14)
         .padding(.vertical, 7)
         .contentShape(Rectangle())
-        .onHover { isHeaderHovered = $0 }
+        // The header is the card's drag handle (reorder in grid, free move in
+        // free-arrange). Show a grab cursor so that's discoverable — re-set on
+        // every move since AppKit resets cursor rects per event.
+        .onContinuousHover { phase in
+            switch phase {
+            case .active:
+                isHeaderHovered = true
+                if !isEditingTitle { NSCursor.openHand.set() }
+            case .ended:
+                isHeaderHovered = false
+                NSCursor.arrow.set()
+            }
+        }
     }
 
     @ViewBuilder
