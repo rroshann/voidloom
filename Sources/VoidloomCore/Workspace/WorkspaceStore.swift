@@ -1354,7 +1354,10 @@ public final class WorkspaceStore: ObservableObject {
                 position: .zero,
                 size: CardSize(width: 480, height: 320),
                 title: "New Agent",
-                content: "Placeholder for an AI coding agent session."
+                // Vestigial: an agent card's real content is its live terminal, and
+                // its status comes from AgentMemory. Keep this empty so the old
+                // placeholder text never leaks into Sunday's linkedContext as noise.
+                content: ""
             )
         case .note:
             return WorkspaceCard(
