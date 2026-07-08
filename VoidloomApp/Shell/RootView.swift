@@ -177,6 +177,11 @@ struct RootView: View {
         .onChange(of: store.state.space?.folderPath) { _, _ in
             Task { await contextProvider.refreshGit() }
         }
+        // Keep Sunday's git awareness current when you return to the app after
+        // working in a terminal card or an external editor (mirrors the Git card).
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await contextProvider.refreshGit() }
+        }
         // Sunday speaks (opt-in): read the FINAL narration once the pipeline
         // settles, never mid-stream. Barge-in stops speech the moment the mic
         // opens, so Sunday never talks over the user.
