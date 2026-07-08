@@ -39,4 +39,39 @@ final class AgentMemoryTests: XCTestCase {
         memory.forget(cardID: id)
         XCTAssertNil(memory.activity(for: id))
     }
+
+    func testBriefingPrefixGivesCrossAgentContextOnceThenStopsRepeating() {
+        let memory = AgentMemory()
+        let ember = UUID(), nova = UUID()
+        memory.record(cardID: nova, action: .received("fix auth"))
+        let agents = [(ember, "ember"), (nova, "nova")]
+        // First task to ember auto-briefs it on nova; second task does not repeat.
+        let first = memory.briefingPrefix(for: ember, amongst: agents)
+        XCTAssertTrue(first.contains("nova: asked to fix auth"))
+        XCTAssertFalse(first.contains("ember:"))
+        XCTAssertEqual(memory.briefingPrefix(for: ember, amongst: agents), "")
+    }
+
+    func testBriefingPrefixIsEmptyWhenSoleThenBriefsOnceOthersExist() {
+        let memory = AgentMemory()
+        let ember = UUID()
+        // Sole agent: nothing to brief, and NOT yet marked briefed.
+        XCTAssertEqual(memory.briefingPrefix(for: ember, amongst: [(ember, "ember")]), "")
+        // Once nova exists, ember's next task briefs it once.
+        let nova = UUID()
+        memory.record(cardID: nova, action: .spawned)
+        let prefix = memory.briefingPrefix(for: ember, amongst: [(ember, "ember"), (nova, "nova")])
+        XCTAssertTrue(prefix.contains("nova"))
+    }
+
+    func testForgetLetsAnAgentBeReBriefed() {
+        let memory = AgentMemory()
+        let ember = UUID(), nova = UUID()
+        memory.record(cardID: nova, action: .spawned)
+        let agents = [(ember, "ember"), (nova, "nova")]
+        _ = memory.briefingPrefix(for: ember, amongst: agents)   // brief once
+        memory.forget(cardID: ember)                              // ember removed
+        // A brand-new agent reusing nothing should brief again.
+        XCTAssertFalse(memory.briefingPrefix(for: ember, amongst: agents).isEmpty)
+    }
 }

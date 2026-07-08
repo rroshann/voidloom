@@ -35,7 +35,11 @@ public final class CommandExecutor {
             return spawnAgents(count: count, kind: kind, names: names)
         case .sendPrompt(let target, let text):
             return withAgent(named: target) { id, name in
-                terminals.send(text: text, to: id)
+                // Auto-brief on the first task: prepend what the other agents are
+                // doing so this one starts work aware of them (model-agnostic — it is
+                // just text into the terminal). One-time; no-op once briefed or solo.
+                let prefix = memory.briefingPrefix(for: id, amongst: agentCards())
+                terminals.send(text: prefix + text, to: id)
                 memory.record(cardID: id, action: .received(text))
                 return .success(narration: "→ \(name)")
             }

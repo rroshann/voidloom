@@ -29,11 +29,13 @@ public final class AgentMemory {
     }
 
     private var latest: [UUID: Action] = [:]
+    /// Agents already given a one-time cross-agent briefing (see briefingPrefix).
+    private var briefed: Set<UUID> = []
 
     public init() {}
 
     public func record(cardID: UUID, action: Action) { latest[cardID] = action }
-    public func forget(cardID: UUID) { latest[cardID] = nil }
+    public func forget(cardID: UUID) { latest[cardID] = nil; briefed.remove(cardID) }
 
     /// The most recent activity for one agent, or nil if none recorded.
     public func activity(for cardID: UUID) -> String? { latest[cardID]?.phrase }
@@ -45,5 +47,17 @@ public final class AgentMemory {
             .filter { $0.id != excluding }
             .map { "\($0.name): \(latest[$0.id]?.phrase ?? "idle")" }
             .joined(separator: "; ")
+    }
+
+    /// A one-time context preamble for an agent's FIRST task: what the OTHER agents
+    /// are doing, so every agent — whatever model it runs — starts work aware of the
+    /// others without the user asking. Returns "" once the agent has been briefed, and
+    /// while it is the only agent (so it is still briefed the first time others exist).
+    public func briefingPrefix(for cardID: UUID, amongst agents: [(id: UUID, name: String)]) -> String {
+        guard !briefed.contains(cardID) else { return "" }
+        let others = roster(for: agents, excluding: cardID)
+        guard !others.isEmpty else { return "" }
+        briefed.insert(cardID)
+        return "For context, the other agents in this workspace — \(others).\n\n"
     }
 }
