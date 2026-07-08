@@ -21,6 +21,9 @@ struct MediatorHUDView: View {
     @State private var narrationDismissTask: Task<Void, Never>?
     @State private var isHoveringNarration = false
     @State private var boxPulse = false
+    /// One-shot outcome ring: 0 → animates to 1 (expands + fades) on success/error.
+    @State private var flashProgress: CGFloat = 1
+    @State private var flashColor: Color = .green
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     /// While the mic is capturing, the machine's `.capturing` state carries the
@@ -157,6 +160,9 @@ struct MediatorHUDView: View {
                 .shadow(color: .black.opacity(0.18), radius: 12, y: 4)
                 .accessibilityElement(children: .contain)
             }
+            if let queued = mediator.queuedUtterance {
+                queuedChip(queued)
+            }
             HStack(spacing: 8) {
                 if showsPushToTalkMic {
                     micButton
@@ -213,9 +219,30 @@ struct MediatorHUDView: View {
                     .animation(reduceMotion ? nil : .easeInOut(duration: 0.35), value: stateColor)
                     .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: isBoxActive)
             )
+            .overlay(
+                // A one-beat ring that expands and fades on the pill itself when a
+                // command completes (green) or fails (red) — the only outcome ack
+                // that reaches pure-voice mode, where there's no reply bubble.
+                Capsule()
+                    .stroke(flashColor, lineWidth: 2)
+                    .scaleEffect(1 + flashProgress * 0.14)
+                    .opacity(Double(1 - flashProgress) * 0.85)
+                    .allowsHitTesting(false)
+            )
         }
         .onAppear { restartBreath() }
         .onChange(of: pulsePeriod) { _, _ in restartBreath() }
+        .onChange(of: mediator.narrationKind) { _, kind in
+            guard !reduceMotion else { return }
+            switch kind {
+            case .success: flashColor = .green
+            case .error: flashColor = .orange
+            case .info: return
+            }
+            flashProgress = 0
+            withAnimation(.easeOut(duration: 0.55)) { flashProgress = 1 }
+        }
+        .animation(reduceMotion ? nil : .easeInOut(duration: 0.2), value: mediator.queuedUtterance)
         .onChange(of: mediator.narration) { _, new in
             // Sunday's reply is transient: show it, keep it up while streaming, then
             // fade it ~3s after it settles. The stored copy lives in the sidebar.
@@ -311,6 +338,28 @@ struct MediatorHUDView: View {
         case .success: .green
         case .error: .orange
         }
+    }
+
+    /// A "next up" chip so a command typed while Sunday is busy is visibly held,
+    /// not silently swallowed. Re-keyed on the text so a newest-wins overwrite
+    /// reads as a change rather than nothing.
+    private func queuedChip(_ text: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "arrow.turn.down.right")
+                .font(.system(size: 10, weight: .semibold))
+            Text("Next: \(text)")
+                .font(.system(size: 12, weight: .medium))
+                .lineLimit(1)
+        }
+        .foregroundStyle(.secondary)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 6)
+        .frame(maxWidth: 420, alignment: .leading)
+        .background(.ultraThinMaterial, in: Capsule())
+        .overlay(Capsule().strokeBorder(.white.opacity(0.1), lineWidth: 1))
+        .transition(.opacity.combined(with: .move(edge: .bottom)))
+        .id(text)
+        .accessibilityLabel("Queued command: \(text)")
     }
 
     /// Four bars that rise and fall with the live mic level — the "it's really

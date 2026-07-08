@@ -69,7 +69,9 @@ public final class MediatorSessionCoordinator: ObservableObject {
     private var timeoutTask: Task<Void, Never>?
     private var parseTask: Task<Void, Never>?
     private var delegateTask: Task<Void, Never>?
-    private var queuedUtterance: String?
+    /// Published so the HUD can show a "next up" chip — a command typed while busy
+    /// is queued (depth-1, newest wins) instead of silently vanishing.
+    @Published public private(set) var queuedUtterance: String?
 
     public init(
         brain: MediatorBrain,
