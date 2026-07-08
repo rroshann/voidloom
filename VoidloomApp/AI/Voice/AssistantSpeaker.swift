@@ -43,9 +43,19 @@ final class AssistantSpeaker: NSObject, ObservableObject {
     /// voices in System Settings › Accessibility › Spoken Content; this picks the
     /// best of whatever is present.
     private static func bestEnglishVoice() -> AVSpeechSynthesisVoice? {
-        AVSpeechSynthesisVoice.speechVoices()
+        // Rank installed English voices so Sunday sounds natural AND consistent:
+        // quality dominates (premium > enhanced > default), then prefer US English
+        // and a female voice — she's "Sunday", so this avoids landing on a random
+        // installed accent or a male voice when a better-fitting one is present.
+        func score(_ v: AVSpeechSynthesisVoice) -> Int {
+            var s = v.quality.rawValue * 100
+            if v.language == "en-US" { s += 10 }
+            if v.gender == .female { s += 5 }
+            return s
+        }
+        return AVSpeechSynthesisVoice.speechVoices()
             .filter { $0.language.hasPrefix("en") }
-            .max { $0.quality.rawValue < $1.quality.rawValue }
+            .max { score($0) < score($1) }
     }
 
     /// Barge-in: stop talking at once (before capturing the user's voice, or on
