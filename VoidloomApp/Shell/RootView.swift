@@ -182,7 +182,7 @@ struct RootView: View {
         }
         .overlay(alignment: .bottom) {
             MediatorHUDView(mediator: mediator, showsPushToTalkMic: pushToTalkEnabled,
-                            showTextReplies: showTextReplies)
+                            showTextReplies: showTextReplies, isSpeaking: speaker.isSpeaking)
                 .padding(.bottom, 84)
         }
         .environmentObject(contextProvider)

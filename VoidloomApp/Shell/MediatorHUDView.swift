@@ -10,6 +10,8 @@ struct MediatorHUDView: View {
     /// When false and the request came by voice, Sunday's reply is spoken but not
     /// shown as text — a pure spoken conversation.
     var showTextReplies: Bool = true
+    /// True while Sunday is reading a reply aloud — drives the speaking indicator.
+    var isSpeaking: Bool = false
     @State private var input = ""
     @State private var isMicHeld = false
     @FocusState private var inputFocused: Bool
@@ -31,9 +33,9 @@ struct MediatorHUDView: View {
         if case .capturing = mediator.state { return true }
         return false
     }
-    /// The whole pill glows/pulses while Sunday is listening or working, so the
-    /// user knows something is happening (not just a small icon).
-    private var isBoxActive: Bool { isListening || isThinking }
+    /// The whole pill glows/pulses while Sunday is listening, working, or speaking,
+    /// so the user knows something is happening (not just a small icon).
+    private var isBoxActive: Bool { isListening || isThinking || isSpeaking }
 
     /// Rotating examples so users discover Sunday's breadth beyond spawning.
     private static let hints = [
@@ -103,8 +105,8 @@ struct MediatorHUDView: View {
                     micButton
                 }
                 Image(systemName: stateIcon)
-                    .foregroundStyle(isThinking ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
-                    .symbolEffect(.variableColor.iterative, isActive: isThinking && !reduceMotion)
+                    .foregroundStyle(isThinking || isSpeaking ? AnyShapeStyle(.tint) : AnyShapeStyle(.secondary))
+                    .symbolEffect(.variableColor.iterative, isActive: (isThinking || isSpeaking) && !reduceMotion)
                     .contentTransition(.symbolEffect(.replace))
                     .accessibilityHidden(true)
                 if isListening {
@@ -262,6 +264,7 @@ struct MediatorHUDView: View {
     private var stateIcon: String {
         // Delegation reads as consulting another agent, distinct from thinking.
         if mediator.isDelegating { return "person.wave.2.fill" }
+        if isSpeaking { return "speaker.wave.2.fill" }   // Sunday is talking back
         return switch mediator.state {
         case .idle: "waveform"
         case .capturing: "dot.radiowaves.left.and.right"

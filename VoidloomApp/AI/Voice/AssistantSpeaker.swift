@@ -6,13 +6,20 @@ import VoidloomCore
 /// barge-in (`stop()`) cancels the current speech immediately. Nothing leaves
 /// the Mac — AVSpeechSynthesizer is fully local.
 @MainActor
-final class AssistantSpeaker: ObservableObject {
+final class AssistantSpeaker: NSObject, ObservableObject {
     private let synthesizer = AVSpeechSynthesizer()
     /// Chosen once: the highest-quality English voice installed (premium >
     /// enhanced > default), so Sunday sounds natural rather than robotic.
     private lazy var voice: AVSpeechSynthesisVoice? = Self.bestEnglishVoice()
 
-    var isSpeaking: Bool { synthesizer.isSpeaking }
+    /// Published so the HUD can show a distinct "speaking" state while Sunday
+    /// talks — driven by the synthesizer's start/finish/cancel callbacks.
+    @Published private(set) var isSpeaking = false
+
+    override init() {
+        super.init()
+        synthesizer.delegate = self
+    }
 
     func speak(_ text: String) {
         let spoken = AssistantSpeech.spoken(from: text)
@@ -47,5 +54,17 @@ final class AssistantSpeaker: ObservableObject {
         if synthesizer.isSpeaking {
             synthesizer.stopSpeaking(at: .immediate)
         }
+    }
+}
+
+extension AssistantSpeaker: AVSpeechSynthesizerDelegate {
+    nonisolated func speechSynthesizer(_ s: AVSpeechSynthesizer, didStart utterance: AVSpeechUtterance) {
+        Task { @MainActor in self.isSpeaking = true }
+    }
+    nonisolated func speechSynthesizer(_ s: AVSpeechSynthesizer, didFinish utterance: AVSpeechUtterance) {
+        Task { @MainActor in self.isSpeaking = false }
+    }
+    nonisolated func speechSynthesizer(_ s: AVSpeechSynthesizer, didCancel utterance: AVSpeechUtterance) {
+        Task { @MainActor in self.isSpeaking = false }
     }
 }
