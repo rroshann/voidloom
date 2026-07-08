@@ -1,6 +1,12 @@
 import Combine
 import Foundation
 
+/// Severity of a mediator narration, so the HUD can give success, failure, and
+/// ordinary replies visually distinct signatures.
+public enum NarrationKind: Sendable, Equatable {
+    case info, success, error
+}
+
 /// Performs `MediatorEffect`s around the pure `MediatorSessionMachine`:
 /// runs the brain, dispatches the executor synchronously, and keeps AT MOST
 /// ONE timeout task — every `scheduleTimeout` REPLACES the previous timer.
@@ -39,6 +45,10 @@ public final class MediatorSessionCoordinator: ObservableObject {
     /// Whether the most recent request arrived by voice (vs typed). Drives the
     /// "speak only when spoken to" preference and pure-voice reply display.
     @Published public private(set) var lastInputWasVoice: Bool = false
+
+    /// Severity of the current narration, so the HUD can give success and failure
+    /// distinct signatures instead of one identical bubble.
+    @Published public private(set) var narrationKind: NarrationKind = .info
 
     /// Runs a delegated question through an agent CLI and relays the answer.
     /// Always returns user-facing text (owns its own errors + timeout); streams
@@ -93,6 +103,7 @@ public final class MediatorSessionCoordinator: ObservableObject {
     public func cancel() { send(.cancelRequested) }
 
     private func send(_ event: MediatorEvent) {
+        classifyNarration(for: event)
         let effects = machine.handle(event)
         state = machine.state
         // Any return to idle tears down in-flight async work (carry-over #1):
@@ -112,6 +123,25 @@ public final class MediatorSessionCoordinator: ObservableObject {
     private var isAwaitingConfirmation: Bool {
         if case .awaitingConfirmation = state { return true }
         return false
+    }
+
+    /// Tags the upcoming narration with a severity so the HUD can distinguish a
+    /// completed command (success), a failure (error), and an ordinary reply (info).
+    private func classifyNarration(for event: MediatorEvent) {
+        switch event {
+        case .typedUtterance, .transcriptFinal, .pushToTalkPressed, .wakeDetected:
+            narrationKind = .info   // a fresh turn starts neutral
+        case .parseFailed, .timeout:
+            narrationKind = .error
+        case .executionFinished(let result):
+            switch result {
+            case .success: narrationKind = .success
+            case .refused: narrationKind = .error
+            case .needsClarification, .needsConfirmation: narrationKind = .info
+            }
+        default:
+            break
+        }
     }
 
     /// Runs a delegation while the machine sits in `.executing`: streams the
@@ -134,6 +164,7 @@ public final class MediatorSessionCoordinator: ObservableObject {
             self.isStreamingReply = false
             self.isDelegating = false
             self.send(.executionFinished(.success(narration: answer)))
+            self.narrationKind = .info   // a relayed answer is content, not a command-success flash
         }
     }
 

@@ -182,8 +182,10 @@ struct MediatorHUDView: View {
             narrationDismissTask = Task {
                 while mediator.isStreamingReply { try? await Task.sleep(nanoseconds: 200_000_000) }
                 // Longer replies linger a little longer so they stay readable
-                // (~3s short → ~6s long); hovering pauses the dismissal.
-                let delay = max(3.0, min(6.0, 2.0 + Double(new.count) / 60.0))
+                // (~3s short → ~6s long); errors hold longest so a failure isn't
+                // missed; hovering pauses the dismissal.
+                let base = max(3.0, min(6.0, 2.0 + Double(new.count) / 60.0))
+                let delay = mediator.narrationKind == .error ? max(base, 9.0) : base
                 try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
                 while isHoveringNarration { try? await Task.sleep(nanoseconds: 300_000_000) }
                 guard !Task.isCancelled else { return }
@@ -251,12 +253,30 @@ struct MediatorHUDView: View {
 
     /// Sunday's reply, styled as her speaking: an identity glyph, refined
     /// material, an accent hairline, and a soft lift — not a debug label.
+    /// Bubble identity by outcome: a sparkle for a reply, a green check for a
+    /// completed command, a red warning for a failure — distinct at a glance.
+    private var bubbleGlyph: String {
+        switch mediator.narrationKind {
+        case .info: "sparkle"
+        case .success: "checkmark.circle.fill"
+        case .error: "exclamationmark.triangle.fill"
+        }
+    }
+    private var bubbleTint: Color {
+        switch mediator.narrationKind {
+        case .info: .accentColor
+        case .success: .green
+        case .error: .orange
+        }
+    }
+
     private var narrationBubble: some View {
         HStack(alignment: .top, spacing: 9) {
-            Image(systemName: "sparkle")
+            Image(systemName: bubbleGlyph)
                 .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.tint)
+                .foregroundStyle(bubbleTint)
                 .symbolEffect(.variableColor.iterative, isActive: mediator.isStreamingReply && !reduceMotion)
+                .contentTransition(.symbolEffect(.replace))
                 .padding(.top, 1)
                 .accessibilityHidden(true)
             Text(mediator.narration)
@@ -271,7 +291,7 @@ struct MediatorHUDView: View {
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(Color.accentColor.opacity(0.18), lineWidth: 1)
+                .strokeBorder(bubbleTint.opacity(mediator.narrationKind == .info ? 0.18 : 0.5), lineWidth: 1)
         )
         .shadow(color: .black.opacity(0.18), radius: 12, y: 4)
         .accessibilityElement(children: .combine)
