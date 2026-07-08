@@ -1,3 +1,4 @@
+import AppKit
 import Speech
 import SwiftUI
 import VoidloomCore
@@ -60,9 +61,32 @@ struct VoiceSettingsSection: View {
                      : "Pure voice: when you speak to \(AssistantIdentity.name), it replies by voice only — no text bubble.")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
-                Text("Voices are on-device and free. For a more natural voice, install a Premium/Enhanced English voice in System Settings › Accessibility › Spoken Content › System Voice — \(AssistantIdentity.name) picks the best one automatically.")
-                    .font(.caption2)
-                    .foregroundStyle(.tertiary)
+                if AssistantSpeaker.hasEnhancedEnglishVoice {
+                    Text("Voices are on-device and free — \(AssistantIdentity.name) automatically uses the most natural English voice installed.")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                } else {
+                    // No Enhanced/Premium English voice installed → narration is stuck on
+                    // the robotic default tier. Tell the user why, with one click to fix it.
+                    VStack(alignment: .leading, spacing: 6) {
+                        Label("Make \(AssistantIdentity.name) sound natural", systemImage: "waveform.circle")
+                            .font(.caption.weight(.semibold))
+                            .foregroundStyle(.orange)
+                        Text("Only default-quality English voices are installed, so \(AssistantIdentity.name) sounds synthetic. Install an Enhanced or Premium English voice (e.g. “Samantha (Enhanced)”) and \(AssistantIdentity.name) uses it automatically — no restart needed.")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                        Button("Open Spoken Content Settings…") {
+                            if let url = URL(string: "x-apple.systempreferences:com.apple.Accessibility-Settings.extension") {
+                                NSWorkspace.shared.open(url)
+                            }
+                        }
+                        .font(.caption2)
+                        .buttonStyle(.link)
+                    }
+                    .padding(8)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(RoundedRectangle(cornerRadius: 8).fill(.orange.opacity(0.08)))
+                }
             }
 
             if voiceMode == .alwaysListening {

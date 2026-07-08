@@ -58,6 +58,17 @@ final class AssistantSpeaker: NSObject, ObservableObject {
             .max { score($0) < score($1) }
     }
 
+    /// Whether a natural-sounding (Enhanced or Premium) English voice is installed.
+    /// When false, every English voice is the robotic default tier, so narration will
+    /// sound synthetic no matter how rate/pitch are tuned — the only fix is installing
+    /// one in System Settings. Voice settings surfaces this so the user knows why.
+    static var hasEnhancedEnglishVoice: Bool {
+        AVSpeechSynthesisVoice.speechVoices().contains {
+            $0.language.hasPrefix("en")
+                && $0.quality.rawValue > AVSpeechSynthesisVoiceQuality.default.rawValue
+        }
+    }
+
     /// Barge-in: stop talking at once (before capturing the user's voice, or on
     /// cancel) so Sunday never talks over the user or itself.
     func stop() {
