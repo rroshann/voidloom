@@ -429,6 +429,45 @@ extension SpaceModelTests {
         XCTAssertTrue(state.space?.freePlaced.isEmpty ?? false)
     }
 
+    /// Header drag shifts a marquee group by one screen-space delta at identity
+    /// scale (free-arrange is a scale-1 world), leaving non-group cards untouched
+    /// and marking the moved cards placed.
+    func testMoveSpaceCardsFreelyShiftsGroupByScreenDelta() {
+        var state = stateWithCards(3)
+        let (a, b, c) = (state.cards[0].id, state.cards[1].id, state.cards[2].id)
+        state.setSpaceLayoutMode(.freeArrange)
+        state.cards[0].position = CanvasPoint(x: 100, y: 100)
+        state.cards[1].position = CanvasPoint(x: 300, y: 100)
+        state.cards[2].position = CanvasPoint(x: 500, y: 500)   // outside the group
+
+        state.moveSpaceCardsFreely(ids: [a, b], byScreen: ScreenPoint(x: 40, y: -10))
+
+        XCTAssertEqual(state.cards.first { $0.id == a }?.position, CanvasPoint(x: 140, y: 90))
+        XCTAssertEqual(state.cards.first { $0.id == b }?.position, CanvasPoint(x: 340, y: 90))
+        XCTAssertEqual(state.cards.first { $0.id == c }?.position, CanvasPoint(x: 500, y: 500))
+        XCTAssertEqual(state.space?.freePlaced, [a, b])
+    }
+
+    func testMoveSpaceCardsFreelySingleIDMovesOneCardAndMarksPlaced() {
+        var state = stateWithCards(2)
+        let a = state.cards[0].id
+        state.setSpaceLayoutMode(.freeArrange)
+        state.cards[0].position = CanvasPoint(x: 10, y: 20)
+        state.moveSpaceCardsFreely(ids: [a], byScreen: ScreenPoint(x: 5, y: 7))
+        XCTAssertEqual(state.cards[0].position, CanvasPoint(x: 15, y: 27))
+        XCTAssertEqual(state.space?.freePlaced, [a])
+    }
+
+    func testMoveSpaceCardsFreelyEmptyOrUnknownIsNoOp() {
+        var state = stateWithCards(1)
+        let original = state.cards[0].position
+        state.setSpaceLayoutMode(.freeArrange)
+        state.moveSpaceCardsFreely(ids: [], byScreen: ScreenPoint(x: 9, y: 9))
+        state.moveSpaceCardsFreely(ids: [UUID()], byScreen: ScreenPoint(x: 9, y: 9))
+        XCTAssertEqual(state.cards[0].position, original)
+        XCTAssertTrue(state.space?.freePlaced.isEmpty ?? false)
+    }
+
     func testDeleteCardPrunesItsFreePlacedEntry() {
         var state = stateWithCards(2)
         let (a, b) = (state.cards[0].id, state.cards[1].id)

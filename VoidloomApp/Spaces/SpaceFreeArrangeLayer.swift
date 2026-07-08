@@ -1,10 +1,11 @@
 import SwiftUI
 import VoidloomCore
 
-/// Free-arrange presentation of a Space: every card renders at its persisted
-/// `SpaceFreeFrame` and drags anywhere (no pagination). The shell owns frame
-/// seeding and marquee selection; this layer renders tiles and forwards drags
-/// to `WorkspaceStore.moveSpaceCardFreely`.
+/// Free-arrange presentation of a Space: every card renders at its `position`/
+/// `size` (screen points at identity), dragged by its header — one card or the
+/// whole marquee group — with no pagination. The shell owns position seeding and
+/// marquee selection; this layer renders tiles and forwards header drags to
+/// `WorkspaceStore.moveSpaceCardsFreely`.
 struct SpaceFreeArrangeLayer: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var sessionManager: AgentSessionManager
@@ -17,17 +18,17 @@ struct SpaceFreeArrangeLayer: View {
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
+    /// The grabbed card (raised while dragging), or nil when idle.
     @State private var draggingCardID: UUID?
-    /// Frame origin captured when a drag starts, so the cumulative translation
-    /// applies from a stable base instead of compounding per event.
-    @State private var dragStartOrigin: ScreenPoint?
+    /// The move set captured on the first move of a drag — the marquee group when
+    /// dragging a multi-selected member, else just the grabbed card — held for the
+    /// whole drag so single-vs-group is decided once (mirrors Canvas).
+    @State private var draggingGroup: Set<UUID>?
+    /// Last cumulative translation, so each event applies only its delta.
+    @State private var lastDragTranslation: CGSize = .zero
     /// Card being resized via the corner handle, so its frame changes track
     /// the cursor instead of riding the layout spring.
     @State private var resizingCardID: UUID?
-
-    /// Minimum visible strip of a card at every screen edge, so a drag can
-    /// never strand a card fully off-screen.
-    private static let minVisibleEdge: Double = 60
 
     var body: some View {
         ZStack {
@@ -41,18 +42,25 @@ struct SpaceFreeArrangeLayer: View {
                         store: store,
                         sessionManager: sessionManager,
                         onDragChanged: { translation, _ in
-                            if draggingCardID != id {
+                            let group: Set<UUID>
+                            if let captured = draggingGroup {
+                                group = captured
+                            } else {
                                 draggingCardID = id
-                                dragStartOrigin = frame.origin
+                                let marquee = store.state.marqueeSelectedCardIDs
+                                group = (marquee.count > 1 && marquee.contains(id)) ? marquee : [id]
+                                draggingGroup = group
+                                if group.count == 1 { store.selectCard(id: id) }
                             }
-                            guard let start = dragStartOrigin else { return }
-                            let proposed = ScreenPoint(x: start.x + translation.width,
-                                                       y: start.y + translation.height)
-                            store.moveSpaceCardFreely(id: id, to: clamped(proposed, size: frame.size))
+                            let delta = ScreenPoint(x: translation.width - lastDragTranslation.width,
+                                                    y: translation.height - lastDragTranslation.height)
+                            store.moveSpaceCardsFreely(ids: group, byScreen: delta)
+                            lastDragTranslation = translation
                         },
                         onDragEnded: { _ in
                             draggingCardID = nil
-                            dragStartOrigin = nil
+                            draggingGroup = nil
+                            lastDragTranslation = .zero
                         }
                     )
                     .frame(width: frame.size.x, height: frame.size.y)
@@ -102,14 +110,5 @@ struct SpaceFreeArrangeLayer: View {
             return 9_000
         }
         return Double(index)
-    }
-
-    /// Keeps at least `minVisibleEdge` points of the card inside the viewport
-    /// on every axis.
-    private func clamped(_ origin: ScreenPoint, size: ScreenPoint) -> ScreenPoint {
-        let e = Self.minVisibleEdge
-        let x = min(max(origin.x, e - size.x), Double(viewportSize.width) - e)
-        let y = min(max(origin.y, 0), Double(viewportSize.height) - e)
-        return ScreenPoint(x: x, y: y)
     }
 }

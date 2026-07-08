@@ -654,6 +654,15 @@ public final class WorkspaceStore: ObservableObject {
         schedulePersistence()
     }
 
+    /// Debounced free-arrange move for a single card (`[id]`) or a marquee group,
+    /// by a screen-space delta at identity scale. Drives the header drag handle.
+    public func moveSpaceCardsFreely(ids: Set<UUID>, byScreen delta: ScreenPoint) {
+        guard !ids.isEmpty, delta != ScreenPoint(x: 0, y: 0) else { return }
+        recordUndo("fmove")
+        state.moveSpaceCardsFreely(ids: ids, byScreen: delta)
+        schedulePersistence()
+    }
+
     /// Debounced like `resizeCard` — a resize drag emits many sizes.
     public func resizeSpaceCardFreely(id: UUID, to size: ScreenPoint) {
         recordUndo("fresize:\(id)")

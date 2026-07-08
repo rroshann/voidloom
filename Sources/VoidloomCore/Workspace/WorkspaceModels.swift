@@ -933,6 +933,22 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         space?.freePlaced.insert(id)
     }
 
+    /// Shifts every card in `ids` by the same screen-space delta at identity scale
+    /// — free-arrange is a scale-1 world, so a screen delta is a canvas delta —
+    /// marking each placed. Drives header drag for a single card (`[id]`) or a
+    /// marquee group. Deliberately identity, not `state.viewport`-relative: the
+    /// free layer renders at scale 1 regardless of any zoom persisted by the old
+    /// Canvas shell. Unknown ids are ignored; an empty set is a no-op.
+    public mutating func moveSpaceCardsFreely(ids: Set<UUID>, byScreen delta: ScreenPoint) {
+        guard !ids.isEmpty else { return }
+        ensureSpaceConfig()
+        for index in cards.indices where ids.contains(cards[index].id) {
+            cards[index].position.x += delta.x
+            cards[index].position.y += delta.y
+            space?.freePlaced.insert(cards[index].id)
+        }
+    }
+
     /// Resizes a free-arrange card, keeping its position (bottom-right handle
     /// semantics) and clamping to the card minimums so content stays usable, and
     /// marks it placed. No-op for an unknown card.

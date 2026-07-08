@@ -333,18 +333,6 @@ struct SpacesShellView: View {
                 selectCard(atContentClick: point, commandHeld: commandHeld,
                            paged: paged, orderedIDs: orderedIDs, freeFrames: freeFrames)
             })
-            .background {
-                // Free-arrange: let a card be dragged from anywhere (even over a
-                // terminal) to move it. A click still passes through to select.
-                if layoutMode == .freeArrange {
-                    FreeArrangeDragCatcher(
-                        frames: freeFrames,
-                        orderedIDs: orderedIDs,
-                        viewportSize: geo.size,
-                        onMove: { id, origin in store.moveSpaceCardFreely(id: id, to: origin) }
-                    )
-                }
-            }
             .onChange(of: store.library.selectedWorkspaceID) { _, _ in currentPage = 0 }
             .onReceive(NotificationCenter.default.publisher(for: MenuAction.notification), perform: handleMenuAction)
             .onChange(of: store.state.space?.tiling) { _, _ in currentPage = 0 }

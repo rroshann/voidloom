@@ -28,22 +28,18 @@ struct SpaceTileCard: View {
             isCardFocused: false,
             onToggleCardFocus: {},
             onClose: closeCard,
+            // The header is the only drag handle: the body stays inert so a drag
+            // over terminal/browser content moves the card instead of being
+            // swallowed (grid reorder + free move both ride this one gesture).
+            onHeaderDragChanged: { translation, location in onDragChanged(translation, location) },
+            onHeaderDragEnded: { location in onDragEnded(location) },
             isEditingTitle: $isEditingTitle,
             editingCardTitleID: $editingCardTitleID
         )
-        .contentShape(Rectangle())
-        .gesture(
-            DragGesture(coordinateSpace: .global)
-                .onChanged { value in onDragChanged(value.translation, value.location) }
-                .onEnded { value in onDragEnded(value.location) },
-            // While the title field is being edited, disable the tile's own drag
-            // so typing/selection isn't stolen and a stray move can't reorder.
-            including: isEditingTitle ? .subviews : .all
-        )
         // No tap gesture here: selection-on-click (including ⌘-toggle) is owned
         // by SpacesShellView's ContentClickMonitor, which also sees clicks on
-        // AppKit-backed content this gesture never would. A second handler here
-        // would double-toggle ⌘-clicks.
+        // AppKit-backed content a SwiftUI gesture never would. A second handler
+        // here would double-toggle ⌘-clicks.
     }
 
     private func closeCard() {

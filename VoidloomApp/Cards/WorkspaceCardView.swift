@@ -18,6 +18,12 @@ struct WorkspaceCardView: View {
     var isCardFocused: Bool = false
     var onToggleCardFocus: () -> Void = {}
     var onClose: () -> Void = {}
+    /// Header drag handle. When set, the header (and only the header) becomes the
+    /// card's move handle — forwarding the drag's cumulative global `translation`
+    /// and cursor `location` up, without owning any move math. Nil leaves the
+    /// header inert (e.g. the dead Canvas shell, which drags the whole card).
+    var onHeaderDragChanged: ((CGSize, CGPoint) -> Void)? = nil
+    var onHeaderDragEnded: ((CGPoint) -> Void)? = nil
     @Binding var isEditingTitle: Bool
     @Binding var editingCardTitleID: UUID?
 
@@ -113,6 +119,17 @@ struct WorkspaceCardView: View {
                 NSCursor.arrow.set()
             }
         }
+        // The header is the card's drag handle. Global coordinate space so the
+        // translation tracks the cursor at every zoom level; minimumDistance 1 so
+        // a click still selects. Masked to `.subviews` (off on the header itself,
+        // but title-field editing and header buttons stay live) while a title is
+        // being edited or no handler is wired.
+        .gesture(
+            DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                .onChanged { value in onHeaderDragChanged?(value.translation, value.location) }
+                .onEnded { value in onHeaderDragEnded?(value.location) },
+            including: (onHeaderDragChanged != nil && !isEditingTitle) ? .all : .subviews
+        )
     }
 
     @ViewBuilder
