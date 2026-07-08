@@ -25,6 +25,11 @@ public enum AssistantSpeech {
         // Bare URLs -> a short word rather than a spelled-out address.
         s = s.replacingOccurrences(
             of: "https?://\\S+", with: "a link", options: .regularExpression)
+        // File paths -> just the basename. Reading "app slash spaces slash…" aloud
+        // is jarring; the filename carries the meaning. Requires >=1 slash and a
+        // short trailing extension so natural-language slashes (and/or, 24/7) survive.
+        s = s.replacingOccurrences(
+            of: "(?:[\\w.-]+/)+([\\w.-]+\\.[A-Za-z]{1,5})", with: "$1", options: .regularExpression)
         s = s.replacingOccurrences(of: "`", with: "")
         s = s.replacingOccurrences(of: "[*_#>]", with: "", options: .regularExpression)
         s = s.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)

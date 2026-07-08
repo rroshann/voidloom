@@ -39,6 +39,20 @@ final class AssistantSpeechTests: XCTestCase {
         XCTAssertTrue(spoken.contains("a link"))
     }
 
+    func testFilePathSpeaksBasenameOnly() {
+        let text = "I edited VoidloomApp/Spaces/SpacesShellView.swift for you."
+        let spoken = AssistantSpeech.spoken(from: text)
+        XCTAssertTrue(spoken.contains("SpacesShellView.swift"))
+        XCTAssertFalse(spoken.contains("VoidloomApp"))
+        XCTAssertFalse(spoken.contains("/"))
+    }
+
+    func testNonPathSlashesSurvive() {
+        // Natural-language slashes must not be mangled into a "basename".
+        let spoken = AssistantSpeech.spoken(from: "Pick one and/or the other.")
+        XCTAssertTrue(spoken.contains("and/or"))
+    }
+
     func testEmptyStaysEmpty() {
         XCTAssertEqual(AssistantSpeech.spoken(from: "   "), "")
     }
