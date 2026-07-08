@@ -6,7 +6,6 @@ import VoidloomCore
 /// AppStorage toggles, CanvasShellView for zoom (it owns the window geometry
 /// the zoom anchor needs).
 enum MenuAction {
-    case toggleAppMode
     case toggleMinimap
     case addCard(CardKind)
     case zoomIn
@@ -76,8 +75,6 @@ struct VoidloomCommands: Commands {
                 .keyboardShortcut("j", modifiers: [.command, .shift])
             Button("Go to Launcher") { MenuAction.goToLauncher.post() }
                 .keyboardShortcut("l", modifiers: [.command, .shift, .option])
-            Button("Toggle Spaces / Canvas") { MenuAction.toggleAppMode.post() }
-                .keyboardShortcut("s", modifiers: [.command, .shift])
             Button("Toggle Minimap") { MenuAction.toggleMinimap.post() }
                 .keyboardShortcut("m", modifiers: [.command, .shift])
             Divider()

@@ -75,9 +75,7 @@ final class AssistantContextProvider: ObservableObject {
         store.library.workspaces.first { $0.id == store.library.selectedWorkspaceID }?.name ?? "Workspace"
     }
 
-    private var modeLabel: String {
-        (UserDefaults.standard.string(forKey: "app.mode") == "spaces") ? "Spaces" : "Canvas"
-    }
+    private var modeLabel: String { "Spaces" }
 
     private var brainTier: String {
         var parts = ["fast path"]

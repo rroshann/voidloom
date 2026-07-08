@@ -19,7 +19,6 @@ struct RootView: View {
 
     @EnvironmentObject private var session: AppSession
 
-    @AppStorage("app.mode") private var appMode: AppMode = .canvas
     @AppStorage("isMinimapVisible") private var isMinimapVisible = false
     @AppStorage("voice.mode") private var voiceMode: VoiceInputMode = .pushToTalk
     @AppStorage("voice.wakePhrase") private var wakePhrase = "hey sunday"
@@ -150,25 +149,13 @@ struct RootView: View {
 
     var body: some View {
         ZStack {
-            switch appMode {
-            case .canvas:
-                CanvasShellView(
-                    store: store,
-                    sessionManager: sessionManager,
-                    conversationStore: conversationStore,
-                    interaction: interaction
-                )
-                .transition(.opacity)
-            case .spaces:
-                SpacesShellView(
-                    store: store,
-                    sessionManager: sessionManager,
-                    conversationStore: conversationStore
-                )
-                    .transition(.opacity)
-            }
+            // Spaces is now the only shell — the Canvas shell is being folded in.
+            SpacesShellView(
+                store: store,
+                sessionManager: sessionManager,
+                conversationStore: conversationStore
+            )
         }
-        .animation(.easeInOut(duration: 0.28), value: appMode)
         .background {
             if pushToTalkEnabled {
                 VoicePushToTalkKeyMonitor(
@@ -216,8 +203,6 @@ struct RootView: View {
         .onReceive(NotificationCenter.default.publisher(for: MenuAction.notification)) { note in
             guard let action = note.object as? MenuAction else { return }
             switch action {
-            case .toggleAppMode:
-                appMode = appMode == .canvas ? .spaces : .canvas
             case .toggleMinimap:
                 isMinimapVisible.toggle()
             case .addCard(let kind):
