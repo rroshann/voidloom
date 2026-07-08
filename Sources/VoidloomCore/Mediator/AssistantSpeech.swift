@@ -19,6 +19,12 @@ public enum AssistantSpeech {
     private static func stripNoise(_ text: String) -> String {
         var s = text.replacingOccurrences(
             of: "```[\\s\\S]*?```", with: " code block ", options: .regularExpression)
+        // Markdown links [label](url) -> just the label; never read the URL aloud.
+        s = s.replacingOccurrences(
+            of: "\\[([^\\]]+)\\]\\([^)]*\\)", with: "$1", options: .regularExpression)
+        // Bare URLs -> a short word rather than a spelled-out address.
+        s = s.replacingOccurrences(
+            of: "https?://\\S+", with: "a link", options: .regularExpression)
         s = s.replacingOccurrences(of: "`", with: "")
         s = s.replacingOccurrences(of: "[*_#>]", with: "", options: .regularExpression)
         s = s.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
