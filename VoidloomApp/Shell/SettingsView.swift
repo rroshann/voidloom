@@ -393,10 +393,6 @@ private struct LaunchCommandRow: View {
 // MARK: - Storage
 
 private struct StorageSettingsTab: View {
-    @AppStorage("storage.autosave") private var autosave = true
-    @AppStorage("storage.autosaveDelay") private var autosaveDelay = 0.75
-    @AppStorage("storage.prettyPrint") private var prettyPrint = false
-
     @EnvironmentObject private var store: WorkspaceStore
     @EnvironmentObject private var sessionManager: AgentSessionManager
 
@@ -435,16 +431,6 @@ private struct StorageSettingsTab: View {
                     .disabled(true)
                     .help("Not supported yet — the data folder is fixed for now.")
                 }
-            }
-
-            Section("Persistence") {
-                Toggle("Autosave changes", isOn: $autosave)
-
-                Stepper(value: $autosaveDelay, in: 0.25...5.0, step: 0.25) {
-                    LabeledContent("Autosave delay", value: String(format: "%.2f s", autosaveDelay))
-                }
-
-                Toggle("Pretty-print JSON", isOn: $prettyPrint)
             }
 
             Section("Library") {
