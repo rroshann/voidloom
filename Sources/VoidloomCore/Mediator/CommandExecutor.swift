@@ -65,7 +65,11 @@ public final class CommandExecutor {
             if kind == .agent {
                 return spawnAgents(count: 1, kind: .claudeCode, names: nil)
             }
-            store.addTitledCard(kind: kind, content: content ?? "")
+            let body = content ?? ""
+            // Title notes from their text so they stay addressable by name
+            // ("close buy milk") instead of piling up as identical "New Note"s.
+            let title = kind == .note ? Self.noteTitle(from: body) : ""
+            store.addTitledCard(kind: kind, title: title, content: body)
             return .success(narration: "Created a \(kind.rawValue)")
         case .switchSpace(let name):
             return switchSpace(named: name)
@@ -165,6 +169,18 @@ public final class CommandExecutor {
                 return .success(narration: "Briefed \(name) on the others")
             }
         }
+    }
+
+    /// Derives a note card's title from its text: the first non-empty line,
+    /// capped at 40 characters. Empty text keeps the store's default title.
+    static func noteTitle(from content: String) -> String {
+        let firstLine = content
+            .split(separator: "\n", omittingEmptySubsequences: true)
+            .first
+            .map { $0.trimmingCharacters(in: .whitespaces) } ?? ""
+        guard !firstLine.isEmpty else { return "" }
+        guard firstLine.count > 40 else { return firstLine }
+        return String(firstLine.prefix(40)) + "…"
     }
 
     private func spawnAgents(count: Int, kind: MediatorAgentKind, names: [String]?) -> ExecutionResult {

@@ -262,6 +262,35 @@ final class CommandExecutorTests: XCTestCase {
         XCTAssertEqual(executor.execute(.arrange(style: .retile)), .success(narration: "Re-tiled the space"))
     }
 
+    func testCreateNoteTitlesCardFromContent() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let executor = makeExecutor(store, terminals)
+
+        _ = executor.execute(.createCard(kind: .note, content: "buy milk"))
+        XCTAssertEqual(store.state.cards.first?.title, "buy milk")
+    }
+
+    func testCreateNoteTitleUsesFirstLineAndTruncatesLongContent() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let executor = makeExecutor(store, terminals)
+
+        _ = executor.execute(.createCard(kind: .note, content: "first line\nsecond line"))
+        XCTAssertEqual(store.state.cards.first?.title, "first line")
+
+        let long = String(repeating: "a", count: 60)
+        _ = executor.execute(.createCard(kind: .note, content: long))
+        let title = store.state.cards.last?.title ?? ""
+        XCTAssertEqual(title, String(repeating: "a", count: 40) + "…")
+    }
+
+    func testCreateNoteWithoutContentKeepsDefaultTitle() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let executor = makeExecutor(store, terminals)
+
+        _ = executor.execute(.createCard(kind: .note, content: nil))
+        XCTAssertEqual(store.state.cards.first?.title, "New Note")
+    }
+
     func testCreateAgentCardRoutesThroughSpawnMachinery() {
         let store = makeStore(); let terminals = MockAgentTerminals()
         let result = makeExecutor(store, terminals).execute(.createCard(kind: .agent, content: nil))
