@@ -863,11 +863,14 @@ public final class WorkspaceStore: ObservableObject {
         moveWorkspace(id: id, toIndex: targetIndex)
     }
 
-    public func deleteWorkspace(id: UUID) {
+    /// Returns the deleted workspace's card IDs so callers can shut down any
+    /// live agent sessions still attached to them.
+    @discardableResult
+    public func deleteWorkspace(id: UUID) -> [UUID] {
         guard isLibraryMode,
               let libraryURL,
-              let workspacesDirectoryURL else { return }
-        guard let index = library.workspaces.firstIndex(where: { $0.id == id }) else { return }
+              let workspacesDirectoryURL else { return [] }
+        guard let index = library.workspaces.firstIndex(where: { $0.id == id }) else { return [] }
 
         let wasActive = library.selectedWorkspaceID == id
 
@@ -879,6 +882,9 @@ public final class WorkspaceStore: ObservableObject {
         library.workspaces.remove(at: index)
 
         let workspaceFileURL = Self.workspaceURL(for: id, in: workspacesDirectoryURL)
+        let removedCardIDs: [UUID] = wasActive
+            ? state.cards.map(\.id)
+            : ((try? Self.load(from: workspaceFileURL))?.cards.map(\.id) ?? [])
         try? FileManager.default.removeItem(at: workspaceFileURL)
 
         // Deleting the final workspace is allowed: every mode is gated behind an
@@ -893,7 +899,7 @@ public final class WorkspaceStore: ObservableObject {
             } catch {
                 lastPersistenceError = error.localizedDescription
             }
-            return
+            return removedCardIDs
         }
 
         if wasActive {
@@ -917,6 +923,7 @@ public final class WorkspaceStore: ObservableObject {
                 lastPersistenceError = error.localizedDescription
             }
         }
+        return removedCardIDs
     }
 
     /// Destructive factory reset (library mode only): deletes every workspace

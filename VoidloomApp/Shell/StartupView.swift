@@ -6,6 +6,7 @@ import VoidloomCore
 struct StartupView: View {
     @ObservedObject var store: WorkspaceStore
     @EnvironmentObject private var session: AppSession
+    @EnvironmentObject private var sessionManager: AgentSessionManager
     @Environment(\.theme) private var theme
 
     @State private var editingID: UUID?
@@ -61,7 +62,13 @@ struct StartupView: View {
             Alert(
                 title: Text("Delete “\(ws.name)”?"),
                 message: Text("This permanently deletes the workspace and its cards. This can't be undone."),
-                primaryButton: .destructive(Text("Delete")) { store.deleteWorkspace(id: ws.id) },
+                primaryButton: .destructive(Text("Delete")) {
+                    // Deleting a workspace is the one close-path that must also
+                    // kill its background agent sessions, or they'd leak until quit.
+                    for cardID in store.deleteWorkspace(id: ws.id) {
+                        sessionManager.terminateSession(cardID: cardID)
+                    }
+                },
                 secondaryButton: .cancel()
             )
         }

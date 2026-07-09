@@ -7,8 +7,11 @@ import VoidloomCore
 /// Owns one live PTY-backed shell per agent card. The manager (not the SwiftUI
 /// view tree) retains each `LocalProcessTerminalView`, so terminal state —
 /// scrollback, running process, cwd — survives card re-renders, Canvas/Spaces
-/// mode switches, and Spaces paging. Views mount the terminal via
-/// `TerminalHostView` and never talk to the process directly.
+/// mode switches, Spaces paging, workspace switches, and window close: sessions
+/// live for the app's lifetime and reattach when their card reappears. They end
+/// only on card close/delete, workspace delete, or app termination (⌘Q). Views
+/// mount the terminal via `TerminalHostView` and never talk to the process
+/// directly.
 @MainActor
 final class AgentSessionManager: NSObject, ObservableObject {
     final class Session {

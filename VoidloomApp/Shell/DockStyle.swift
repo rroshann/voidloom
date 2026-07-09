@@ -88,7 +88,9 @@ struct DockWorkspaceMenu: View {
             ForEach(store.library.workspaces) { ws in
                 Button {
                     guard ws.id != store.library.selectedWorkspaceID else { return }
-                    sessionManager.terminateAllSessions()
+                    // Sessions persist across workspace switches; the terminals
+                    // reattach when this workspace is reopened. Only ⌘Q (app
+                    // termination) or deleting the workspace shuts them down.
                     store.switchWorkspace(id: ws.id)
                 } label: {
                     if ws.id == store.library.selectedWorkspaceID {

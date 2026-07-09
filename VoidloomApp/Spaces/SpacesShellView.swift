@@ -754,7 +754,6 @@ struct SpacesShellView: View {
             commands.append(PaletteCommand(id: "switch-\(workspace.id)", title: "Switch to \(workspace.name)",
                                            section: .workspaces, systemImage: "rectangle.on.rectangle",
                                            keywords: ["open", "go"]) {
-                sessionManager.terminateAllSessions()
                 store.switchWorkspace(id: workspace.id)
             })
         }

@@ -527,6 +527,39 @@ final class WorkspaceModelTests: XCTestCase {
     }
 
     @MainActor
+    func testDeleteWorkspaceReturnsItsCardIDsForSessionCleanup() throws {
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let libraryURL = baseDirectory.appendingPathComponent("library.json")
+        let workspacesDirectory = baseDirectory.appendingPathComponent("workspaces", isDirectory: true)
+
+        let store = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: baseDirectory.appendingPathComponent("workspace.json")
+        )
+        let firstID = store.library.selectedWorkspaceID
+        let firstCardIDs = Set(store.state.cards.map(\.id))
+
+        store.createWorkspace(named: "Disposable")
+        let disposableID = store.library.selectedWorkspaceID
+        let disposableCardIDs = Set(store.state.cards.map(\.id))
+
+        // Active workspace: IDs come from the live state.
+        XCTAssertEqual(Set(store.deleteWorkspace(id: disposableID)), disposableCardIDs)
+
+        // Non-active workspace: IDs are read back from its file on disk.
+        store.createWorkspace(named: "Other")
+        XCTAssertNotEqual(store.library.selectedWorkspaceID, firstID)
+        XCTAssertEqual(Set(store.deleteWorkspace(id: firstID)), firstCardIDs)
+
+        // Unknown workspace: nothing to clean up.
+        XCTAssertEqual(store.deleteWorkspace(id: UUID()), [])
+    }
+
+    @MainActor
     func testDeleteWorkspaceCanRemoveTheLastOne() throws {
         let baseDirectory = FileManager.default.temporaryDirectory
             .appendingPathComponent(UUID().uuidString, isDirectory: true)
