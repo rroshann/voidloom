@@ -51,13 +51,18 @@ public final class CommandExecutor {
                     : lines.joined(separator: "\n"))
             }
         case .closeTerminal(let target):
-            return withAgent(named: target) { id, name in
+            // Resolves any card, not just agents, so titled notes ("buy milk")
+            // are closeable too. Only agents have a session to terminate.
+            return withCard(named: target) { card in
                 guard confirmed else {
-                    return .needsConfirmation(prompt: "Close \(name) and its session?", pending: command)
+                    let prompt = card.kind == .agent
+                        ? "Close \(card.title) and its session?"
+                        : "Close \(card.title)?"
+                    return .needsConfirmation(prompt: prompt, pending: command)
                 }
-                terminals.terminate(cardID: id)
-                store.deleteCard(id: id)
-                return .success(narration: "Closed \(name)")
+                if card.kind == .agent { terminals.terminate(cardID: card.id) }
+                store.deleteCard(id: card.id)
+                return .success(narration: "Closed \(card.title)")
             }
         case .arrange(let style):
             return arrange(style)

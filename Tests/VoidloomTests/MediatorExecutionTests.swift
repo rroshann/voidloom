@@ -262,6 +262,23 @@ final class CommandExecutorTests: XCTestCase {
         XCTAssertEqual(executor.execute(.arrange(style: .retile)), .success(narration: "Re-tiled the space"))
     }
 
+    func testCloseFallsBackToNonAgentCardsWithoutSessionWording() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let id = store.addTitledCard(kind: .note, title: "buy milk")
+        let executor = makeExecutor(store, terminals)
+
+        let first = executor.execute(.closeTerminal(target: "buy milk"))
+        XCTAssertEqual(first, .needsConfirmation(
+            prompt: "Close buy milk?",
+            pending: .closeTerminal(target: "buy milk")
+        ))
+
+        let second = executor.execute(.closeTerminal(target: "buy milk"), confirmed: true)
+        XCTAssertEqual(second, .success(narration: "Closed buy milk"))
+        XCTAssertTrue(terminals.terminated.isEmpty)
+        XCTAssertFalse(store.state.cards.contains { $0.id == id })
+    }
+
     func testCreateNoteTitlesCardFromContent() {
         let store = makeStore(); let terminals = MockAgentTerminals()
         let executor = makeExecutor(store, terminals)

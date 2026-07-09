@@ -27,6 +27,8 @@ final class FastPathBrainTests: XCTestCase {
         XCTAssertEqual(read, .readOutput(target: "ember"))
         let close = try await parse("close ember")
         XCTAssertEqual(close, .closeTerminal(target: "ember"))
+        let closeMultiWord = try await parse("close buy milk")
+        XCTAssertEqual(closeMultiWord, .closeTerminal(target: "buy milk"))
         let focus = try await parse("focus on slate")
         XCTAssertEqual(focus, .arrange(style: .focus(target: "slate")))
     }

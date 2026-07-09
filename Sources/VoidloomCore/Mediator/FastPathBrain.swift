@@ -75,7 +75,7 @@ public final class FastPathBrain: MediatorBrain {
             return .readOutput(target: strippedName(words[1]))
         case "close", "kill", "terminate":
             guard words.count >= 2 else { return nil }
-            return .closeTerminal(target: strippedName(words[1]))
+            return .closeTerminal(target: strippedName(words.dropFirst().joined(separator: " ")))
         case "focus":
             let rest = words.dropFirst().filter { $0 != "on" }
             guard let name = rest.first else { return nil }
