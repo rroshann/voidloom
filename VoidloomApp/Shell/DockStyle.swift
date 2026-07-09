@@ -126,6 +126,61 @@ struct DockWorkspaceMenu: View {
     }
 }
 
+/// Text segmented switcher for the space layout mode (GRID ⇄ BOARD). Spells out
+/// the current mode instead of a glyph, so which view is active is never
+/// ambiguous. Stateless apart from per-segment hover; the highlight animates via
+/// the dock's layout-mode keyed animation.
+struct DockLayoutModeSwitcher: View {
+    let mode: SpaceLayoutMode
+    let onSelect: (SpaceLayoutMode) -> Void
+
+    var body: some View {
+        HStack(spacing: 2) {
+            segment("GRID", .pagedGrid)
+            segment("BOARD", .freeArrange)
+        }
+        .padding(2)
+        .background(Capsule().fill(.white.opacity(0.08)))
+        .frame(height: DockMetrics.iconSide)
+    }
+
+    private func segment(_ title: String, _ target: SpaceLayoutMode) -> some View {
+        DockModeSegment(title: title, isActive: mode == target) {
+            if mode != target { onSelect(target) }
+        }
+    }
+}
+
+private struct DockModeSegment: View {
+    let title: String
+    let isActive: Bool
+    let action: () -> Void
+
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .tracking(0.6)
+                .foregroundStyle(.white.opacity(isActive ? 0.95 : 0.55))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(
+                    Capsule().fill(.white.opacity(isActive ? 0.18 : (hovering ? 0.1 : 0)))
+                )
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .pointerCursor()
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovering)
+        .help(isActive ? "\(title.capitalized) view (current)" : "Switch to \(title.capitalized) view")
+        .accessibilityLabel("\(title.capitalized) view")
+        .accessibilityAddTraits(isActive ? .isSelected : [])
+    }
+}
+
 /// A plain monochrome glyph button that lives directly on the dock glass (no
 /// glass of its own). A faint fill fades in on hover; active tools get a
 /// brighter/accent-tinted glyph and subtle fill.

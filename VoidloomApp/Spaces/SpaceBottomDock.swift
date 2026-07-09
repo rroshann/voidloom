@@ -37,6 +37,7 @@ struct SpaceBottomDock: View {
     @State private var showGitUnavailable = false
 
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @AppStorage("spaces.defaultColumns") private var defaultColumns = 0
     @AppStorage("spaces.defaultRows") private var defaultRows = 0
@@ -91,14 +92,9 @@ struct SpaceBottomDock: View {
                 barButton("arrow.triangle.branch", help: "Add git card") { addGitCard() }
             }
 
-            // Space layout: mode toggle, re-tile, layout, background.
+            // Space layout: mode switcher, re-tile, layout, background.
             HStack(spacing: DockMetrics.iconGap) {
-                barButton(
-                    layoutMode == .pagedGrid ? "rectangle.3.group" : "square.grid.2x2",
-                    help: layoutMode == .pagedGrid ? "Board" : "Grid"
-                ) {
-                    store.setSpaceLayoutMode(layoutMode == .pagedGrid ? .freeArrange : .pagedGrid)
-                }
+                DockLayoutModeSwitcher(mode: layoutMode) { store.setSpaceLayoutMode($0) }
                 barButton("rectangle.grid.2x2", help: "Re-tile", action: onReTile)
                 barButton("square.grid.3x3", help: "Layout") { showLayoutPopover = true }
                     .popover(isPresented: $showLayoutPopover, arrowEdge: .top) {
@@ -139,6 +135,7 @@ struct SpaceBottomDock: View {
                         }
                     }
                 }
+                .transition(.scale(scale: 0.6).combined(with: .opacity))
             }
 
             // Board zoom (Board mode only): out / percentage-resets / in.
@@ -156,6 +153,7 @@ struct SpaceBottomDock: View {
                     .help("Reset zoom to 100%")
                     barButton("plus.magnifyingglass", help: "Zoom in", action: onZoomIn)
                 }
+                .transition(.scale(scale: 0.6).combined(with: .opacity))
             }
 
             DockIconButton(
@@ -176,6 +174,11 @@ struct SpaceBottomDock: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
+        // One fast spring keyed to the mode drives the capsule's expand/contract
+        // and the tool clusters' scale+fade in a single pass — no per-cluster
+        // animation state to hold.
+        .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.85),
+                   value: layoutMode)
         .modifier(DockGlass(shape: Capsule()))
         .shadow(color: .black.opacity(0.25), radius: 14, x: 0, y: 6)
         .alert("Import failed", isPresented: $showImportError) {
