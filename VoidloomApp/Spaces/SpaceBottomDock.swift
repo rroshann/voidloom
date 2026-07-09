@@ -179,6 +179,9 @@ struct SpaceBottomDock: View {
         // animation state to hold.
         .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.85),
                    value: layoutMode)
+        // Exiting tool clusters fade out slower than the capsule shrinks; clip to
+        // the capsule so they never show outside the glass mid-contraction.
+        .clipShape(Capsule())
         .modifier(DockGlass(shape: Capsule()))
         .shadow(color: .black.opacity(0.25), radius: 14, x: 0, y: 6)
         .alert("Import failed", isPresented: $showImportError) {
