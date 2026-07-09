@@ -153,7 +153,7 @@ struct WorkspaceCardView: View {
                 }
                 .onAppear {
                     editingTitle = card.title
-                    isTitleFieldFocused = true
+                    DispatchQueue.main.async { isTitleFieldFocused = true }
                 }
         } else {
             Text(card.title)
@@ -243,7 +243,11 @@ struct WorkspaceCardView: View {
         editingTitle = card.title
         isEditingTitle = true
         editingCardTitleID = card.id
-        isTitleFieldFocused = true
+        // An AppKit view (e.g. a terminal card) may hold first responder and
+        // would keep swallowing keystrokes; release it, then focus the title
+        // field on the next runloop tick, after the TextField is mounted.
+        NSApp.keyWindow?.makeFirstResponder(nil)
+        DispatchQueue.main.async { isTitleFieldFocused = true }
     }
 
     private func commitTitle() {
