@@ -3,8 +3,15 @@ import FluidAudio
 import Foundation
 import VoidloomCore
 
-/// App-target Parakeet EOU streaming transcriber. Feeds `StreamingEouAsrManager` from
-/// `AudioCaptureService`; hypothesis updates become `.partial`, EOU / stop become `.final`.
+/// App-target Parakeet transcriber.
+///
+/// Push-to-talk is utterance-level: the whole recording is buffered while the
+/// key is held, then transcribed ONCE on release by the batch Parakeet Unified
+/// 0.6B model (full-attention offline encoder — far more accurate than the
+/// 120M realtime model, with punctuation and casing). Always-listening keeps
+/// the small streaming EOU model, whose realtime wake-word scanning is the
+/// point. Until the batch models finish their first download, push-to-talk
+/// falls back to the streaming path so voice is never dead.
 @MainActor
 final class ParakeetTranscriber: SpeechTranscribing {
     var onEvent: ((TranscriberEvent) -> Void)?
@@ -14,12 +21,17 @@ final class ParakeetTranscriber: SpeechTranscribing {
 
     private let capture = AudioCaptureService()
     private let manager = StreamingEouAsrManager(chunkSize: .ms160)
+    private let batchManager = UnifiedAsrManager()
     private var modelsReady = false
+    private var batchReady = false
     private var isPTTSession = false
+    private var pttUsesBatch = false
+    private var pttSamples: [Float] = []
     private var isContinuousSession = false
     private var isCommandArmed = false
     private var didEmitFinalForUtterance = false
     private var prepareTask: Task<Void, Never>?
+    private var batchPrepareTask: Task<Void, Never>?
     private var voiceMode: VoiceInputMode = .pushToTalk
     private var wakeMatcher = WakePhraseMatcher(phrase: "hey sunday")
     private var wakeScanBuffer = ""
@@ -38,6 +50,7 @@ final class ParakeetTranscriber: SpeechTranscribing {
 
     init() {
         prepareTask = Task { await prepareModels() }
+        batchPrepareTask = Task { await prepareBatchModels() }
         // Forward mic loudness to the HUD (fires only while capture runs). Hops to
         // the main actor since onEvent is main-isolated; ~12/sec, cheap.
         capture.onLevel = { [weak self] level in
@@ -47,6 +60,7 @@ final class ParakeetTranscriber: SpeechTranscribing {
 
     deinit {
         prepareTask?.cancel()
+        batchPrepareTask?.cancel()
         capture.stop()
     }
 
@@ -72,7 +86,7 @@ final class ParakeetTranscriber: SpeechTranscribing {
 
     func startUtterance() {
         guard voiceMode != .off else { return }
-        guard modelsReady else {
+        guard modelsReady || batchReady else {
             onEvent?(.unavailable(Self.modelUnavailableMessage))
             return
         }
@@ -110,8 +124,12 @@ final class ParakeetTranscriber: SpeechTranscribing {
         capture.onPCMBuffer = nil
         capture.stop()
 
-        Task {
-            await finalizeUtterance(trigger: .manualStop)
+        if pttUsesBatch {
+            let samples = pttSamples
+            pttSamples = []
+            Task { await transcribeBatchUtterance(samples: samples) }
+        } else {
+            Task { await finalizeUtterance(trigger: .manualStop) }
         }
     }
 
@@ -138,6 +156,34 @@ final class ParakeetTranscriber: SpeechTranscribing {
             }
         } catch {
             onEvent?(.unavailable(Self.modelUnavailableMessage))
+        }
+    }
+
+    /// Downloads/loads the batch Parakeet Unified 0.6B models (first run pulls
+    /// them from Hugging Face into Application Support). Independent of the
+    /// streaming prep: push-to-talk upgrades to batch whenever this lands.
+    private func prepareBatchModels() async {
+        do {
+            try await batchManager.loadModels()
+            batchReady = true
+        } catch {
+            // Batch stays unavailable; push-to-talk keeps the streaming fallback.
+            batchReady = false
+        }
+    }
+
+    /// Transcribes a fully buffered push-to-talk utterance in one pass and
+    /// ALWAYS emits `.final` — an empty transcript included, so the session
+    /// coordinator can settle (it cancels an empty capture) instead of waiting
+    /// on its watchdog.
+    private func transcribeBatchUtterance(samples: [Float]) async {
+        guard !didEmitFinalForUtterance else { return }
+        do {
+            let transcript = samples.isEmpty ? "" : try await batchManager.transcribe(samples)
+            didEmitFinalForUtterance = true
+            onEvent?(.final(transcript))
+        } catch {
+            onEvent?(.unavailable(Self.transcriptionFailedMessage))
         }
     }
 
@@ -191,6 +237,7 @@ final class ParakeetTranscriber: SpeechTranscribing {
 
     private func stopAllCapture() {
         isPTTSession = false
+        pttSamples = []
         isCommandArmed = false
         didEmitFinalForUtterance = false
         wakeScanBuffer = ""
@@ -204,12 +251,27 @@ final class ParakeetTranscriber: SpeechTranscribing {
 
     private func beginPTTSession() async {
         didEmitFinalForUtterance = false
-        await manager.reset()
+        pttUsesBatch = batchReady
+        pttSamples = []
 
-        capture.onPCMBuffer = { [weak self] buffer in
-            guard let self, let samples = Self.copySamples(from: buffer) else { return }
-            Task { @MainActor in
-                await self.feedAudio(samples: samples)
+        if pttUsesBatch {
+            // Batch path: buffer the whole utterance; transcription happens
+            // once, on release. Levels still flow via capture.onLevel.
+            capture.onPCMBuffer = { [weak self] buffer in
+                guard let self, let samples = Self.copySamples(from: buffer) else { return }
+                Task { @MainActor in
+                    guard self.isPTTSession else { return }
+                    self.pttSamples.append(contentsOf: samples)
+                }
+            }
+        } else {
+            // Streaming fallback while the batch models download.
+            await manager.reset()
+            capture.onPCMBuffer = { [weak self] buffer in
+                guard let self, let samples = Self.copySamples(from: buffer) else { return }
+                Task { @MainActor in
+                    await self.feedAudio(samples: samples)
+                }
             }
         }
 

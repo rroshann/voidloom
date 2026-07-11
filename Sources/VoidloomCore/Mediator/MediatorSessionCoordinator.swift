@@ -88,7 +88,7 @@ public final class MediatorSessionCoordinator: ObservableObject {
         executor: CommandExecutor,
         transcriber: SpeechTranscribing? = nil,
         timeoutScale: Double = 1,
-        finalizeGrace: TimeInterval = 1.2
+        finalizeGrace: TimeInterval = 3.0
     ) {
         self.brain = brain
         self.executor = executor
