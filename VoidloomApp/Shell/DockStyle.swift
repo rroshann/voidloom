@@ -16,13 +16,15 @@ enum DockMetrics {
 struct DockGlass<S: Shape>: ViewModifier {
     let shape: S
 
+    @Environment(\.theme) private var theme
+
     func body(content: Content) -> some View {
         if #available(macOS 26.0, *) {
             content.glassEffect(.clear, in: shape)
         } else {
             content
                 .background(shape.fill(.ultraThinMaterial).opacity(0.7))
-                .overlay(shape.stroke(.white.opacity(0.12), lineWidth: 1))
+                .overlay(shape.stroke(theme.ink(0.12), lineWidth: 1))
         }
     }
 }
@@ -40,9 +42,9 @@ struct DockIconGlyph: View {
     @State private var hovering = false
 
     private var glyphColor: Color {
-        if !isEnabled { return .white.opacity(0.32) }
+        if !isEnabled { return theme.ink(0.32) }
         if isActive { return activeColor ?? theme.accent }
-        return .white.opacity(0.95)
+        return theme.ink(0.95)
     }
 
     private var fillOpacity: Double {
@@ -57,7 +59,7 @@ struct DockIconGlyph: View {
             .foregroundStyle(glyphColor)
             .frame(width: side, height: side)
             .background(
-                Circle().fill(.white.opacity(fillOpacity))
+                Circle().fill(theme.surface(fillOpacity))
             )
             .contentShape(Circle())
             .onHover { hovering = $0 }
@@ -71,6 +73,7 @@ struct DockWorkspaceMenu: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var sessionManager: AgentSessionManager
     @EnvironmentObject private var session: AppSession
+    @Environment(\.theme) private var theme
 
     private var activeName: String {
         store.library.workspaces.first { $0.id == store.library.selectedWorkspaceID }?.name ?? "Space"
@@ -117,10 +120,10 @@ struct DockWorkspaceMenu: View {
                 Text(activeName.uppercased())
                     .font(.system(size: 12, weight: .bold, design: .monospaced))
                     .tracking(0.8)
-                    .foregroundStyle(.white.opacity(0.95))
+                    .foregroundStyle(theme.ink(0.95))
                 Image(systemName: "chevron.up")
                     .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(theme.ink(0.6))
             }
             .padding(.horizontal, 12).frame(height: DockMetrics.iconSide)
         }
@@ -136,13 +139,15 @@ struct DockLayoutModeSwitcher: View {
     let mode: SpaceLayoutMode
     let onSelect: (SpaceLayoutMode) -> Void
 
+    @Environment(\.theme) private var theme
+
     var body: some View {
         HStack(spacing: 2) {
             segment("GRID", .pagedGrid)
             segment("BOARD", .freeArrange)
         }
         .padding(2)
-        .background(Capsule().fill(.white.opacity(0.08)))
+        .background(Capsule().fill(theme.surface(0.08)))
         .frame(height: DockMetrics.iconSide)
     }
 
@@ -159,17 +164,18 @@ private struct DockModeSegment: View {
     let action: () -> Void
 
     @State private var hovering = false
+    @Environment(\.theme) private var theme
 
     var body: some View {
         Button(action: action) {
             Text(title)
                 .font(.system(size: 10, weight: .bold, design: .monospaced))
                 .tracking(0.6)
-                .foregroundStyle(.white.opacity(isActive ? 0.95 : 0.55))
+                .foregroundStyle(theme.ink(isActive ? 0.95 : 0.55))
                 .padding(.horizontal, 8)
                 .padding(.vertical, 5)
                 .background(
-                    Capsule().fill(.white.opacity(isActive ? 0.18 : (hovering ? 0.1 : 0)))
+                    Capsule().fill(theme.surface(isActive ? 0.18 : (hovering ? 0.1 : 0)))
                 )
                 .contentShape(Capsule())
         }

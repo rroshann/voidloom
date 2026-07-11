@@ -145,7 +145,7 @@ struct SpaceBottomDock: View {
                     Button(action: onResetZoom) {
                         Text("\(Int((boardZoomScale * 100).rounded()))%")
                             .font(.system(size: 11, weight: .bold, design: .monospaced))
-                            .foregroundStyle(.white.opacity(0.72))
+                            .foregroundStyle(theme.ink(0.72))
                             .frame(minWidth: 40)
                     }
                     .buttonStyle(.plain)

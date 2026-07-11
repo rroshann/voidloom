@@ -90,7 +90,7 @@ struct WorkspaceCardView: View {
                         .font(.system(size: 8.5, weight: .bold, design: theme.monospacedMetadata ? .monospaced : .default))
                         .textCase(.uppercase)
                         .tracking(0.9)
-                        .foregroundStyle(palette.accent.opacity(0.7))
+                        .foregroundStyle(palette.accent.opacity(theme.isDark ? 0.7 : 1))
                         .lineLimit(1)
                         .layoutPriority(-1)
                 }
