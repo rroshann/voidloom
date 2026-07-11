@@ -18,6 +18,10 @@ public struct WorkspaceCard: Codable, Equatable, Identifiable, Sendable {
     public var size: CardSize
     public var title: String
     public var content: String
+    /// For agent cards: which provider CLI this card runs (claude, codex, …),
+    /// so a fresh session after an app restart can relaunch it. Optional and
+    /// absent from legacy JSON — nil means a plain shell.
+    public var agentProvider: MediatorAgentKind?
 
     public init(
         id: UUID = UUID(),
@@ -25,7 +29,8 @@ public struct WorkspaceCard: Codable, Equatable, Identifiable, Sendable {
         position: CanvasPoint,
         size: CardSize,
         title: String,
-        content: String
+        content: String,
+        agentProvider: MediatorAgentKind? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -33,6 +38,7 @@ public struct WorkspaceCard: Codable, Equatable, Identifiable, Sendable {
         self.size = size
         self.title = title
         self.content = content
+        self.agentProvider = agentProvider
     }
 }
 

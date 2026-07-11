@@ -262,6 +262,13 @@ final class CommandExecutorTests: XCTestCase {
         XCTAssertEqual(executor.execute(.arrange(style: .retile)), .success(narration: "Re-tiled the space"))
     }
 
+    func testSpawnRecordsAgentProviderOnCard() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        _ = makeExecutor(store, terminals)
+            .execute(.spawnAgents(count: 1, kind: .claudeCode, names: ["ember"]))
+        XCTAssertEqual(store.state.cards.first { $0.title == "ember" }?.agentProvider, .claudeCode)
+    }
+
     func testCloseFallsBackToNonAgentCardsWithoutSessionWording() {
         let store = makeStore(); let terminals = MockAgentTerminals()
         let id = store.addTitledCard(kind: .note, title: "buy milk")

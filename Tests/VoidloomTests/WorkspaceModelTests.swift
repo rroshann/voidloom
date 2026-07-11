@@ -526,6 +526,25 @@ final class WorkspaceModelTests: XCTestCase {
         )
     }
 
+    func testWorkspaceCardDecodesLegacyJSONWithoutAgentProvider() throws {
+        let legacy = Data("""
+        {"id":"\(UUID().uuidString)","kind":"agent","position":{"x":0,"y":0},
+         "size":{"width":100,"height":100},"title":"ember","content":""}
+        """.utf8)
+        let card = try JSONDecoder().decode(WorkspaceCard.self, from: legacy)
+        XCTAssertNil(card.agentProvider)
+    }
+
+    func testWorkspaceCardRoundTripsAgentProvider() throws {
+        var card = WorkspaceCard(
+            kind: .agent, position: .zero,
+            size: CardSize(width: 100, height: 100), title: "ember", content: ""
+        )
+        card.agentProvider = .claudeCode
+        let decoded = try JSONDecoder().decode(WorkspaceCard.self, from: JSONEncoder().encode(card))
+        XCTAssertEqual(decoded.agentProvider, .claudeCode)
+    }
+
     @MainActor
     func testDeleteWorkspaceReturnsItsCardIDsForSessionCleanup() throws {
         let baseDirectory = FileManager.default.temporaryDirectory

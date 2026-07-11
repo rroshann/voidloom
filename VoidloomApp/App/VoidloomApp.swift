@@ -8,6 +8,10 @@ import VoidloomCore
 struct VoidloomApp: App {
     @StateObject private var store = WorkspaceStore()
     @StateObject private var agentSessionManager = AgentSessionManager()
+    /// App-scoped (not window-scoped) so closing the window and reopening it
+    /// drops back into the workspace that was open — pairing with the agent
+    /// sessions that survive the window. A cold launch still shows the launcher.
+    @StateObject private var appSession = AppSession()
     @StateObject private var modelAssets: ModelAssetManager
     @StateObject private var conversationStore: ConversationStore
     /// The launch-time chat backend, shared by the sidebar and the mediator's
@@ -45,7 +49,8 @@ struct VoidloomApp: App {
                 sessionManager: agentSessionManager,
                 conversationStore: conversationStore,
                 modelAssets: modelAssets,
-                chatProvider: chatProvider
+                chatProvider: chatProvider,
+                session: appSession
             )
         }
         .windowStyle(.hiddenTitleBar)
@@ -73,7 +78,9 @@ private struct RootThemeHost: View {
     let chatProvider: ResponseProvider
 
     /// Launch shows the startup screen; opening/creating a workspace flips this.
-    @StateObject private var session = AppSession()
+    /// Owned by the App (not this window-scoped view), so it survives window
+    /// close/reopen.
+    @ObservedObject var session: AppSession
 
     @Environment(\.colorScheme) private var systemColorScheme
 

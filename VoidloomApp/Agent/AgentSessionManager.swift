@@ -25,7 +25,7 @@ final class AgentSessionManager: NSObject, ObservableObject {
 
     @Published private(set) var sessions: [UUID: Session] = [:]
 
-    func startSession(cardID: UUID, workingDirectory: String? = nil) {
+    func startSession(cardID: UUID, workingDirectory: String? = nil, launchAs kind: MediatorAgentKind? = nil) {
         guard sessions[cardID] == nil else { return }
 
         let terminal = LocalProcessTerminalView(frame: NSRect(x: 0, y: 0, width: 640, height: 400))
@@ -55,6 +55,17 @@ final class AgentSessionManager: NSObject, ObservableObject {
         fm.changeCurrentDirectoryPath(previousDir)
 
         sessions[cardID] = Session(terminal: terminal)
+
+        // An AI agent card runs its provider CLI inside the shell — sent on
+        // every fresh session (first spawn, restart, and post-relaunch
+        // reattach), using the per-provider command from Settings or the
+        // provider default. The PTY buffers it until the login shell is ready.
+        if let kind, kind.isAI {
+            let configured = UserDefaults.standard.string(forKey: "agent.launch.\(kind.rawValue)")
+                ?? kind.defaultLaunchCommand ?? ""
+            let command = configured.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !command.isEmpty { terminal.send(txt: command + "\n") }
+        }
     }
 
     /// Kills the shell (SIGHUP, the "terminal window closed" signal) and drops
@@ -73,9 +84,9 @@ final class AgentSessionManager: NSObject, ObservableObject {
     }
 
     /// Tears down a dead (or stuck) session and spawns a fresh shell in place.
-    func restartSession(cardID: UUID, workingDirectory: String? = nil) {
+    func restartSession(cardID: UUID, workingDirectory: String? = nil, launchAs kind: MediatorAgentKind? = nil) {
         terminateSession(cardID: cardID)
-        startSession(cardID: cardID, workingDirectory: workingDirectory)
+        startSession(cardID: cardID, workingDirectory: workingDirectory, launchAs: kind)
     }
 
     func session(for cardID: UUID) -> Session? {
@@ -107,17 +118,7 @@ extension AgentSessionManager: LocalProcessTerminalViewDelegate {
 
 extension AgentSessionManager: AgentTerminalControlling {
     func spawn(cardID: UUID, kind: MediatorAgentKind, workingDirectory: String?) {
-        startSession(cardID: cardID, workingDirectory: workingDirectory)
-        // An AI agent runs its CLI inside the shell — the per-provider command
-        // from Settings (e.g. "claude --dangerously-skip-permissions"), or the
-        // provider default. The PTY buffers this until the login shell is ready.
-        guard kind.isAI else { return }
-        let key = "agent.launch.\(kind.rawValue)"
-        let configured = UserDefaults.standard.string(forKey: key) ?? kind.defaultLaunchCommand ?? ""
-        let command = configured.trimmingCharacters(in: .whitespacesAndNewlines)
-        if !command.isEmpty {
-            sessions[cardID]?.terminal.send(txt: command + "\n")
-        }
+        startSession(cardID: cardID, workingDirectory: workingDirectory, launchAs: kind)
     }
 
     func send(text: String, to cardID: UUID) {

@@ -279,6 +279,14 @@ public final class WorkspaceStore: ObservableObject {
         schedulePersistence()
     }
 
+    /// Records which provider CLI an agent card runs, so a fresh session after
+    /// an app restart can relaunch it. Persisted immediately (structural fact).
+    public func setAgentProvider(id: UUID, provider: MediatorAgentKind) {
+        guard let index = state.cards.firstIndex(where: { $0.id == id }) else { return }
+        state.cards[index].agentProvider = provider
+        persist()
+    }
+
     public func updateCardTitle(id: UUID, to title: String) {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }

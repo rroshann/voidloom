@@ -224,7 +224,8 @@ struct WorkspaceCardView: View {
                 cardID: card.id,
                 accent: palette.accent,
                 isSelected: isSelected,
-                workingDirectory: store.state.space?.folderPath
+                workingDirectory: store.state.space?.folderPath,
+                provider: card.agentProvider
             )
         case .browser:
             BrowserCardContentView(cardID: card.id, content: card.content, store: store, isSelected: isSelected)

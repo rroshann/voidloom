@@ -209,6 +209,7 @@ public final class CommandExecutor {
         let workingDirectory = store.state.space?.folderPath
         for name in finalNames {
             let id = store.addTitledCard(kind: .agent, title: name)
+            store.setAgentProvider(id: id, provider: kind)
             terminals.spawn(cardID: id, kind: kind, workingDirectory: workingDirectory)
             memory.record(cardID: id, action: .spawned)
         }
