@@ -333,7 +333,7 @@ struct WorkspaceCardView: View {
     }
 
     private var palette: CardPalette {
-        CardPalette(kind: card.kind)
+        CardPalette(kind: card.kind, isDark: theme.isDark)
     }
 }
 

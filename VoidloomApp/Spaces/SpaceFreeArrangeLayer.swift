@@ -10,6 +10,7 @@ import VoidloomCore
 struct SpaceFreeArrangeLayer: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var sessionManager: AgentSessionManager
+    @Environment(\.theme) private var theme
     let orderedIDs: [UUID]
     let cardsByID: [UUID: WorkspaceCard]
     /// The Board pan/zoom this layer renders through (identity until panned).
@@ -76,7 +77,7 @@ struct SpaceFreeArrangeLayer: View {
                                 cardSize: card.size,
                                 cardPosition: card.position,
                                 viewportScale: viewport.scale,
-                                accentColor: CardPalette(kind: card.kind).accent,
+                                accentColor: CardPalette(kind: card.kind, isDark: theme.isDark).accent,
                                 onResizeStart: { resizingCardID = id },
                                 onResize: { size, _ in
                                     store.resizeSpaceCardFreely(

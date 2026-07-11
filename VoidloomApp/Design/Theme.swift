@@ -35,7 +35,9 @@ struct Theme {
         }
         self.isDark = dark
         self.colorScheme = (mode == .system) ? nil : (mode == .light ? .light : .dark)
-        self.accent = Color(hex: accentHex)
+        // Accents are tuned for dark glass; in light mode they wash out, so
+        // pull them toward black while keeping the hue.
+        self.accent = dark ? Color(hex: accentHex) : Color(hex: accentHex).darkened(Self.lightAccentFactor)
         self.canvasBackground = canvasBackground
         self.showVignette = showVignette
         self.fontScale = CGFloat(textSize.fontScale)
@@ -89,6 +91,10 @@ struct Theme {
 
     /// Lifts faint (< 0.5) opacities in light mode for legible contrast on a
     /// light background; leaves the strong end alone.
+    /// How far accents are pulled toward black in light mode (shared with
+    /// `CardPalette` so the user accent and card accents darken consistently).
+    static let lightAccentFactor = 0.62
+
     private static func lightLegibility(_ opacity: Double) -> Double {
         opacity < 0.5 ? Swift.min(1, opacity * 1.7) : opacity
     }

@@ -7,6 +7,7 @@ struct SpacesShellView: View {
     @ObservedObject var sessionManager: AgentSessionManager
     @ObservedObject var conversationStore: ConversationStore
     @EnvironmentObject private var assistantContext: AssistantContextProvider
+    @Environment(\.theme) private var theme
 
     /// The armed-tool spine for Board mode. Stage 7 uses only its connect state;
     /// stage 8 extends it to text/brush/eraser.
@@ -248,7 +249,8 @@ struct SpacesShellView: View {
                         connections: store.state.connections,
                         cards: store.state.cards,
                         viewport: store.state.spaceViewport,
-                        selectedConnectionID: interaction.selectedConnectionID
+                        selectedConnectionID: interaction.selectedConnectionID,
+                        isDark: theme.isDark
                     )
                     .frame(width: geo.size.width, height: geo.size.height)
 
@@ -442,7 +444,7 @@ struct SpacesShellView: View {
                        CGRect(x: $0.origin.x, y: $0.origin.y, width: $0.size.x, height: $0.size.y)
                    }) {
                     let accent = store.state.cards.first { $0.id == source }
-                        .map { CardPalette(kind: $0.kind).accent } ?? Color.accentColor
+                        .map { CardPalette(kind: $0.kind, isDark: theme.isDark).accent } ?? Color.accentColor
                     RoundedRectangle(cornerRadius: 24, style: .continuous)
                         .stroke(accent, lineWidth: 2)
                         .frame(width: rect.width, height: rect.height)

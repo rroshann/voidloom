@@ -16,6 +16,8 @@ struct ConnectionsLayer: View, Equatable {
     let cards: [WorkspaceCard]
     let viewport: CanvasViewport
     var selectedConnectionID: UUID? = nil
+    /// Stored (not @Environment) so it participates in the Equatable skip-check.
+    var isDark: Bool = true
 
     var body: some View {
         Canvas { context, _ in
@@ -30,7 +32,7 @@ struct ConnectionsLayer: View, Equatable {
                 )
                 let start = screenPoint(endpoints.start)
                 let end = screenPoint(endpoints.end)
-                let accent = CardPalette(kind: fromCard.kind).accent
+                let accent = CardPalette(kind: fromCard.kind, isDark: isDark).accent
                 let isSelected = connection.id == selectedConnectionID
                 let lineWidth: CGFloat = (isSelected ? 4 : 2.5) * scale
                 let lineColor = accent.opacity(isSelected ? 1 : 0.85)
