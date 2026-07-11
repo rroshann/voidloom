@@ -71,9 +71,14 @@ public final class MediatorSessionCoordinator: ObservableObject {
     private let executor: CommandExecutor
     private let transcriber: SpeechTranscribing?
     private let timeoutScale: Double
+    /// How long a released push-to-talk waits for the engine's `.final` before
+    /// promoting the last partial itself (engines stopped early or mid-speech
+    /// may never emit one). Injectable so tests don't sleep for real.
+    private let finalizeGrace: TimeInterval
     private var timeoutTask: Task<Void, Never>?
     private var parseTask: Task<Void, Never>?
     private var delegateTask: Task<Void, Never>?
+    private var finalizeTask: Task<Void, Never>?
     /// Published so the HUD can show a "next up" chip — a command typed while busy
     /// is queued (depth-1, newest wins) instead of silently vanishing.
     @Published public private(set) var queuedUtterance: String?
@@ -82,12 +87,14 @@ public final class MediatorSessionCoordinator: ObservableObject {
         brain: MediatorBrain,
         executor: CommandExecutor,
         transcriber: SpeechTranscribing? = nil,
-        timeoutScale: Double = 1
+        timeoutScale: Double = 1,
+        finalizeGrace: TimeInterval = 1.2
     ) {
         self.brain = brain
         self.executor = executor
         self.transcriber = transcriber
         self.timeoutScale = timeoutScale
+        self.finalizeGrace = finalizeGrace
         transcriber?.onEvent = { [weak self] event in
             self?.handleTranscriberEvent(event)
         }
@@ -106,8 +113,32 @@ public final class MediatorSessionCoordinator: ObservableObject {
     }
 
     public func pushToTalkPressed() { send(.pushToTalkPressed) }
-    /// Ends the current utterance capture; the transcriber emits `.final` when ready.
-    public func pushToTalkReleased() { transcriber?.stopUtterance() }
+
+    /// Whether the mic is currently capturing — lets the HUD's mic button act
+    /// as a toggle (tap to talk, tap again to finish).
+    public var isCapturing: Bool {
+        if case .capturing = state { return true }
+        return false
+    }
+
+    /// Ends the current utterance capture. The transcriber normally emits
+    /// `.final` when ready; if it doesn't (stopped before or mid-speech), the
+    /// finalize watchdog promotes the last partial — or cancels an empty
+    /// capture — so a release ALWAYS resolves instead of wedging in .capturing.
+    public func pushToTalkReleased() {
+        guard case .capturing = state else { return }
+        transcriber?.stopUtterance()
+        finalizeTask?.cancel()
+        finalizeTask = Task { [weak self] in
+            let grace = self?.finalizeGrace ?? 1.2
+            try? await Task.sleep(nanoseconds: UInt64(grace * 1_000_000_000))
+            guard !Task.isCancelled, let self else { return }
+            guard case .capturing(let text) = self.state else { return }
+            // Reuses the engine-final path: trimming, confirmation vocabulary,
+            // lastInputWasVoice, and the empty-capture cancel all apply.
+            self.handleTranscriberEvent(.final(text))
+        }
+    }
     public func wakeDetected() { send(.wakeDetected) }
     public func setMicPermissionDenied(_ denied: Bool) { isMicPermissionDenied = denied }
     public func confirm(_ accepted: Bool) { send(.confirmReceived(accepted)) }
@@ -117,6 +148,11 @@ public final class MediatorSessionCoordinator: ObservableObject {
         classifyNarration(for: event)
         let effects = machine.handle(event)
         state = machine.state
+        // Leaving .capturing settles the release; the finalize watchdog must
+        // not fire into a later state.
+        if case .capturing = state {} else {
+            finalizeTask?.cancel(); finalizeTask = nil
+        }
         // Any return to idle tears down in-flight async work (carry-over #1):
         // a hung LlamaBrain call and the parse watchdog must not outlive the state.
         if state == .idle {
@@ -212,7 +248,12 @@ public final class MediatorSessionCoordinator: ObservableObject {
         case .final(let text):
             inputLevel = 0
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty else { return }
+            guard !trimmed.isEmpty else {
+                // An empty final (released before speaking) must free the
+                // machine — dropping it silently wedged capture with a hot mic.
+                if case .capturing = state { send(.cancelRequested) }
+                return
+            }
             if handleConfirmationUtterance(trimmed) { return }
             lastInputWasVoice = true
             send(.transcriptFinal(trimmed))

@@ -14,6 +14,8 @@ struct MediatorHUDView: View {
     var isSpeaking: Bool = false
     @State private var input = ""
     @State private var isMicHeld = false
+    @State private var micPressBeganWhileCapturing = false
+    @State private var micPressStarted = Date.distantPast
     @FocusState private var inputFocused: Bool
     @State private var refocusTask: Task<Void, Never>?
     @State private var hintIndex = 0
@@ -192,11 +194,14 @@ struct MediatorHUDView: View {
                 }
                 if isListening {
                     // Voice: show what Sunday is hearing, live, in place of the field.
-                    Text(listeningTranscript?.isEmpty == false ? listeningTranscript! : "Listening…")
+                    // No word-by-word streaming: partials are engine-internal
+                    // (kept as the finalize fallback) — the pill just shows it's
+                    // listening, and the utterance appears once, finalized.
+                    Text("Listening…")
                         .foregroundStyle(listeningTranscript?.isEmpty == false ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
                         .lineLimit(1)
                         .frame(maxWidth: .infinity, alignment: .leading)
-                        .accessibilityLabel(listeningTranscript?.isEmpty == false ? "Heard: \(listeningTranscript!)" : "Listening")
+                        .accessibilityLabel("Listening")
                 } else {
                     TextField(placeholder, text: $input)
                         .textFieldStyle(.plain)
@@ -336,20 +341,31 @@ struct MediatorHUDView: View {
         if mediator.isMicPermissionDenied {
             return "Microphone access denied — voice is off; typing still works."
         }
-        return "Hold to talk, or hold ⌥Space while Voidloom is active."
+        return "Tap to talk, tap again to finish — or hold ⌥Space while Voidloom is active."
     }
 
+    /// The mic works both ways: tap once to start listening and tap again to
+    /// finish (a quick first tap must NOT stop the capture it just started),
+    /// while a press held longer than a tap finishes on release — so hold-to-talk
+    /// keeps working for people who expect it.
     private var micHoldGesture: some Gesture {
         DragGesture(minimumDistance: 0)
             .onChanged { _ in
                 guard !mediator.isMicPermissionDenied, !isMicHeld else { return }
                 isMicHeld = true
-                mediator.pushToTalkPressed()
+                micPressBeganWhileCapturing = mediator.isCapturing
+                micPressStarted = Date()
+                if !mediator.isCapturing {
+                    mediator.pushToTalkPressed()
+                }
             }
             .onEnded { _ in
                 guard isMicHeld else { return }
                 isMicHeld = false
-                mediator.pushToTalkReleased()
+                let heldLongEnough = Date().timeIntervalSince(micPressStarted) > 0.4
+                if micPressBeganWhileCapturing || heldLongEnough {
+                    mediator.pushToTalkReleased()
+                }
             }
     }
 
