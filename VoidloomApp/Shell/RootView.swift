@@ -24,7 +24,8 @@ struct RootView: View {
     // you pick "Always".
     @AppStorage("voice.speechMode") private var speechMode: AssistantSpeechMode = .whenSpokenTo
     @AppStorage("voice.showTextReplies") private var showTextReplies = true
-    @StateObject private var speaker = AssistantSpeaker()
+    /// App-owned so the Settings scene shares it for voice previews.
+    @ObservedObject var speaker: AssistantSpeaker
 
     private let voiceRouter: VoiceTranscriberRouter?
 
@@ -32,11 +33,13 @@ struct RootView: View {
          sessionManager: AgentSessionManager,
          conversationStore: ConversationStore,
          modelAssets: ModelAssetManager,
-         chatProvider: ResponseProvider) {
+         chatProvider: ResponseProvider,
+         speaker: AssistantSpeaker) {
         self.store = store
         self.sessionManager = sessionManager
         self.conversationStore = conversationStore
         self.modelAssets = modelAssets
+        self.speaker = speaker
 
         let router: VoiceTranscriberRouter?
         if Self.hasMicrophone {

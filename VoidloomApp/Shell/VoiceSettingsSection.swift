@@ -10,6 +10,8 @@ struct VoiceSettingsSection: View {
     @AppStorage("voice.useSpeechAnalyzer") private var useSpeechAnalyzer = false
     @AppStorage("voice.speechMode") private var speechMode: AssistantSpeechMode = .whenSpokenTo
     @AppStorage("voice.showTextReplies") private var showTextReplies = true
+    @AppStorage(AssistantVoice.defaultsKey) private var assistantVoice: AssistantVoice = .female
+    @EnvironmentObject private var speaker: AssistantSpeaker
 
     private var speechModeExplanation: String {
         switch speechMode {
@@ -55,38 +57,52 @@ struct VoiceSettingsSection: View {
                 .foregroundStyle(.tertiary)
 
             if speechMode != .off {
+                LabeledContent("\(AssistantIdentity.name)'s voice") {
+                    VStack(alignment: .leading, spacing: 6) {
+                        ForEach(AssistantVoice.allCases) { voice in
+                            HStack(spacing: 10) {
+                                Button {
+                                    assistantVoice = voice
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: assistantVoice == voice
+                                              ? "largecircle.fill.circle" : "circle")
+                                            .foregroundStyle(assistantVoice == voice
+                                                             ? Color.accentColor : .secondary)
+                                        Text("\(voice.displayName) (American)")
+                                    }
+                                }
+                                .buttonStyle(.plain)
+                                .accessibilityAddTraits(assistantVoice == voice ? .isSelected : [])
+
+                                Button {
+                                    speaker.togglePreview(voice)
+                                } label: {
+                                    Image(systemName: speaker.previewingVoice == voice
+                                          ? "stop.fill" : "play.fill")
+                                        .font(.system(size: 10, weight: .bold))
+                                        .frame(width: 22, height: 22)
+                                        .background(Circle().fill(.quaternary))
+                                }
+                                .buttonStyle(.plain)
+                                .help(speaker.previewingVoice == voice
+                                      ? "Stop preview" : "Preview this voice")
+                                .accessibilityLabel(speaker.previewingVoice == voice
+                                                    ? "Stop preview" : "Preview \(voice.displayName) voice")
+                            }
+                        }
+                    }
+                }
+                Text("Natural American neural voices, generated fully on this Mac. The voice downloads on first use; until then the best installed system voice fills in.")
+                    .font(.caption2)
+                    .foregroundStyle(.tertiary)
+
                 Toggle("Show reply text while speaking", isOn: $showTextReplies)
                 Text(showTextReplies
                      ? "When you speak to \(AssistantIdentity.name), the reply appears as text and is read aloud."
                      : "Pure voice: when you speak to \(AssistantIdentity.name), it replies by voice only — no text bubble.")
                     .font(.caption2)
                     .foregroundStyle(.tertiary)
-                if AssistantSpeaker.hasEnhancedEnglishVoice {
-                    Text("Voices are on-device and free — \(AssistantIdentity.name) automatically uses the most natural English voice installed.")
-                        .font(.caption2)
-                        .foregroundStyle(.tertiary)
-                } else {
-                    // No Enhanced/Premium English voice installed → narration is stuck on
-                    // the robotic default tier. Tell the user why, with one click to fix it.
-                    VStack(alignment: .leading, spacing: 6) {
-                        Label("Make \(AssistantIdentity.name) sound natural", systemImage: "waveform.circle")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.orange)
-                        Text("Only default-quality English voices are installed, so \(AssistantIdentity.name) sounds synthetic. Install an Enhanced or Premium English voice (e.g. “Samantha (Enhanced)”) and \(AssistantIdentity.name) uses it automatically — no restart needed.")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                        Button("Open Spoken Content Settings…") {
-                            if let url = URL(string: "x-apple.systempreferences:com.apple.Accessibility-Settings.extension") {
-                                NSWorkspace.shared.open(url)
-                            }
-                        }
-                        .font(.caption2)
-                        .buttonStyle(.link)
-                    }
-                    .padding(8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(RoundedRectangle(cornerRadius: 8).fill(.orange.opacity(0.08)))
-                }
             }
 
             if voiceMode == .alwaysListening {
