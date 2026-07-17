@@ -15,6 +15,10 @@ final class ConversationStore: ObservableObject {
     @Published private(set) var threads: [UUID: [ChatMessage]] = [:]
     private let provider: ResponseProvider
 
+    /// Fresh workspace snapshot for retries — injected by RootView so a retry
+    /// is grounded in the live canvas, not the (possibly stale) original turn.
+    var contextProvider: (@MainActor () -> String?)?
+
     /// Keeps memory/disk bounded — the newest N messages per workspace are kept.
     private static let maxMessagesPerWorkspace = 300
 
@@ -76,8 +80,8 @@ final class ConversationStore: ObservableObject {
         let thread = threads[workspaceID] ?? []
         guard let userText = ConversationReducer.userText(before: messageID, in: thread) else { return }
         threads[workspaceID] = ConversationReducer.resettingToPending(thread, messageID: messageID)
-        // NOTE: retry passes nil context (v1 — context is not re-derived on retry)
-        request(workspaceID: workspaceID, userMessage: userText, assistantID: messageID, context: nil)
+        request(workspaceID: workspaceID, userMessage: userText, assistantID: messageID,
+                context: contextProvider?())
     }
 
     private func request(workspaceID: UUID, userMessage: String, assistantID: UUID, context: String? = nil) {

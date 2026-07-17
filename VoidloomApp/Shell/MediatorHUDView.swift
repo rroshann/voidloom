@@ -462,6 +462,8 @@ struct MediatorHUDView: View {
                 .textSelection(.enabled)
                 .lineLimit(8)
                 .fixedSize(horizontal: false, vertical: true)
+                .contentTransition(.opacity)
+                .animation(reduceMotion ? nil : .easeInOut(duration: 0.25), value: mediator.narration)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 10)

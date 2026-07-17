@@ -94,6 +94,36 @@ struct RootView: View {
             conversationStore.record(workspaceID: workspaceID, userText: utterance, assistantText: reply)
             return reply
         }
+        // Soften factual command narrations into Sunday's voice. Phrasing uses a
+        // reserved workspace key so FoundationModels' per-workspace session (and
+        // LocalResponseProvider cancellation) stay isolated from real chat history
+        // — and ConversationStore.record is never called for these turns.
+        coordinator.phraser = { [weak context] fact in
+            guard let context else { return nil }
+            let grounded = context.snapshot()
+            let phrasingID = Self.phrasingWorkspaceID(for: store.library.selectedWorkspaceID)
+            let provider = chatProvider
+            // Race the chat backend against an 8s ceiling; any error/timeout → nil.
+            return await withTaskGroup(of: PhraseRace.self) { group in
+                group.addTask {
+                    let phrase = await Self.runPhrase(
+                        fact: fact, grounded: grounded,
+                        phrasingID: phrasingID, provider: provider)
+                    return .phrase(phrase)
+                }
+                group.addTask {
+                    try? await Task.sleep(nanoseconds: 8_000_000_000)
+                    return .timeout
+                }
+                let first = await group.next() ?? .timeout
+                group.cancelAll()
+                switch first {
+                case .phrase(let text): return text
+                case .timeout: return nil
+                }
+            }
+        }
+        conversationStore.contextProvider = { [weak context] in context?.snapshot() }
         // Delegation: repo-technical questions run through the user's agent CLI
         // (Claude/Codex per the setting) in the project folder; the answer relays
         // into the HUD. The CLI does the work — Sunday's own brain stays local.
@@ -103,6 +133,40 @@ struct RootView: View {
         }
         _mediator = StateObject(wrappedValue: coordinator)
         _contextProvider = StateObject(wrappedValue: context)
+    }
+
+    /// Discriminator so a timeout `nil` is distinct from a completed phrase
+    /// (including an error that yielded `nil`) inside the race TaskGroup.
+    private enum PhraseRace: Sendable {
+        case phrase(String?)
+        case timeout
+    }
+
+    /// Deterministic per-workspace key for phrasing-only LLM calls. Keeps
+    /// FoundationModels `LanguageModelSession` history (and LocalResponseProvider
+    /// generation cancellation) off the real chat session.
+    private static func phrasingWorkspaceID(for workspaceID: UUID) -> UUID {
+        var bytes = workspaceID.uuid
+        bytes.8 ^= 0xFF
+        bytes.9 ^= 0xFE
+        bytes.10 ^= 0xFD
+        bytes.11 ^= 0xFC
+        return UUID(uuid: bytes)
+    }
+
+    @MainActor
+    private static func runPhrase(
+        fact: String,
+        grounded: String,
+        phrasingID: UUID,
+        provider: ResponseProvider
+    ) async -> String? {
+        let raw = try? await streamChat(
+            provider, workspaceID: phrasingID,
+            message: ResponsePhraser.userPrompt(fact: fact, context: grounded),
+            context: ResponsePhraser.systemPrompt(),
+            onChunk: { _ in })
+        return raw.map { ResponsePhraser.sanitize($0, fallback: fact) }
     }
 
     /// Bridges the callback-based `ResponseProvider` to async + live chunks:
@@ -185,14 +249,15 @@ struct RootView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             Task { await contextProvider.refreshGit() }
         }
-        // Sunday speaks (opt-in): read the FINAL narration once the pipeline
-        // settles, never mid-stream. Barge-in stops speech the moment the mic
-        // opens, so Sunday never talks over the user.
-        .onChange(of: mediator.narration) { _, newValue in
-            guard speechMode.shouldSpeak(inputWasVoice: mediator.lastInputWasVoice),
+        // Sunday speaks (opt-in): the settled reply publishes once per turn
+        // (after any phrasing), so voice never doubles on fact→phrase. Barge-in
+        // stops speech the moment the mic opens.
+        .onChange(of: mediator.spokenReply) { _, newValue in
+            guard let reply = newValue,
+                  speechMode.shouldSpeak(inputWasVoice: mediator.lastInputWasVoice),
                   mediator.state == .idle, !mediator.isStreamingReply,
-                  !newValue.isEmpty else { return }
-            speaker.speak(newValue)
+                  !reply.text.isEmpty else { return }
+            speaker.speak(reply.text)
         }
         .onChange(of: mediator.state) { _, newState in
             if case .capturing = newState { speaker.stop() }

@@ -88,6 +88,7 @@
 		C30000000000000000000003 /* FoundationModels.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C30000000000000000000010 /* FoundationModels.framework */; settings = {ATTRIBUTES = (Weak, ); }; };
 		C30000000000000000000004 /* FoundationModelsParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000013 /* FoundationModelsParityTests.swift */; };
 		C30000000000000000000021 /* DelegationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000031 /* DelegationServiceTests.swift */; };
+		C30000000000000000000022 /* ConversationStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000032 /* ConversationStoreTests.swift */; };
 		C30000000000000000000005 /* FoundationModels.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C30000000000000000000010 /* FoundationModels.framework */; settings = {ATTRIBUTES = (Weak, ); }; };
 		C30000000000000000000006 /* AppleTierAvailability.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000014 /* AppleTierAvailability.swift */; };
 		C30000000000000000000007 /* FoundationModelsResponseProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000015 /* FoundationModelsResponseProvider.swift */; };
@@ -184,6 +185,7 @@
 		C30000000000000000000012 /* MediatorToolMirrors.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/Apple/MediatorToolMirrors.swift; sourceTree = "<group>"; };
 		C30000000000000000000013 /* FoundationModelsParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FoundationModelsParityTests.swift; sourceTree = "<group>"; };
 		C30000000000000000000031 /* DelegationServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DelegationServiceTests.swift; sourceTree = "<group>"; };
+		C30000000000000000000032 /* ConversationStoreTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConversationStoreTests.swift; sourceTree = "<group>"; };
 		C30000000000000000000014 /* AppleTierAvailability.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/Apple/AppleTierAvailability.swift; sourceTree = "<group>"; };
 		C30000000000000000000015 /* FoundationModelsResponseProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/Apple/FoundationModelsResponseProvider.swift; sourceTree = "<group>"; };
 		C30000000000000000000016 /* SpeechAnalyzerTranscriber.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/Apple/SpeechAnalyzerTranscriber.swift; sourceTree = "<group>"; };
@@ -367,6 +369,7 @@
 				B20000000000000000000004 /* LlamaBrainIntegrationTests.swift */,
 				C30000000000000000000013 /* FoundationModelsParityTests.swift */,
 				C30000000000000000000031 /* DelegationServiceTests.swift */,
+				C30000000000000000000032 /* ConversationStoreTests.swift */,
 				C30000000000000000000019 /* AppleTierBenchmarkTests.swift */,
 			);
 			path = VoidloomAppTests;
@@ -570,6 +573,7 @@
 				B20000000000000000000003 /* LlamaBrainIntegrationTests.swift in Sources */,
 				C30000000000000000000004 /* FoundationModelsParityTests.swift in Sources */,
 				C30000000000000000000021 /* DelegationServiceTests.swift in Sources */,
+				C30000000000000000000022 /* ConversationStoreTests.swift in Sources */,
 				C3000000000000000000000B /* AppleTierBenchmarkTests.swift in Sources */,
 				B20000000000000000000005 /* CllamaEngine.swift in Sources */,
 			);
