@@ -10,7 +10,7 @@ Act as a **senior macOS/Swift engineering lead**. Optimize for correctness and l
 
 Claude (Fable 5) runs inside **herdr** and **must not write code itself** — it is too expensive. All implementation is delegated to CLI coding agents spawned in herdr side panes (`herdr pane split --no-focus` → `herdr pane run`):
 
-- **Backend / core logic** → `cursor-agent --yolo` running Composer 2.5 (non-fast)
+- **Backend / core logic** → `cursor-agent --yolo --model cursor-grok-4.5-medium` running Grok 4.5 (medium effort, non-fast)
 - **Frontend / UI design** → `agy --dangerously-skip-permissions` running Gemini 3.5 Flash (high effort)
 
 Per-task loop:
