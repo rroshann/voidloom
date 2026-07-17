@@ -38,8 +38,10 @@ struct VoidloomApp: App {
         } else {
             provider = StubResponseProvider()
         }
-        chatProvider = provider
-        _conversationStore = StateObject(wrappedValue: ConversationStore(provider: provider))
+        // Validate every chat reply against live card titles (sidebar + pill).
+        let validating = ValidatingResponseProvider(underlying: provider)
+        chatProvider = validating
+        _conversationStore = StateObject(wrappedValue: ConversationStore(provider: validating))
     }
 
     var body: some Scene {

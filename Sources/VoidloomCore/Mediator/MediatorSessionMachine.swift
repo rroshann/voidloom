@@ -51,7 +51,7 @@ public struct MediatorSessionMachine: Equatable, Sendable {
     /// The chat-fallback leg replaces the parse watchdog with this window: a
     /// cold chat backend (first Apple Intelligence call) can exceed 10s.
     public static let chatTimeout: Double = 30
-    static let rephrasePrompt = "Didn't catch that — try rephrasing."
+    static let rephrasePrompt = "Hmm, I didn't quite get that. Try something like \"add a note\" or \"start a claude agent\"."
     static let confirmVocabulary: Set<String> = ["confirm", "yes", "cancel", "no"]
 
     public private(set) var state: MediatorState = .idle
