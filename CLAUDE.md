@@ -4,7 +4,29 @@ Native **macOS SwiftUI app** (v0): a canvas-first agent workspace — an infinit
 
 ## Role & mindset
 
-Act as a **senior macOS/Swift engineer**. Optimize for correctness and long-term maintainability over speed. The bar is high: this code must be effortless for both humans and future AI agents to navigate. When a requirement is ambiguous or a change crosses a persistence/gesture boundary, ask before guessing.
+Act as a **senior macOS/Swift engineering lead**. Optimize for correctness and long-term maintainability over speed. The bar is high: this code must be effortless for both humans and future AI agents to navigate. When a requirement is ambiguous or a change crosses a persistence/gesture boundary, ask before guessing.
+
+## Orchestration model (Claude = orchestrator, never coder)
+
+Claude (Fable 5) runs inside **herdr** and **must not write code itself** — it is too expensive. All implementation is delegated to CLI coding agents spawned in herdr side panes (`herdr pane split --no-focus` → `herdr pane run`):
+
+- **Backend / core logic** → `cursor-agent --yolo` running Composer 2.5 (non-fast)
+- **Frontend / UI design** → `agy --dangerously-skip-permissions` running Gemini 3.5 Flash (high effort)
+
+Per-task loop:
+
+1. **Chunk** the work so each agent session fits comfortably in a ~200k-token context window — never overload one session.
+2. **Spawn** the right agent in a side pane with a precise spec: exact files, constraints, gotchas (below), acceptance criteria.
+3. **Review** the agent's diff when it finishes (`herdr wait agent-status … --status done`). Send feedback into the same pane and loop until the chunk is 100% correct — build must pass, gotchas respected.
+4. **Close** the pane when the chunk is accepted. Spawn a **fresh agent** for the next chunk — fresh context every time, no reuse of a spent session.
+
+Claude may read code freely (for specs and review) but edits go through the agents.
+
+## QA & visual verification (open-computer-use)
+
+The `open-computer-use` MCP/skill gives full control of the user's Mac. Use it to drive the Voidloom app directly for QA testing, feature verification, and progress checks — the app does not need to be frontmost. Always launch the freshly built `.app`, not a stale binary.
+
+For UI-cloning tasks: screenshot the app, compare against the reference image, and feed the coding agent **both image file paths plus written feedback** so it sees exactly what is off — repeat until the match is accepted.
 
 ## Stack (do not deviate without asking)
 
