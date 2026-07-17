@@ -26,7 +26,7 @@ final class MediatorCoordinatorTests: XCTestCase {
 
     private func waitForIdle(_ c: MediatorSessionCoordinator) async {
         for _ in 0..<2000 {
-            if c.state == .idle, !c.narration.isEmpty { return }
+            if c.state == .idle { return }
             await Task.yield()
         }
     }
@@ -147,7 +147,7 @@ extension MediatorCoordinatorTests {
             return "Hey — ready when you are."
         }
         c.submitTyped("hi")
-        for _ in 0..<4000 where c.narration.isEmpty { await Task.yield() }
+        await waitForIdle(c)
         XCTAssertEqual(c.narration, "Hey — ready when you are.")
         XCTAssertEqual(c.state, .idle)
     }
@@ -177,7 +177,7 @@ extension MediatorCoordinatorTests {
             executor: CommandExecutor(store: makeStore(), terminals: MockAgentTerminals(), namePool: AgentNamePool()))
         // No delegateHandler set → falls through to the executor's safety refusal.
         c.submitTyped("research something")
-        for _ in 0..<4000 where c.narration.isEmpty { await Task.yield() }
+        await waitForIdle(c)
         XCTAssertEqual(c.narration, "Delegation isn't available right now.")
         XCTAssertEqual(c.state, .idle)
     }
@@ -212,7 +212,7 @@ extension MediatorCoordinatorTests {
             return "Hey!"
         }
         c.submitTyped("hi")
-        for _ in 0..<8000 where c.narration.isEmpty { await Task.yield(); try? await Task.sleep(nanoseconds: 100_000) }
+        for _ in 0..<8000 where c.state != .idle { await Task.yield(); try? await Task.sleep(nanoseconds: 100_000) }
         XCTAssertEqual(c.narration, "Hey!")
         XCTAssertEqual(c.state, .idle)
     }
@@ -224,7 +224,7 @@ extension MediatorCoordinatorTests {
             executor: CommandExecutor(store: makeStore(), terminals: MockAgentTerminals(), namePool: AgentNamePool()))
         c.chatFallback = { _, _ in throw BrainError.backendFailure("chat down") }
         c.submitTyped("hi")
-        for _ in 0..<4000 where c.narration.isEmpty { await Task.yield() }
+        await waitForIdle(c)
         XCTAssertEqual(c.narration, MediatorSessionMachine.rephrasePrompt)
         XCTAssertEqual(c.state, .idle)
     }
@@ -236,7 +236,7 @@ extension MediatorCoordinatorTests {
             executor: CommandExecutor(store: makeStore(), terminals: MockAgentTerminals(), namePool: AgentNamePool()))
         c.chatFallback = { _, _ in XCTFail("chat must not swallow model-availability errors"); return "" }
         c.submitTyped("start 2 claude agents")
-        for _ in 0..<4000 where c.narration.isEmpty { await Task.yield() }
+        await waitForIdle(c)
         XCTAssertEqual(c.narration, "Local model not downloaded — open Settings › Local AI.")
     }
 
@@ -246,7 +246,7 @@ extension MediatorCoordinatorTests {
             brain: brain,
             executor: CommandExecutor(store: makeStore(), terminals: MockAgentTerminals(), namePool: AgentNamePool()))
         c.submitTyped("start 2 claude agents")
-        for _ in 0..<4000 where c.narration.isEmpty { await Task.yield() }
+        await waitForIdle(c)
         XCTAssertEqual(c.narration, "Local model not downloaded — open Settings › Local AI.")
         XCTAssertEqual(c.state, .idle)
     }
@@ -284,5 +284,158 @@ extension MediatorCoordinatorTests {
         // First utterance spawns 1; the single queued "3 shell agents" runs next → 1 + ... = fast-path? No:
         // ControllableBrain always returns the same command, so the queued utterance re-runs it → +1 = 2 total.
         XCTAssertEqual(store.state.cards.filter { $0.kind == .agent }.count, 2)
+    }
+}
+
+// MARK: - Task 2: spokenReply + phrasing pipeline
+
+private final class ControllablePhraser: @unchecked Sendable {
+    enum Mode { case hang, returnValue(String?), hangFirstOnly }
+    var mode: Mode = .hang
+    let started = AsyncStream<String>.makeStream()
+    private let lock = NSLock()
+    private var release: CheckedContinuation<String?, Never>?
+    private var released = false
+    private var latchedResult: String??
+    @MainActor private var callCount = 0
+
+    func releaseNow(_ value: String?) {
+        lock.lock()
+        released = true
+        latchedResult = value
+        let pending = release
+        release = nil
+        lock.unlock()
+        pending?.resume(returning: value)
+    }
+
+    @MainActor
+    func phrase(_ fact: String) async -> String? {
+        callCount += 1
+        let call = callCount
+        started.continuation.yield(fact)
+        switch mode {
+        case .returnValue(let v):
+            return v
+        case .hangFirstOnly where call > 1:
+            return nil
+        case .hang, .hangFirstOnly:
+            break
+        }
+        return await withCheckedContinuation { (cont: CheckedContinuation<String?, Never>) in
+            lock.lock()
+            if released {
+                released = false
+                let result = latchedResult ?? nil
+                latchedResult = nil
+                lock.unlock()
+                cont.resume(returning: result)
+            } else {
+                release = cont
+                lock.unlock()
+            }
+        }
+    }
+}
+
+extension MediatorCoordinatorTests {
+    func testParseStartSetsAckNarration() async {
+        let brain = ControllableBrain(.hang)
+        let c = MediatorSessionCoordinator(
+            brain: brain,
+            executor: CommandExecutor(store: makeStore(), terminals: MockAgentTerminals(), namePool: AgentNamePool()))
+        c.submitTyped("add a note")
+        var it = brain.started.stream.makeAsyncIterator()
+        _ = await it.next()
+        guard case .parsing = c.state else {
+            return XCTFail("expected parsing, got \(c.state)")
+        }
+        XCTAssertTrue(AssistantAcks.pool.contains(c.narration))
+        XCTAssertNil(c.spokenReply)
+    }
+
+    func testPhraserSoftensSuccessNarration() async {
+        let phraser = ControllablePhraser()
+        let brain = ControllableBrain(.success(.createCard(kind: .note, content: nil)))
+        let c = MediatorSessionCoordinator(
+            brain: brain,
+            executor: CommandExecutor(store: makeStore(), terminals: MockAgentTerminals(), namePool: AgentNamePool()))
+        c.phraser = { fact in await phraser.phrase(fact) }
+        c.submitTyped("note")
+        var it = brain.started.stream.makeAsyncIterator()
+        _ = await it.next()
+        brain.releaseNow()
+        for _ in 0..<4000 where c.narration != "Created a note" { await Task.yield() }
+        XCTAssertEqual(c.narration, "Created a note")
+        XCTAssertNil(c.spokenReply)
+        phraser.releaseNow("Note's up!")
+        for _ in 0..<4000 where c.spokenReply?.text != "Note's up!" { await Task.yield() }
+        XCTAssertEqual(c.narration, "Note's up!")
+        XCTAssertEqual(c.spokenReply?.text, "Note's up!")
+    }
+
+    func testPhraserReturningNilKeepsFact() async {
+        let phraser = ControllablePhraser()
+        phraser.mode = .returnValue(nil)
+        let brain = ControllableBrain(.success(.createCard(kind: .note, content: nil)))
+        let c = MediatorSessionCoordinator(
+            brain: brain,
+            executor: CommandExecutor(store: makeStore(), terminals: MockAgentTerminals(), namePool: AgentNamePool()))
+        c.phraser = { fact in await phraser.phrase(fact) }
+        c.submitTyped("note")
+        var it = brain.started.stream.makeAsyncIterator()
+        _ = await it.next()
+        brain.releaseNow()
+        for _ in 0..<4000 where c.spokenReply == nil { await Task.yield() }
+        await waitForIdle(c)
+        XCTAssertEqual(c.narration, "Created a note")
+        XCTAssertEqual(c.spokenReply?.text, "Created a note")
+    }
+
+    func testSuccessWithoutPhraserPublishesSpokenReplyImmediately() async {
+        let c = makeCoordinator(makeStore(), MockAgentTerminals())
+        c.submitTyped("note")
+        await waitForIdle(c)
+        XCTAssertEqual(c.narration, "Created a note")
+        XCTAssertEqual(c.spokenReply?.text, "Created a note")
+    }
+
+    func testStalePhraseDroppedWhenNewTurnStarts() async {
+        let phraser = ControllablePhraser()
+        phraser.mode = .hangFirstOnly
+        let brain = ControllableBrain(.success(.createCard(kind: .note, content: nil)))
+        let c = MediatorSessionCoordinator(
+            brain: brain,
+            executor: CommandExecutor(store: makeStore(), terminals: MockAgentTerminals(), namePool: AgentNamePool()))
+        c.phraser = { fact in await phraser.phrase(fact) }
+        c.submitTyped("note")
+        var it = brain.started.stream.makeAsyncIterator()
+        _ = await it.next()
+        brain.releaseNow()
+        for _ in 0..<4000 where c.narration != "Created a note" { await Task.yield() }
+        var phraserIt = phraser.started.stream.makeAsyncIterator()
+        _ = await phraserIt.next()
+        brain.outcome = .success(.createCard(kind: .todo, content: nil))
+        c.submitTyped("todo")
+        _ = await it.next()
+        brain.releaseNow()
+        for _ in 0..<4000 where c.narration != "Created a todo" { await Task.yield() }
+        phraser.releaseNow("Note's up!")
+        for _ in 0..<2000 { await Task.yield() }
+        XCTAssertEqual(c.narration, "Created a todo")
+        XCTAssertNotEqual(c.narration, "Note's up!")
+        for _ in 0..<4000 where c.spokenReply?.text != "Created a todo" { await Task.yield() }
+        XCTAssertEqual(c.spokenReply?.text, "Created a todo")
+    }
+
+    func testParseFailedPublishesSpokenReply() async {
+        let brain = ControllableBrain(.failure(.modelNotReady("Local model not downloaded — open Settings › Local AI.")))
+        let c = MediatorSessionCoordinator(
+            brain: brain,
+            executor: CommandExecutor(store: makeStore(), terminals: MockAgentTerminals(), namePool: AgentNamePool()))
+        c.submitTyped("start 2 claude agents")
+        await waitForIdle(c)
+        XCTAssertEqual(c.narration, "Local model not downloaded — open Settings › Local AI.")
+        XCTAssertEqual(c.spokenReply?.text, "Local model not downloaded — open Settings › Local AI.")
     }
 }

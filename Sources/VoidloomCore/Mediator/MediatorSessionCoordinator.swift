@@ -7,6 +7,22 @@ public enum NarrationKind: Sendable, Equatable {
     case info, success, error
 }
 
+/// The settled reply of a completed turn — published exactly once per turn,
+/// after any phrasing resolved. Speech listens here, not to `narration`.
+public struct SpokenReply: Equatable, Sendable {
+    public let id: UUID
+    public let text: String
+
+    public init(id: UUID = UUID(), text: String) {
+        self.id = id
+        self.text = text
+    }
+}
+
+/// Phrases a completed command's factual narration into Sunday's voice.
+/// Returns nil on failure/timeout (the caller keeps the fact). App-injected.
+public typealias Phraser = @MainActor (_ fact: String) async -> String?
+
 /// Performs `MediatorEffect`s around the pure `MediatorSessionMachine`:
 /// runs the brain, dispatches the executor synchronously, and keeps AT MOST
 /// ONE timeout task — every `scheduleTimeout` REPLACES the previous timer.
@@ -50,6 +66,13 @@ public final class MediatorSessionCoordinator: ObservableObject {
     /// distinct signatures instead of one identical bubble.
     @Published public private(set) var narrationKind: NarrationKind = .info
 
+    /// The settled reply of the last turn — published exactly once per turn,
+    /// after any phrasing resolved. Speech listens here, NOT to `narration`.
+    @Published public private(set) var spokenReply: SpokenReply?
+
+    /// Phrases a completed command's factual narration into Sunday's voice.
+    public var phraser: Phraser?
+
     /// Live mic input level (0…1) while capturing — lets the HUD visibly react to
     /// the user's voice. Zero when not listening.
     @Published public private(set) var inputLevel: Float = 0
@@ -78,7 +101,11 @@ public final class MediatorSessionCoordinator: ObservableObject {
     private var timeoutTask: Task<Void, Never>?
     private var parseTask: Task<Void, Never>?
     private var delegateTask: Task<Void, Never>?
+    private var phrasingTask: Task<Void, Never>?
     private var finalizeTask: Task<Void, Never>?
+    /// Skips the immediate `spokenReply` publish from the next `.narrate` so a
+    /// success+phraser turn can settle once phrasing finishes.
+    private var suppressNextSpokenReply = false
     /// Published so the HUD can show a "next up" chip — a command typed while busy
     /// is queued (depth-1, newest wins) instead of silently vanishing.
     @Published public private(set) var queuedUtterance: String?
@@ -145,6 +172,15 @@ public final class MediatorSessionCoordinator: ObservableObject {
     public func cancel() { send(.cancelRequested) }
 
     private func send(_ event: MediatorEvent) {
+        if state == .idle {
+            switch event {
+            case .typedUtterance, .transcriptFinal, .wakeDetected, .pushToTalkPressed:
+                phrasingTask?.cancel()
+                phrasingTask = nil
+            default:
+                break
+            }
+        }
         classifyNarration(for: event)
         let effects = machine.handle(event)
         state = machine.state
@@ -275,6 +311,8 @@ public final class MediatorSessionCoordinator: ObservableObject {
             transcriber?.stopUtterance()
 
         case .parse(let transcript):
+            narration = AssistantAcks.next()
+            narrationKind = .info
             parseTask?.cancel()
             parseTask = Task { [weak self] in
                 guard let self else { return }
@@ -314,7 +352,14 @@ public final class MediatorSessionCoordinator: ObservableObject {
             if case .delegate(let question, let target) = command, let handler = delegateHandler {
                 runDelegation(question: question, target: target, handler: handler)
             } else {
-                send(.executionFinished(executor.execute(command, confirmed: confirmed)))
+                let result = executor.execute(command, confirmed: confirmed)
+                if case .success(let fact) = result, phraser != nil {
+                    suppressNextSpokenReply = true
+                    send(.executionFinished(result))
+                    startPhrasing(fact: fact)
+                } else {
+                    send(.executionFinished(result))
+                }
             }
 
         case .scheduleTimeout(let seconds):
@@ -329,6 +374,26 @@ public final class MediatorSessionCoordinator: ObservableObject {
         case .narrate(let text):
             timeoutTask?.cancel(); timeoutTask = nil
             narration = text
+            if suppressNextSpokenReply {
+                suppressNextSpokenReply = false
+            } else {
+                spokenReply = SpokenReply(text: text)
+            }
+        }
+    }
+
+    private func startPhrasing(fact: String) {
+        guard let phraser else { return }
+        phrasingTask?.cancel()
+        phrasingTask = Task { [weak self] in
+            guard let self else { return }
+            let phrase = await phraser(fact)
+            guard !Task.isCancelled else { return }
+            let spoken = phrase.flatMap { $0.isEmpty ? nil : $0 } ?? fact
+            if self.state == .idle, self.narration == fact, let phrase, !phrase.isEmpty {
+                self.narration = phrase
+            }
+            self.spokenReply = SpokenReply(text: spoken)
         }
     }
 
