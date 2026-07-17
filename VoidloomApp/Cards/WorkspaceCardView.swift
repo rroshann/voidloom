@@ -3,11 +3,11 @@ import SwiftUI
 import VoidloomCore
 
 struct WorkspaceCardView: View {
-    /// Approximate height of the card header (20pt icon/button row + 7pt
+    /// Approximate height of the card header (14pt icon row + 5pt
     /// vertical padding ×2), used by the Spaces click monitor to split header
     /// clicks (→ select) from content clicks (→ activate). Keep in sync with
     /// `header`'s layout.
-    static let approximateHeaderHeight: CGFloat = 34
+    static let approximateHeaderHeight: CGFloat = 24
 
     let card: WorkspaceCard
     @ObservedObject var store: WorkspaceStore
@@ -70,27 +70,25 @@ struct WorkspaceCardView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             ZStack {
                 Circle()
                     .fill(palette.accent.opacity(0.18))
 
                 Image(systemName: palette.symbol)
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.system(size: 7.5, weight: .bold))
                     .foregroundStyle(palette.accent)
             }
-            .frame(width: 20, height: 20)
+            .frame(width: 14, height: 14)
             .accessibilityHidden(true)
 
-            HStack(alignment: .firstTextBaseline, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
                 titleView
 
                 if !isEditingTitle {
-                    Text(palette.eyebrow)
-                        .font(.system(size: 8.5, weight: .bold, design: theme.monospacedMetadata ? .monospaced : .default))
-                        .textCase(.uppercase)
-                        .tracking(0.9)
-                        .foregroundStyle(palette.accent.opacity(theme.isDark ? 0.7 : 1))
+                    Text("· \(palette.eyebrow.lowercased())")
+                        .font(.system(size: 10, weight: .regular, design: theme.monospacedMetadata ? .monospaced : .default))
+                        .foregroundStyle(theme.ink(0.45))
                         .lineLimit(1)
                         .layoutPriority(-1)
                 }
@@ -103,8 +101,8 @@ struct WorkspaceCardView: View {
                     .transition(.opacity)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 7)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
         .contentShape(Rectangle())
         // The header is the card's drag handle (reorder in grid, free move in
         // free-arrange). Show a grab cursor so that's discoverable — re-set on
@@ -137,7 +135,7 @@ struct WorkspaceCardView: View {
         if isEditingTitle {
             TextField("Title", text: $editingTitle)
                 .textFieldStyle(.plain)
-                .font(.system(size: 13 * theme.fontScale, weight: .heavy, design: .rounded))
+                .font(.system(size: 11.5 * theme.fontScale, weight: .semibold))
                 .foregroundStyle(theme.ink(0.92))
                 .focused($isTitleFieldFocused)
                 .onSubmit {
@@ -157,7 +155,7 @@ struct WorkspaceCardView: View {
                 }
         } else {
             Text(card.title)
-                .font(.system(size: 13 * theme.fontScale, weight: .heavy, design: .rounded))
+                .font(.system(size: 11.5 * theme.fontScale, weight: .semibold))
                 .foregroundStyle(theme.ink(0.92))
                 .lineLimit(1)
                 .contentShape(Rectangle())
@@ -168,7 +166,7 @@ struct WorkspaceCardView: View {
     }
 
     private var headerActions: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 3) {
             headerIconButton(
                 systemName: "pencil",
                 label: "Edit title",
@@ -197,11 +195,11 @@ struct WorkspaceCardView: View {
     private func headerIconButton(systemName: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 10, weight: .bold))
-                .frame(width: 20, height: 20)
-                .foregroundStyle(theme.ink(0.84))
+                .font(.system(size: 8.5, weight: .semibold))
+                .frame(width: 16, height: 16)
+                .foregroundStyle(theme.ink(0.7))
                 .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
                         .fill(theme.surface(0.08))
                 )
         }
