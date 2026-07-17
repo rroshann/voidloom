@@ -41,6 +41,15 @@ struct RootView: View {
         self.modelAssets = modelAssets
         self.speaker = speaker
 
+        // Live titles for reply validation (sidebar + pill share this provider).
+        if let validating = chatProvider as? ValidatingResponseProvider {
+            validating.titles = { store.state.cards.map(\.title) }
+            validating.workspaceName = {
+                store.library.workspaces.first { $0.id == store.library.selectedWorkspaceID }?.name
+                    ?? "Workspace"
+            }
+        }
+
         let router: VoiceTranscriberRouter?
         if Self.hasMicrophone {
             let parakeet = ParakeetTranscriber()
@@ -102,13 +111,17 @@ struct RootView: View {
             guard let context else { return nil }
             let grounded = context.snapshot()
             let phrasingID = Self.phrasingWorkspaceID(for: store.library.selectedWorkspaceID)
-            let provider = chatProvider
+            // Bypass ValidatingResponseProvider — phrasing applies its own
+            // sanitize → validate → fact fallback (must not get GroundedReplies).
+            let provider = (chatProvider as? ValidatingResponseProvider)?.wrapped ?? chatProvider
             // Race the chat backend against an 8s ceiling; any error/timeout → nil.
+            let liveTitles = store.state.cards.map(\.title)
             return await withTaskGroup(of: PhraseRace.self) { group in
                 group.addTask {
                     let phrase = await Self.runPhrase(
                         fact: fact, grounded: grounded,
-                        phrasingID: phrasingID, provider: provider)
+                        phrasingID: phrasingID, provider: provider,
+                        knownTitles: liveTitles)
                     return .phrase(phrase)
                 }
                 group.addTask {
@@ -159,14 +172,22 @@ struct RootView: View {
         fact: String,
         grounded: String,
         phrasingID: UUID,
-        provider: ResponseProvider
+        provider: ResponseProvider,
+        knownTitles: [String]
     ) async -> String? {
         let raw = try? await streamChat(
             provider, workspaceID: phrasingID,
             message: ResponsePhraser.userPrompt(fact: fact, context: grounded),
             context: ResponsePhraser.systemPrompt(),
             onChunk: { _ in })
-        return raw.map { ResponsePhraser.sanitize($0, fallback: fact) }
+        return raw.map { phrase in
+            let sanitized = ResponsePhraser.sanitize(phrase, fallback: fact)
+            // Never show a softened phrase that names a bogus card — fall back to the fact.
+            if ReplyValidator.validate(reply: sanitized, knownTitles: knownTitles).isGrounded {
+                return sanitized
+            }
+            return fact
+        }
     }
 
     /// Bridges the callback-based `ResponseProvider` to async + live chunks:

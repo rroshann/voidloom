@@ -43,7 +43,7 @@ final class AssistantContextProvider: ObservableObject {
             recentActivity: nil,
             selectedCardContext: selectedCardContext))
         if let recap = recentConversation?(), !recap.isEmpty {
-            context += "\n\nRecent conversation (for continuity, may span past sessions):\n" + recap
+            context += "\n\nEarlier conversation (PAST turns, not current workspace state):\n" + recap
         }
         return context
     }

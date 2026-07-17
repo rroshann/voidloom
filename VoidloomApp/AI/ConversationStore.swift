@@ -31,16 +31,21 @@ final class ConversationStore: ObservableObject {
     func hasConversation(for workspaceID: UUID) -> Bool { !(threads[workspaceID]?.isEmpty ?? true) }
 
     /// A compact recap of the last few settled exchanges, for grounding the model
-    /// so it recalls the recent conversation — including across app launches, since
-    /// history is persisted. Deliberately BOUNDED (few turns, each truncated) so
-    /// token/RAM cost stays small and fixed regardless of how long the log gets.
-    func recentRecap(for workspaceID: UUID, maxMessages: Int = 6, perMessageChars: Int = 240) -> String? {
+    /// so it recalls recent conversation — including across app launches, since
+    /// history is persisted. Deliberately BOUNDED (few turns, each truncated) and
+    /// labeled `(earlier)` so small models treat it as PAST, not live workspace
+    /// state. Token/RAM cost stays small and fixed regardless of log length.
+    func recentRecap(for workspaceID: UUID, maxMessages: Int = 4, perMessageChars: Int = 120) -> String? {
         let settled = (threads[workspaceID] ?? []).filter { $0.status == .sent || $0.status == .complete }
         guard !settled.isEmpty else { return nil }
         let recent = settled.suffix(maxMessages)
         let lines = recent.map { msg -> String in
-            let who = msg.role == .user ? "User" : AssistantIdentity.name
-            let text = msg.text.count > perMessageChars ? String(msg.text.prefix(perMessageChars)) + "…" : msg.text
+            let who = msg.role == .user
+                ? "User (earlier)"
+                : "\(AssistantIdentity.name) (earlier)"
+            let text = msg.text.count > perMessageChars
+                ? String(msg.text.prefix(perMessageChars)) + "…"
+                : msg.text
             return "\(who): \(text)"
         }
         return lines.joined(separator: "\n")

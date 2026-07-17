@@ -56,6 +56,7 @@
 		A40000000000000000000006 /* DelegationService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000016 /* DelegationService.swift */; };
 		A40000000000000000000002 /* AIConversationSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000012 /* AIConversationSidebar.swift */; };
 		A40000000000000000000003 /* StubResponseProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000013 /* StubResponseProvider.swift */; };
+		A40000000000000000000007 /* ValidatingResponseProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A40000000000000000000017 /* ValidatingResponseProvider.swift */; };
 		A50000000000000000000001 /* CommandPaletteModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000011 /* CommandPaletteModel.swift */; };
 		A50000000000000000000002 /* CommandPaletteView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000012 /* CommandPaletteView.swift */; };
 		A50000000000000000000003 /* CanvasContextMenu.swift in Sources */ = {isa = PBXBuildFile; fileRef = A50000000000000000000013 /* CanvasContextMenu.swift */; };
@@ -89,6 +90,7 @@
 		C30000000000000000000004 /* FoundationModelsParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000013 /* FoundationModelsParityTests.swift */; };
 		C30000000000000000000021 /* DelegationServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000031 /* DelegationServiceTests.swift */; };
 		C30000000000000000000022 /* ConversationStoreTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000032 /* ConversationStoreTests.swift */; };
+		C30000000000000000000023 /* ValidatingResponseProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000033 /* ValidatingResponseProviderTests.swift */; };
 		C30000000000000000000005 /* FoundationModels.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = C30000000000000000000010 /* FoundationModels.framework */; settings = {ATTRIBUTES = (Weak, ); }; };
 		C30000000000000000000006 /* AppleTierAvailability.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000014 /* AppleTierAvailability.swift */; };
 		C30000000000000000000007 /* FoundationModelsResponseProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = C30000000000000000000015 /* FoundationModelsResponseProvider.swift */; };
@@ -153,6 +155,8 @@
 		A40000000000000000000016 /* DelegationService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/DelegationService.swift; sourceTree = "<group>"; };
 		A40000000000000000000012 /* AIConversationSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Shell/AIConversationSidebar.swift; sourceTree = "<group>"; };
 		A40000000000000000000013 /* StubResponseProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/StubResponseProvider.swift; sourceTree = "<group>"; };
+		A40000000000000000000017 /* ValidatingResponseProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AI/ValidatingResponseProvider.swift; sourceTree = "<group>"; };
+		C30000000000000000000033 /* ValidatingResponseProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValidatingResponseProviderTests.swift; sourceTree = "<group>"; };
 		A50000000000000000000011 /* CommandPaletteModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPalette/CommandPaletteModel.swift; sourceTree = "<group>"; };
 		A50000000000000000000012 /* CommandPaletteView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommandPalette/CommandPaletteView.swift; sourceTree = "<group>"; };
 		A50000000000000000000013 /* CanvasContextMenu.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Canvas/CanvasContextMenu.swift; sourceTree = "<group>"; };
@@ -315,6 +319,7 @@
 				A40000000000000000000015 /* AgentCommandRunner.swift */,
 				A40000000000000000000016 /* DelegationService.swift */,
 				A40000000000000000000013 /* StubResponseProvider.swift */,
+				A40000000000000000000017 /* ValidatingResponseProvider.swift */,
 				A200000000000000000000C2 /* CllamaEngine.swift */,
 				A200000000000000000000C3 /* AudioCaptureService.swift */,
 				A200000000000000000000C4 /* ParakeetTranscriber.swift */,
@@ -370,6 +375,7 @@
 				C30000000000000000000013 /* FoundationModelsParityTests.swift */,
 				C30000000000000000000031 /* DelegationServiceTests.swift */,
 				C30000000000000000000032 /* ConversationStoreTests.swift */,
+				C30000000000000000000033 /* ValidatingResponseProviderTests.swift */,
 				C30000000000000000000019 /* AppleTierBenchmarkTests.swift */,
 			);
 			path = VoidloomAppTests;
@@ -518,6 +524,7 @@
 				A40000000000000000000006 /* DelegationService.swift in Sources */,
 				A40000000000000000000002 /* AIConversationSidebar.swift in Sources */,
 				A40000000000000000000003 /* StubResponseProvider.swift in Sources */,
+				A40000000000000000000007 /* ValidatingResponseProvider.swift in Sources */,
 				A200000000000000000000D3 /* CllamaEngine.swift in Sources */,
 				A200000000000000000000D4 /* AudioCaptureService.swift in Sources */,
 				A200000000000000000000D5 /* ParakeetTranscriber.swift in Sources */,
@@ -574,6 +581,7 @@
 				C30000000000000000000004 /* FoundationModelsParityTests.swift in Sources */,
 				C30000000000000000000021 /* DelegationServiceTests.swift in Sources */,
 				C30000000000000000000022 /* ConversationStoreTests.swift in Sources */,
+				C30000000000000000000023 /* ValidatingResponseProviderTests.swift in Sources */,
 				C3000000000000000000000B /* AppleTierBenchmarkTests.swift in Sources */,
 				B20000000000000000000005 /* CllamaEngine.swift in Sources */,
 			);
