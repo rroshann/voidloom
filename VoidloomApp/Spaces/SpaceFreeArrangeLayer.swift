@@ -1,70 +1,83 @@
 import SwiftUI
 import VoidloomCore
 
-/// Free-arrange presentation of a Space: every card renders at its persisted
-/// `SpaceFreeFrame` and drags anywhere (no pagination). The shell owns frame
-/// seeding and marquee selection; this layer renders tiles and forwards drags
-/// to `WorkspaceStore.moveSpaceCardFreely`.
+/// Board (free-arrange) presentation of a Space: every card lives at its
+/// canvas-space `position`/`size` and the whole layer is rendered through the
+/// per-space `viewport` (`scaleEffect` + `offset`), so pan/zoom scale the cards
+/// and their content together — exactly like the Canvas card group. The header
+/// is the drag handle (one card or the marquee group); the corner resizes.
+/// The shell owns position seeding, pan/zoom input, and marquee selection.
 struct SpaceFreeArrangeLayer: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var sessionManager: AgentSessionManager
+    @Environment(\.theme) private var theme
     let orderedIDs: [UUID]
     let cardsByID: [UUID: WorkspaceCard]
-    /// Persisted frames overlaid on grid-derived defaults, so unseeded cards
-    /// still have a home while seeding persists in the background.
-    let effectiveFrames: [UUID: SpaceFreeFrame]
+    /// The Board pan/zoom this layer renders through (identity until panned).
+    let viewport: CanvasViewport
     let viewportSize: CGSize
+    /// On-canvas text elements, rendered in the same transformed group as cards.
+    let textElements: [TextElement]
+    @Binding var editingTextID: UUID?
 
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
+    /// The grabbed card (raised while dragging), or nil when idle.
     @State private var draggingCardID: UUID?
-    /// Frame origin captured when a drag starts, so the cumulative translation
-    /// applies from a stable base instead of compounding per event.
-    @State private var dragStartOrigin: ScreenPoint?
+    /// The move set captured on the first move of a drag — the marquee group when
+    /// dragging a multi-selected member, else just the grabbed card — held for the
+    /// whole drag so single-vs-group is decided once (mirrors Canvas).
+    @State private var draggingGroup: Set<UUID>?
+    /// Last cumulative translation, so each event applies only its delta.
+    @State private var lastDragTranslation: CGSize = .zero
     /// Card being resized via the corner handle, so its frame changes track
     /// the cursor instead of riding the layout spring.
     @State private var resizingCardID: UUID?
 
-    /// Minimum visible strip of a card at every screen edge, so a drag can
-    /// never strand a card fully off-screen.
-    private static let minVisibleEdge: Double = 60
-
     var body: some View {
-        ZStack {
-            // Single ForEach + zIndex, same discipline as the grid layer: never
-            // split the dragged/selected tile into its own branch.
+        // Single transformed group: cards at their canvas `position` (topLeading
+        // offset), the whole group scaled by `viewport.scale` and shifted by
+        // `viewport.origin`, so a card's on-screen frame equals
+        // `viewport.screenPoint(position)` — matching the shell's screen-space
+        // hit-testing. Single ForEach + zIndex (never split the dragged tile).
+        ZStack(alignment: .topLeading) {
             ForEach(Array(orderedIDs.enumerated()), id: \.element) { index, id in
-                if let card = cardsByID[id], let frame = effectiveFrames[id] {
+                if let card = cardsByID[id] {
                     let isDragged = id == draggingCardID
                     SpaceTileCard(
                         card: card,
                         store: store,
                         sessionManager: sessionManager,
                         onDragChanged: { translation, _ in
-                            if draggingCardID != id {
+                            let group: Set<UUID>
+                            if let captured = draggingGroup {
+                                group = captured
+                            } else {
                                 draggingCardID = id
-                                dragStartOrigin = frame.origin
+                                let marquee = store.state.marqueeSelectedCardIDs
+                                group = (marquee.count > 1 && marquee.contains(id)) ? marquee : [id]
+                                draggingGroup = group
+                                if group.count == 1 { store.selectCard(id: id) }
                             }
-                            guard let start = dragStartOrigin else { return }
-                            let proposed = ScreenPoint(x: start.x + translation.width,
-                                                       y: start.y + translation.height)
-                            store.moveSpaceCardFreely(id: id, to: clamped(proposed, size: frame.size))
+                            let delta = ScreenPoint(x: translation.width - lastDragTranslation.width,
+                                                    y: translation.height - lastDragTranslation.height)
+                            store.moveSpaceCardsFreely(ids: group, byScreen: delta)
+                            lastDragTranslation = translation
                         },
                         onDragEnded: { _ in
                             draggingCardID = nil
-                            dragStartOrigin = nil
+                            draggingGroup = nil
+                            lastDragTranslation = .zero
                         }
                     )
-                    .frame(width: frame.size.x, height: frame.size.y)
+                    .frame(width: card.size.width, height: card.size.height)
                     .overlay {
                         if store.state.selectedCardID == id
                             || store.state.activeCardID == id
                             || store.state.marqueeSelectedCardIDs.contains(id) {
                             CardResizeHandles(
-                                cardSize: CardSize(width: frame.size.x, height: frame.size.y),
-                                cardPosition: CanvasPoint(x: frame.origin.x, y: frame.origin.y),
-                                viewportScale: 1,   // free frames live in screen points
-                                accentColor: CardPalette(kind: card.kind).accent,
+                                cardSize: card.size,
+                                cardPosition: card.position,
+                                viewportScale: viewport.scale,
+                                accentColor: CardPalette(kind: card.kind, isDark: theme.isDark).accent,
                                 onResizeStart: { resizingCardID = id },
                                 onResize: { size, _ in
                                     store.resizeSpaceCardFreely(
@@ -76,20 +89,26 @@ struct SpaceFreeArrangeLayer: View {
                             )
                         }
                     }
-                    .position(x: frame.origin.x + frame.size.x / 2,
-                              y: frame.origin.y + frame.size.y / 2)
+                    .offset(x: card.position.x, y: card.position.y)
                     .zIndex(zIndex(for: id, at: index, isDragged: isDragged))
-                    // Dragged/resized tiles must track the cursor instantly,
-                    // never ride the frame-change spring below.
-                    .transaction { if isDragged || id == resizingCardID { $0.animation = nil } }
                 }
             }
-            .animation(
-                reduceMotion ? nil : .spring(response: 0.35, dampingFraction: 0.85),
-                value: effectiveFrames
-            )
+
+            // Text elements share the transformed group, so they pan/zoom with
+            // the cards. Each applies its own `.offset(position)`.
+            ForEach(textElements) { element in
+                TextElementView(
+                    element: element,
+                    store: store,
+                    viewportScale: viewport.scale,
+                    editingTextID: $editingTextID
+                )
+                .zIndex(element.id == store.state.selectedTextID ? 9_500 : 5_000)
+            }
         }
-        .frame(width: viewportSize.width, height: viewportSize.height)
+        .frame(width: viewportSize.width, height: viewportSize.height, alignment: .topLeading)
+        .scaleEffect(viewport.scale, anchor: .topLeading)
+        .offset(x: viewport.origin.x, y: viewport.origin.y)
     }
 
     /// Dragged tile on top, then the selected/active card, then stacking by
@@ -102,14 +121,5 @@ struct SpaceFreeArrangeLayer: View {
             return 9_000
         }
         return Double(index)
-    }
-
-    /// Keeps at least `minVisibleEdge` points of the card inside the viewport
-    /// on every axis.
-    private func clamped(_ origin: ScreenPoint, size: ScreenPoint) -> ScreenPoint {
-        let e = Self.minVisibleEdge
-        let x = min(max(origin.x, e - size.x), Double(viewportSize.width) - e)
-        let y = min(max(origin.y, 0), Double(viewportSize.height) - e)
-        return ScreenPoint(x: x, y: y)
     }
 }

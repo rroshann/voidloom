@@ -18,4 +18,14 @@ extension Color {
         return String(format: "#%02X%02X%02X",
                       channel(ns.redComponent), channel(ns.greenComponent), channel(ns.blueComponent))
     }
+
+    /// Scales the RGB channels toward black, keeping the hue. Used to darken
+    /// accents in light mode, where the dark-tuned pastels wash out.
+    func darkened(_ factor: Double) -> Color {
+        guard let ns = NSColor(self).usingColorSpace(.sRGB) else { return self }
+        return Color(red: ns.redComponent * factor,
+                     green: ns.greenComponent * factor,
+                     blue: ns.blueComponent * factor,
+                     opacity: ns.alphaComponent)
+    }
 }

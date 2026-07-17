@@ -20,6 +20,8 @@ public enum MediatorEvent: Equatable, Sendable {
     case transcriptFinal(String)
     case commandProduced(MediatorCommand)
     case parseFailed(String)
+    /// The utterance was no command, so the chat backend answered instead.
+    case chatReply(String)
     case executionFinished(ExecutionResult)
     case confirmReceived(Bool)
     case timeout
@@ -46,6 +48,9 @@ public struct MediatorSessionMachine: Equatable, Sendable {
     /// 30s, not 10 — QA showed a human answering the prompt can miss 10s.
     public static let confirmationTimeout: Double = 30
     public static let parseTimeout: Double = 10
+    /// The chat-fallback leg replaces the parse watchdog with this window: a
+    /// cold chat backend (first Apple Intelligence call) can exceed 10s.
+    public static let chatTimeout: Double = 30
     static let rephrasePrompt = "Didn't catch that — try rephrasing."
     static let confirmVocabulary: Set<String> = ["confirm", "yes", "cancel", "no"]
 
@@ -104,6 +109,10 @@ public struct MediatorSessionMachine: Equatable, Sendable {
             state = .idle
             return [.narrate(message.isEmpty ? Self.rephrasePrompt : message)]
 
+        case (.parsing, .chatReply(let text)):
+            state = .idle
+            return [.narrate(text)]
+
         case (.parsing, .timeout):
             state = .idle
             return [.narrate(Self.rephrasePrompt)]
@@ -114,6 +123,13 @@ public struct MediatorSessionMachine: Equatable, Sendable {
 
         case (.executing, .executionFinished(let result)):
             return finish(result)
+
+        // Normal commands execute synchronously, so `.executing` is instantaneous
+        // and cancel can't land here — but delegation runs a long async CLI in
+        // this state, so let the user abort it.
+        case (.executing, .cancelRequested):
+            state = .idle
+            return [.narrate("Cancelled")]
 
         case (.awaitingConfirmation(_, let pending), .confirmReceived(true)):
             state = .executing(pending)

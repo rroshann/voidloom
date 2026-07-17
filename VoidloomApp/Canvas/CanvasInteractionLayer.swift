@@ -124,7 +124,7 @@ struct CanvasInteractionLayer: View {
 
     private var accentColor: Color {
         if case let .placingCard(kind) = interaction.mode {
-            return CardPalette(kind: kind).accent
+            return CardPalette(kind: kind, isDark: theme.isDark).accent
         }
         // placingText
         return theme.accent

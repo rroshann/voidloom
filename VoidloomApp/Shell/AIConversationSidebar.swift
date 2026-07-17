@@ -11,8 +11,10 @@ struct AIConversationSidebar: View {
     let onSubmit: (String) -> Void
     let onRetry: (UUID) -> Void
     let onClose: () -> Void
+    let onClearHistory: () -> Void
 
     @State private var input = ""
+    @State private var showClearConfirm = false
     @State private var hasChatBackend = false
     @EnvironmentObject private var modelAssets: ModelAssetManager
     @FocusState private var isInputFocused: Bool
@@ -104,13 +106,33 @@ struct AIConversationSidebar: View {
                 .foregroundStyle(theme.accent)
                 .accessibilityHidden(true)
 
-            Text("Assistant")
+            Text(AssistantIdentity.name)
                 .font(.system(size: 11, weight: .bold, design: .monospaced))
                 .tracking(1.4)
                 .textCase(.uppercase)
                 .foregroundStyle(theme.ink(0.48))
 
             Spacer(minLength: 0)
+
+            if !messages.isEmpty {
+                Button { showClearConfirm = true } label: {
+                    Image(systemName: "trash")
+                        .font(.system(size: 11, weight: .bold))
+                        .frame(width: 24, height: 24)
+                        .foregroundStyle(theme.ink(0.7))
+                        .background(theme.surface(0.06), in: RoundedRectangle(cornerRadius: 8, style: .continuous))
+                }
+                .buttonStyle(.plain)
+                .pointerCursor()
+                .help("Clear conversation — Sunday forgets this chat")
+                .accessibilityLabel("Clear conversation history")
+                .confirmationDialog("Clear this conversation?", isPresented: $showClearConfirm, titleVisibility: .visible) {
+                    Button("Clear history", role: .destructive) { onClearHistory() }
+                    Button("Cancel", role: .cancel) {}
+                } message: {
+                    Text("Sunday will forget this conversation for this workspace. This can't be undone.")
+                }
+            }
 
             Button(action: onClose) {
                 Image(systemName: "xmark")
@@ -127,16 +149,21 @@ struct AIConversationSidebar: View {
     }
 
     private var emptyState: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 10) {
             Spacer()
 
-            Text("No conversation yet")
-                .font(.system(size: 13, weight: .bold, design: .rounded))
-                .foregroundStyle(theme.ink(0.6))
+            Image(systemName: "sparkles")
+                .font(.system(size: 22, weight: .light))
+                .foregroundStyle(theme.accent)
+                .accessibilityHidden(true)
 
-            Text("Ask the assistant to add cards, reset the canvas, or organize this workspace.")
+            Text("Talk to \(AssistantIdentity.name)")
+                .font(.system(size: 14, weight: .bold, design: .rounded))
+                .foregroundStyle(theme.ink(0.7))
+
+            Text("Ask \(AssistantIdentity.name) to add cards, reorganize this workspace, or answer questions about what's here.")
                 .font(.system(size: 12, weight: .medium, design: .rounded))
-                .foregroundStyle(theme.ink(0.38))
+                .foregroundStyle(theme.ink(0.42))
                 .fixedSize(horizontal: false, vertical: true)
 
             Spacer()
@@ -174,7 +201,7 @@ struct AIConversationSidebar: View {
 
     private var inputBar: some View {
         HStack(spacing: 10) {
-            TextField("Message the assistant…", text: $input)
+            TextField("Message \(AssistantIdentity.name)…", text: $input)
                 .textFieldStyle(.plain)
                 .font(.system(size: 13, weight: .semibold, design: .rounded))
                 .foregroundStyle(theme.ink(0.86))
@@ -232,8 +259,18 @@ private struct MessageBubble: View {
     @Environment(\.theme) private var theme
 
     var body: some View {
-        HStack {
+        HStack(alignment: .top, spacing: 7) {
             if isUser { Spacer(minLength: 32) }
+
+            // Sunday's messages carry the same accent sparkle as the pill, so the
+            // two chat surfaces read as one assistant.
+            if !isUser {
+                Image(systemName: "sparkle")
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(theme.accent)
+                    .padding(.top, 6)
+                    .accessibilityHidden(true)
+            }
 
             bubbleContent
                 .frame(maxWidth: .infinity, alignment: isUser ? .trailing : .leading)
@@ -358,7 +395,8 @@ private struct PulsingDots: View {
         ],
         onSubmit: { _ in },
         onRetry: { _ in },
-        onClose: {}
+        onClose: {},
+        onClearHistory: {}
     )
     .environmentObject(ModelAssetManager())
     .frame(width: 340, height: 760)

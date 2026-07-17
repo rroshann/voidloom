@@ -6,6 +6,7 @@ import VoidloomCore
 struct StartupView: View {
     @ObservedObject var store: WorkspaceStore
     @EnvironmentObject private var session: AppSession
+    @EnvironmentObject private var sessionManager: AgentSessionManager
     @Environment(\.theme) private var theme
 
     @State private var editingID: UUID?
@@ -13,6 +14,9 @@ struct StartupView: View {
     @State private var deleteCandidate: WorkspaceSummary?
     @State private var searchText = ""
     @State private var showAll = false
+    @State private var hoveredRowID: UUID?
+    @State private var keyboardSelectedID: UUID?
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var sorted: [WorkspaceSummary] {
         store.library.workspaces.sorted { $0.updatedAt > $1.updatedAt }
@@ -58,7 +62,13 @@ struct StartupView: View {
             Alert(
                 title: Text("Delete “\(ws.name)”?"),
                 message: Text("This permanently deletes the workspace and its cards. This can't be undone."),
-                primaryButton: .destructive(Text("Delete")) { store.deleteWorkspace(id: ws.id) },
+                primaryButton: .destructive(Text("Delete")) {
+                    // Deleting a workspace is the one close-path that must also
+                    // kill its background agent sessions, or they'd leak until quit.
+                    for cardID in store.deleteWorkspace(id: ws.id) {
+                        sessionManager.terminateSession(cardID: cardID)
+                    }
+                },
                 secondaryButton: .cancel()
             )
         }
@@ -95,6 +105,18 @@ struct StartupView: View {
                     .fill(.white.opacity(0.08))
                     .overlay(RoundedRectangle(cornerRadius: 10, style: .continuous).stroke(.white.opacity(0.1), lineWidth: 1))
             )
+            // Spotlight/Raycast pattern: keep the search field focused, but let
+            // ↑/↓ move a highlight through the results and ⏎ open it.
+            .onKeyPress(.downArrow) { moveKeyboardSelection(1); return .handled }
+            .onKeyPress(.upArrow) { moveKeyboardSelection(-1); return .handled }
+            .onKeyPress(.return) {
+                let list = displayedWorkspaces
+                if let id = keyboardSelectedID, let ws = list.first(where: { $0.id == id }) {
+                    open(ws); return .handled
+                }
+                if let only = list.first, list.count == 1 { open(only); return .handled }
+                return .ignored
+            }
     }
 
     private var workspaceList: some View {
@@ -153,32 +175,70 @@ struct StartupView: View {
                 .accessibilityAddTraits(.isButton)
                 .accessibilityAction { open(ws) }
                 Spacer(minLength: 8)
-                rowButton("pencil", help: "Rename") { beginRename(ws) }
-                rowButton("trash", help: "Delete", danger: true) { deleteCandidate = ws }
+
+                // Actions reveal on hover so a resting row is just its name —
+                // no ambient red. They stay mounted (opacity, not removal) so
+                // VoiceOver always reaches them.
+                LauncherRowButton(icon: "pencil", help: "Rename", visible: hoveredRowID == ws.id) { beginRename(ws) }
+                LauncherRowButton(icon: "trash", help: "Delete", danger: true, visible: hoveredRowID == ws.id) { deleteCandidate = ws }
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.white.opacity(0.3))
+                    .opacity(hoveredRowID == ws.id ? 1 : 0)
+                    .accessibilityHidden(true)
             }
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(.white.opacity(0.05))
-                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous).stroke(.white.opacity(0.08), lineWidth: 1))
+                .fill(.white.opacity(hoveredRowID == ws.id || keyboardSelectedID == ws.id ? 0.09 : 0.05))
+                .overlay(RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(keyboardSelectedID == ws.id ? Color.accentColor.opacity(0.7) : .white.opacity(0.08),
+                            lineWidth: keyboardSelectedID == ws.id ? 1.5 : 1))
         )
         .contentShape(Rectangle())
         .onTapGesture { if editingID != ws.id { open(ws) } }
+        .onHover { hovering in
+            withAnimation(reduceMotion ? nil : .easeOut(duration: 0.14)) {
+                if hovering { hoveredRowID = ws.id }
+                else if hoveredRowID == ws.id { hoveredRowID = nil }
+            }
+        }
     }
 
-    private func rowButton(_ icon: String, help: String, danger: Bool = false, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Image(systemName: icon)
-                .font(.system(size: 13, weight: .medium))
-                .foregroundStyle(danger ? Color.red.opacity(0.85) : .white.opacity(0.7))
-                .frame(width: 30, height: 30)
-                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(.white.opacity(0.06)))
+    /// A launcher row action: hidden until its row is hovered, and — for the
+    /// destructive one — muted gray until the button itself is hovered, so
+    /// delete never shouts ambiently.
+    private struct LauncherRowButton: View {
+        let icon: String
+        let help: String
+        var danger: Bool = false
+        let visible: Bool
+        let action: () -> Void
+        @State private var isHovered = false
+
+        var body: some View {
+            Button(action: action) {
+                Image(systemName: icon)
+                    .font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(foreground)
+                    .frame(width: 30, height: 30)
+                    .background(RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .fill(.white.opacity(isHovered ? 0.12 : 0.06)))
+            }
+            .buttonStyle(.plain)
+            .help(help)
+            .accessibilityLabel(help)
+            .opacity(visible ? 1 : 0)
+            .allowsHitTesting(visible)
+            .onHover { isHovered = $0 }
         }
-        .buttonStyle(.plain)
-        .help(help)
-        .accessibilityLabel(help)
+
+        private var foreground: Color {
+            if danger { return isHovered ? .red : .white.opacity(0.55) }
+            return .white.opacity(isHovered ? 0.95 : 0.7)
+        }
     }
 
     private var createButton: some View {
@@ -191,6 +251,14 @@ struct StartupView: View {
         .buttonStyle(.borderedProminent)
         .tint(theme.accent)
         .frame(maxWidth: 260)
+    }
+
+    private func moveKeyboardSelection(_ delta: Int) {
+        let list = displayedWorkspaces
+        guard !list.isEmpty else { return }
+        let current = list.firstIndex { $0.id == keyboardSelectedID } ?? (delta > 0 ? -1 : 0)
+        let next = min(max(current + delta, 0), list.count - 1)
+        keyboardSelectedID = list[next].id
     }
 
     private func open(_ ws: WorkspaceSummary) {

@@ -27,6 +27,8 @@ final class FastPathBrainTests: XCTestCase {
         XCTAssertEqual(read, .readOutput(target: "ember"))
         let close = try await parse("close ember")
         XCTAssertEqual(close, .closeTerminal(target: "ember"))
+        let closeMultiWord = try await parse("close buy milk")
+        XCTAssertEqual(closeMultiWord, .closeTerminal(target: "buy milk"))
         let focus = try await parse("focus on slate")
         XCTAssertEqual(focus, .arrange(style: .focus(target: "slate")))
     }
@@ -88,5 +90,75 @@ final class FastPathBrainTests: XCTestCase {
         XCTAssertEqual(a, .createCard(kind: .note, content: "Buy MILK on Monday"))
         let b = try await parse("Todo: Review PR #8")
         XCTAssertEqual(b, .createCard(kind: .todo, content: "Review PR #8"))
+    }
+
+    // MARK: - Phase B: card CRUD verbs
+
+    func testRenameCardPreservesNewNameCase() async throws {
+        let a = try await parse("rename ember to Scout")
+        XCTAssertEqual(a, .renameCard(target: "ember", newName: "Scout"))
+        let b = try await parse("Rename New Note to Sprint Plan")
+        XCTAssertEqual(b, .renameCard(target: "New Note", newName: "Sprint Plan"))
+    }
+
+    func testDeleteAndRemoveMapToDeleteCard() async throws {
+        let a = try await parse("delete New Note")
+        XCTAssertEqual(a, .deleteCard(target: "New Note"))
+        let b = try await parse("remove chores")
+        XCTAssertEqual(b, .deleteCard(target: "chores"))
+    }
+
+    func testAppendToNoteSetsAppendTrueAndPreservesCase() async throws {
+        let a = try await parse("append Ship IT to standup")
+        XCTAssertEqual(a, .editNote(target: "standup", content: "Ship IT", append: true))
+    }
+
+    func testAddToTodoMapsToAddTodoItem() async throws {
+        let a = try await parse("add Buy Milk to chores")
+        XCTAssertEqual(a, .addTodoItem(target: "chores", text: "Buy Milk"))
+    }
+
+    func testCheckAndUncheckMapToSetTodoItemDone() async throws {
+        let checked = try await parse("check buy milk in chores")
+        XCTAssertEqual(checked, .setTodoItemDone(target: "chores", text: "buy milk", done: true))
+        let unchecked = try await parse("uncheck buy milk in chores")
+        XCTAssertEqual(unchecked, .setTodoItemDone(target: "chores", text: "buy milk", done: false))
+    }
+
+    // MARK: - Phase C: delegation
+
+    func testAskAboutDelegatesWhileAskToStillSendsPrompt() async throws {
+        let deleg = try await parse("ask ember about how does persistence work")
+        XCTAssertEqual(deleg, .delegate(question: "how does persistence work", target: "ember"))
+        let prompt = try await parse("ask ember to fix the build")
+        XCTAssertEqual(prompt, .sendPrompt(target: "ember", text: "fix the build"))
+    }
+
+    func testResearchAndDelegateVerbsDelegateWithoutATarget() async throws {
+        let a = try await parse("research how the debounce works")
+        XCTAssertEqual(a, .delegate(question: "how the debounce works", target: nil))
+        let b = try await parse("delegate summarize the persistence layer")
+        XCTAssertEqual(b, .delegate(question: "summarize the persistence layer", target: nil))
+    }
+
+    func testRelayVerbsMapToRelayBetweenAgents() async throws {
+        let a = try await parse("relay ember to slate")
+        XCTAssertEqual(a, .relayBetweenAgents(from: "ember", to: "slate"))
+        let b = try await parse("have ember tell slate")
+        XCTAssertEqual(b, .relayBetweenAgents(from: "ember", to: "slate"))
+    }
+
+    func testBriefVerbMapsToBriefAgent() async throws {
+        let a = try await parse("brief ember")
+        XCTAssertEqual(a, .briefAgent(target: "ember"))
+    }
+
+    func testCrudVerbsNeedTheirConnectorsElseUnparseable() async {
+        // No " to " / " in " → FastPath abstains and llama/chat handles it.
+        for bad in ["rename ember", "append ship it", "add buy milk", "check buy milk"] {
+            do { _ = try await parse(bad); XCTFail("\(bad) should be unparseable") }
+            catch let e as BrainError { if case .unparseable = e {} else { XCTFail("\(bad) -> \(e)") } }
+            catch { XCTFail("wrong error for \(bad)") }
+        }
     }
 }

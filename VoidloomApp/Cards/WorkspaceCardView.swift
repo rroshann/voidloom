@@ -1,12 +1,13 @@
+import AppKit
 import SwiftUI
 import VoidloomCore
 
 struct WorkspaceCardView: View {
-    /// Approximate height of the card header (20pt icon/button row + 7pt
+    /// Approximate height of the card header (14pt icon row + 5pt
     /// vertical padding ×2), used by the Spaces click monitor to split header
     /// clicks (→ select) from content clicks (→ activate). Keep in sync with
     /// `header`'s layout.
-    static let approximateHeaderHeight: CGFloat = 34
+    static let approximateHeaderHeight: CGFloat = 24
 
     let card: WorkspaceCard
     @ObservedObject var store: WorkspaceStore
@@ -17,6 +18,12 @@ struct WorkspaceCardView: View {
     var isCardFocused: Bool = false
     var onToggleCardFocus: () -> Void = {}
     var onClose: () -> Void = {}
+    /// Header drag handle. When set, the header (and only the header) becomes the
+    /// card's move handle — forwarding the drag's cumulative global `translation`
+    /// and cursor `location` up, without owning any move math. Nil leaves the
+    /// header inert (e.g. the dead Canvas shell, which drags the whole card).
+    var onHeaderDragChanged: ((CGSize, CGPoint) -> Void)? = nil
+    var onHeaderDragEnded: ((CGPoint) -> Void)? = nil
     @Binding var isEditingTitle: Bool
     @Binding var editingCardTitleID: UUID?
 
@@ -63,27 +70,25 @@ struct WorkspaceCardView: View {
     }
 
     private var header: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 6) {
             ZStack {
                 Circle()
                     .fill(palette.accent.opacity(0.18))
 
                 Image(systemName: palette.symbol)
-                    .font(.system(size: 10, weight: .bold))
+                    .font(.system(size: 7.5, weight: .bold))
                     .foregroundStyle(palette.accent)
             }
-            .frame(width: 20, height: 20)
+            .frame(width: 14, height: 14)
             .accessibilityHidden(true)
 
-            HStack(alignment: .firstTextBaseline, spacing: 7) {
+            HStack(alignment: .firstTextBaseline, spacing: 5) {
                 titleView
 
                 if !isEditingTitle {
-                    Text(palette.eyebrow)
-                        .font(.system(size: 8.5, weight: .bold, design: theme.monospacedMetadata ? .monospaced : .default))
-                        .textCase(.uppercase)
-                        .tracking(0.9)
-                        .foregroundStyle(palette.accent.opacity(0.7))
+                    Text("· \(palette.eyebrow.lowercased())")
+                        .font(.system(size: 10, weight: .regular, design: theme.monospacedMetadata ? .monospaced : .default))
+                        .foregroundStyle(theme.ink(0.45))
                         .lineLimit(1)
                         .layoutPriority(-1)
                 }
@@ -96,10 +101,33 @@ struct WorkspaceCardView: View {
                     .transition(.opacity)
             }
         }
-        .padding(.horizontal, 14)
-        .padding(.vertical, 7)
+        .padding(.horizontal, 10)
+        .padding(.vertical, 5)
         .contentShape(Rectangle())
-        .onHover { isHeaderHovered = $0 }
+        // The header is the card's drag handle (reorder in grid, free move in
+        // free-arrange). Show a grab cursor so that's discoverable — re-set on
+        // every move since AppKit resets cursor rects per event.
+        .onContinuousHover { phase in
+            switch phase {
+            case .active:
+                isHeaderHovered = true
+                if !isEditingTitle { NSCursor.openHand.set() }
+            case .ended:
+                isHeaderHovered = false
+                NSCursor.arrow.set()
+            }
+        }
+        // The header is the card's drag handle. Global coordinate space so the
+        // translation tracks the cursor at every zoom level; minimumDistance 1 so
+        // a click still selects. Masked to `.subviews` (off on the header itself,
+        // but title-field editing and header buttons stay live) while a title is
+        // being edited or no handler is wired.
+        .gesture(
+            DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                .onChanged { value in onHeaderDragChanged?(value.translation, value.location) }
+                .onEnded { value in onHeaderDragEnded?(value.location) },
+            including: (onHeaderDragChanged != nil && !isEditingTitle) ? .all : .subviews
+        )
     }
 
     @ViewBuilder
@@ -107,7 +135,7 @@ struct WorkspaceCardView: View {
         if isEditingTitle {
             TextField("Title", text: $editingTitle)
                 .textFieldStyle(.plain)
-                .font(.system(size: 13 * theme.fontScale, weight: .heavy, design: .rounded))
+                .font(.system(size: 11.5 * theme.fontScale, weight: .semibold))
                 .foregroundStyle(theme.ink(0.92))
                 .focused($isTitleFieldFocused)
                 .onSubmit {
@@ -123,11 +151,11 @@ struct WorkspaceCardView: View {
                 }
                 .onAppear {
                     editingTitle = card.title
-                    isTitleFieldFocused = true
+                    DispatchQueue.main.async { isTitleFieldFocused = true }
                 }
         } else {
             Text(card.title)
-                .font(.system(size: 13 * theme.fontScale, weight: .heavy, design: .rounded))
+                .font(.system(size: 11.5 * theme.fontScale, weight: .semibold))
                 .foregroundStyle(theme.ink(0.92))
                 .lineLimit(1)
                 .contentShape(Rectangle())
@@ -138,7 +166,7 @@ struct WorkspaceCardView: View {
     }
 
     private var headerActions: some View {
-        HStack(spacing: 4) {
+        HStack(spacing: 3) {
             headerIconButton(
                 systemName: "pencil",
                 label: "Edit title",
@@ -167,11 +195,11 @@ struct WorkspaceCardView: View {
     private func headerIconButton(systemName: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 10, weight: .bold))
-                .frame(width: 20, height: 20)
-                .foregroundStyle(theme.ink(0.84))
+                .font(.system(size: 8.5, weight: .semibold))
+                .frame(width: 16, height: 16)
+                .foregroundStyle(theme.ink(0.7))
                 .background(
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
                         .fill(theme.surface(0.08))
                 )
         }
@@ -194,7 +222,8 @@ struct WorkspaceCardView: View {
                 cardID: card.id,
                 accent: palette.accent,
                 isSelected: isSelected,
-                workingDirectory: store.state.space?.folderPath
+                workingDirectory: store.state.space?.folderPath,
+                provider: card.agentProvider
             )
         case .browser:
             BrowserCardContentView(cardID: card.id, content: card.content, store: store, isSelected: isSelected)
@@ -213,7 +242,11 @@ struct WorkspaceCardView: View {
         editingTitle = card.title
         isEditingTitle = true
         editingCardTitleID = card.id
-        isTitleFieldFocused = true
+        // An AppKit view (e.g. a terminal card) may hold first responder and
+        // would keep swallowing keystrokes; release it, then focus the title
+        // field on the next runloop tick, after the TextField is mounted.
+        NSApp.keyWindow?.makeFirstResponder(nil)
+        DispatchQueue.main.async { isTitleFieldFocused = true }
     }
 
     private func commitTitle() {
@@ -298,7 +331,7 @@ struct WorkspaceCardView: View {
     }
 
     private var palette: CardPalette {
-        CardPalette(kind: card.kind)
+        CardPalette(kind: card.kind, isDark: theme.isDark)
     }
 }
 

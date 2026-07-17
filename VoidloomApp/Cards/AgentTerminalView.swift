@@ -9,6 +9,9 @@ struct AgentTerminalView: View {
     let accent: Color
     let isSelected: Bool
     let workingDirectory: String?
+    /// The provider CLI this card runs (from the persisted card), relaunched
+    /// whenever a fresh session starts. Nil for plain shell cards.
+    var provider: MediatorAgentKind? = nil
 
     @Environment(\.theme) private var theme
     @EnvironmentObject private var agentSessionManager: AgentSessionManager
@@ -30,7 +33,7 @@ struct AgentTerminalView: View {
             }
         }
         .onAppear {
-            agentSessionManager.startSession(cardID: cardID, workingDirectory: workingDirectory)
+            agentSessionManager.startSession(cardID: cardID, workingDirectory: workingDirectory, launchAs: provider)
         }
     }
 
@@ -40,7 +43,7 @@ struct AgentTerminalView: View {
                 .font(.system(size: 13 * theme.fontScale, weight: .semibold, design: .monospaced))
                 .foregroundStyle(theme.ink(0.75))
             Button {
-                agentSessionManager.restartSession(cardID: cardID, workingDirectory: workingDirectory)
+                agentSessionManager.restartSession(cardID: cardID, workingDirectory: workingDirectory, launchAs: provider)
             } label: {
                 Label("New Shell", systemImage: "arrow.clockwise")
                     .font(.system(size: 12 * theme.fontScale, weight: .semibold))

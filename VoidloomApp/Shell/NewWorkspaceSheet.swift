@@ -35,8 +35,17 @@ struct NewWorkspaceSheet: View {
 
     private var trimmedName: String { name.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var hasFolder: Bool { !path.isEmpty }
-    private var folderIsRepo: Bool { hasFolder && WorkspaceFolder.isGitRepository(path) }
-    private var canCreate: Bool { !trimmedName.isEmpty && hasFolder }
+    /// The path is a real, existing directory — guards against typos in the editable
+    /// field, which would otherwise create a workspace whose Files/Git cards point at
+    /// nothing.
+    private var folderExists: Bool {
+        guard !path.isEmpty else { return false }
+        var isDirectory: ObjCBool = false
+        return FileManager.default.fileExists(atPath: path, isDirectory: &isDirectory)
+            && isDirectory.boolValue
+    }
+    private var folderIsRepo: Bool { folderExists && WorkspaceFolder.isGitRepository(path) }
+    private var canCreate: Bool { !trimmedName.isEmpty && folderExists }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
@@ -58,9 +67,9 @@ struct NewWorkspaceSheet: View {
                 }
             }
 
-            // git heads-up: only meaningful once a folder is chosen.
-            if hasFolder && !folderIsRepo {
-                Label("git not found — git features won't be available for this project.",
+            // Folder heads-up: only meaningful once a folder is chosen.
+            if hasFolder && !folderExists {
+                Label("That folder doesn't exist — pick an existing one.",
                       systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 11))
                     .foregroundStyle(.orange)
@@ -68,6 +77,11 @@ struct NewWorkspaceSheet: View {
                 Label("Git repository detected.", systemImage: "checkmark.seal.fill")
                     .font(.system(size: 11))
                     .foregroundStyle(.green)
+            } else if hasFolder {
+                Label("git not found — git features won't be available for this project.",
+                      systemImage: "exclamationmark.triangle.fill")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.orange)
             }
 
             HStack(spacing: 10) {

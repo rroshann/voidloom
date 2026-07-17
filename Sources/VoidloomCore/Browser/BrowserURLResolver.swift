@@ -2,7 +2,7 @@ import Foundation
 
 /// Pure URL normalization for the browser card. No SwiftUI/WebKit.
 public enum BrowserURLResolver {
-    public static let fallback = URL(string: "https://voidloom.local")!
+    public static let fallback = URL(string: "about:blank")!
 
     /// Strict: nil for empty/invalid input. Use for URL-bar validation.
     public static func normalized(from input: String) -> URL? {

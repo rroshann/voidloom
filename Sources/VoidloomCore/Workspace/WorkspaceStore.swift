@@ -279,6 +279,14 @@ public final class WorkspaceStore: ObservableObject {
         schedulePersistence()
     }
 
+    /// Records which provider CLI an agent card runs, so a fresh session after
+    /// an app restart can relaunch it. Persisted immediately (structural fact).
+    public func setAgentProvider(id: UUID, provider: MediatorAgentKind) {
+        guard let index = state.cards.firstIndex(where: { $0.id == id }) else { return }
+        state.cards[index].agentProvider = provider
+        persist()
+    }
+
     public func updateCardTitle(id: UUID, to title: String) {
         let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -654,6 +662,47 @@ public final class WorkspaceStore: ObservableObject {
         schedulePersistence()
     }
 
+    /// Debounced free-arrange move for a single card (`[id]`) or a marquee group,
+    /// by a screen-space delta through the Board viewport. Drives header drag.
+    public func moveSpaceCardsFreely(ids: Set<UUID>, byScreen delta: ScreenPoint) {
+        guard !ids.isEmpty, delta != ScreenPoint(x: 0, y: 0) else { return }
+        recordUndo("fmove")
+        state.moveSpaceCardsFreely(ids: ids, byScreen: delta)
+        schedulePersistence()
+    }
+
+    // MARK: - Board (free-arrange) viewport
+
+    /// Debounced like the Canvas pan — a trackpad/drag pan emits many deltas.
+    public func panSpaceViewport(by screenTranslation: CanvasVector) {
+        state.panSpaceViewport(by: screenTranslation)
+        schedulePersistence()
+    }
+
+    /// Debounced — a pinch commits once on end, but keep it off the immediate path.
+    public func zoomSpaceViewport(by magnification: Double, anchoredAt anchor: ScreenPoint) {
+        state.zoomSpaceViewport(by: magnification, anchoredAt: anchor)
+        schedulePersistence()
+    }
+
+    /// Discrete Board zoom step (dock +/-, ⌘=/⌘-), snapping to 100%.
+    public func zoomStepSpaceViewport(by magnification: Double, anchoredAt anchor: ScreenPoint) {
+        state.zoomStepSpaceViewport(by: magnification, anchoredAt: anchor)
+        schedulePersistence()
+    }
+
+    /// Resets the Board viewport to identity (⌘0).
+    public func resetSpaceViewport() {
+        state.resetSpaceViewport()
+        schedulePersistence()
+    }
+
+    /// Recenters the Board viewport on a canvas point (minimap click), zoom kept.
+    public func centerSpaceViewport(on point: CanvasPoint, viewportSize: ScreenPoint) {
+        state.centerSpaceViewport(on: point, viewportSize: viewportSize)
+        schedulePersistence()
+    }
+
     /// Debounced like `resizeCard` — a resize drag emits many sizes.
     public func resizeSpaceCardFreely(id: UUID, to size: ScreenPoint) {
         recordUndo("fresize:\(id)")
@@ -822,11 +871,14 @@ public final class WorkspaceStore: ObservableObject {
         moveWorkspace(id: id, toIndex: targetIndex)
     }
 
-    public func deleteWorkspace(id: UUID) {
+    /// Returns the deleted workspace's card IDs so callers can shut down any
+    /// live agent sessions still attached to them.
+    @discardableResult
+    public func deleteWorkspace(id: UUID) -> [UUID] {
         guard isLibraryMode,
               let libraryURL,
-              let workspacesDirectoryURL else { return }
-        guard let index = library.workspaces.firstIndex(where: { $0.id == id }) else { return }
+              let workspacesDirectoryURL else { return [] }
+        guard let index = library.workspaces.firstIndex(where: { $0.id == id }) else { return [] }
 
         let wasActive = library.selectedWorkspaceID == id
 
@@ -838,6 +890,9 @@ public final class WorkspaceStore: ObservableObject {
         library.workspaces.remove(at: index)
 
         let workspaceFileURL = Self.workspaceURL(for: id, in: workspacesDirectoryURL)
+        let removedCardIDs: [UUID] = wasActive
+            ? state.cards.map(\.id)
+            : ((try? Self.load(from: workspaceFileURL))?.cards.map(\.id) ?? [])
         try? FileManager.default.removeItem(at: workspaceFileURL)
 
         // Deleting the final workspace is allowed: every mode is gated behind an
@@ -852,7 +907,7 @@ public final class WorkspaceStore: ObservableObject {
             } catch {
                 lastPersistenceError = error.localizedDescription
             }
-            return
+            return removedCardIDs
         }
 
         if wasActive {
@@ -876,6 +931,7 @@ public final class WorkspaceStore: ObservableObject {
                 lastPersistenceError = error.localizedDescription
             }
         }
+        return removedCardIDs
     }
 
     /// Destructive factory reset (library mode only): deletes every workspace
@@ -1313,7 +1369,10 @@ public final class WorkspaceStore: ObservableObject {
                 position: .zero,
                 size: CardSize(width: 480, height: 320),
                 title: "New Agent",
-                content: "Placeholder for an AI coding agent session."
+                // Vestigial: an agent card's real content is its live terminal, and
+                // its status comes from AgentMemory. Keep this empty so the old
+                // placeholder text never leaks into Sunday's linkedContext as noise.
+                content: ""
             )
         case .note:
             return WorkspaceCard(
@@ -1321,7 +1380,7 @@ public final class WorkspaceStore: ObservableObject {
                 position: .zero,
                 size: CardSize(width: 440, height: 300),
                 title: "New Note",
-                content: "Capture spatial context here."
+                content: ""
             )
         case .todo:
             return WorkspaceCard(
@@ -1337,7 +1396,7 @@ public final class WorkspaceStore: ObservableObject {
                 position: .zero,
                 size: CardSize(width: 520, height: 340),
                 title: "New Preview",
-                content: "Browser card placeholder."
+                content: ""
             )
         case .fileBrowser:
             return WorkspaceCard(

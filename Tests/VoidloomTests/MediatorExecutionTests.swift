@@ -262,6 +262,59 @@ final class CommandExecutorTests: XCTestCase {
         XCTAssertEqual(executor.execute(.arrange(style: .retile)), .success(narration: "Re-tiled the space"))
     }
 
+    func testSpawnRecordsAgentProviderOnCard() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        _ = makeExecutor(store, terminals)
+            .execute(.spawnAgents(count: 1, kind: .claudeCode, names: ["ember"]))
+        XCTAssertEqual(store.state.cards.first { $0.title == "ember" }?.agentProvider, .claudeCode)
+    }
+
+    func testCloseFallsBackToNonAgentCardsWithoutSessionWording() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let id = store.addTitledCard(kind: .note, title: "buy milk")
+        let executor = makeExecutor(store, terminals)
+
+        let first = executor.execute(.closeTerminal(target: "buy milk"))
+        XCTAssertEqual(first, .needsConfirmation(
+            prompt: "Close buy milk?",
+            pending: .closeTerminal(target: "buy milk")
+        ))
+
+        let second = executor.execute(.closeTerminal(target: "buy milk"), confirmed: true)
+        XCTAssertEqual(second, .success(narration: "Closed buy milk"))
+        XCTAssertTrue(terminals.terminated.isEmpty)
+        XCTAssertFalse(store.state.cards.contains { $0.id == id })
+    }
+
+    func testCreateNoteTitlesCardFromContent() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let executor = makeExecutor(store, terminals)
+
+        _ = executor.execute(.createCard(kind: .note, content: "buy milk"))
+        XCTAssertEqual(store.state.cards.first?.title, "buy milk")
+    }
+
+    func testCreateNoteTitleUsesFirstLineAndTruncatesLongContent() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let executor = makeExecutor(store, terminals)
+
+        _ = executor.execute(.createCard(kind: .note, content: "first line\nsecond line"))
+        XCTAssertEqual(store.state.cards.first?.title, "first line")
+
+        let long = String(repeating: "a", count: 60)
+        _ = executor.execute(.createCard(kind: .note, content: long))
+        let title = store.state.cards.last?.title ?? ""
+        XCTAssertEqual(title, String(repeating: "a", count: 40) + "…")
+    }
+
+    func testCreateNoteWithoutContentKeepsDefaultTitle() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let executor = makeExecutor(store, terminals)
+
+        _ = executor.execute(.createCard(kind: .note, content: nil))
+        XCTAssertEqual(store.state.cards.first?.title, "New Note")
+    }
+
     func testCreateAgentCardRoutesThroughSpawnMachinery() {
         let store = makeStore(); let terminals = MockAgentTerminals()
         let result = makeExecutor(store, terminals).execute(.createCard(kind: .agent, content: nil))
@@ -319,6 +372,128 @@ final class CommandExecutorTests: XCTestCase {
         store.addTitledCard(kind: .agent, title: "Ember") // user renamed via UI
         let result = makeExecutor(store, terminals).execute(.spawnAgents(count: 1, kind: .claudeCode, names: ["ember"]))
         XCTAssertEqual(result, .needsClarification(question: "An agent named ember already exists — pick a different name."))
+    }
+
+    // MARK: - Phase B: card CRUD
+
+    func testRenameCardUpdatesTitle() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let id = store.addTitledCard(kind: .note, title: "New Note", content: "x")
+        let result = makeExecutor(store, terminals).execute(.renameCard(target: "New Note", newName: "Sprint"))
+        XCTAssertEqual(store.state.cards.first { $0.id == id }?.title, "Sprint")
+        XCTAssertEqual(result, .success(narration: "Renamed New Note to Sprint"))
+    }
+
+    func testDeleteCardConfirmsThenDeletes() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let id = store.addTitledCard(kind: .note, title: "Scratch", content: "x")
+        let exec = makeExecutor(store, terminals)
+
+        let prompt = exec.execute(.deleteCard(target: "Scratch"))
+        XCTAssertEqual(prompt, .needsConfirmation(prompt: "Delete Scratch?", pending: .deleteCard(target: "Scratch")))
+        XCTAssertTrue(store.state.cards.contains { $0.id == id })
+
+        let done = exec.execute(.deleteCard(target: "Scratch"), confirmed: true)
+        XCTAssertEqual(done, .success(narration: "Deleted Scratch"))
+        XCTAssertFalse(store.state.cards.contains { $0.id == id })
+    }
+
+    func testDeleteAgentCardAlsoTerminatesItsSession() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let id = store.addTitledCard(kind: .agent, title: "ember")
+        _ = makeExecutor(store, terminals).execute(.deleteCard(target: "ember"), confirmed: true)
+        XCTAssertEqual(terminals.terminated, [id])
+        XCTAssertFalse(store.state.cards.contains { $0.id == id })
+    }
+
+    func testEditNoteAppendsOrReplaces() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let id = store.addTitledCard(kind: .note, title: "Log", content: "line 1")
+        let exec = makeExecutor(store, terminals)
+
+        _ = exec.execute(.editNote(target: "Log", content: "line 2", append: true))
+        XCTAssertEqual(store.state.cards.first { $0.id == id }?.content, "line 1\nline 2")
+
+        _ = exec.execute(.editNote(target: "Log", content: "fresh", append: false))
+        XCTAssertEqual(store.state.cards.first { $0.id == id }?.content, "fresh")
+    }
+
+    func testEditNoteRefusesNonNoteCard() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        store.addTitledCard(kind: .todo, title: "Chores", content: "")
+        let result = makeExecutor(store, terminals).execute(.editNote(target: "Chores", content: "x", append: true))
+        XCTAssertEqual(result, .refused(reason: "Chores isn't a note card."))
+    }
+
+    func testAddTodoItemAppendsUncheckedLine() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let id = store.addTitledCard(kind: .todo, title: "Chores", content: "[ ] dishes")
+        let result = makeExecutor(store, terminals).execute(.addTodoItem(target: "Chores", text: "buy milk"))
+        XCTAssertEqual(store.state.cards.first { $0.id == id }?.content, "[ ] dishes\n[ ] buy milk")
+        XCTAssertEqual(result, .success(narration: "Added \"buy milk\" to Chores"))
+    }
+
+    func testSetTodoItemDoneChecksMatchingItemCaseInsensitively() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let id = store.addTitledCard(kind: .todo, title: "Chores", content: "[ ] Buy Milk\n[ ] dishes")
+        let result = makeExecutor(store, terminals).execute(.setTodoItemDone(target: "Chores", text: "buy milk", done: true))
+        XCTAssertEqual(store.state.cards.first { $0.id == id }?.content, "[x] Buy Milk\n[ ] dishes")
+        XCTAssertEqual(result, .success(narration: "Checked \"Buy Milk\" in Chores"))
+    }
+
+    func testSetTodoItemDoneOnMissingItemAsksForClarification() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        store.addTitledCard(kind: .todo, title: "Chores", content: "[ ] dishes")
+        let result = makeExecutor(store, terminals).execute(.setTodoItemDone(target: "Chores", text: "laundry", done: true))
+        XCTAssertEqual(result, .needsClarification(question: "No item matching \"laundry\" in Chores."))
+    }
+
+    func testCardCommandOnMissingCardAsksForClarification() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let result = makeExecutor(store, terminals).execute(.renameCard(target: "ghost", newName: "x"))
+        XCTAssertEqual(result, .needsClarification(question: "I don't see a card called ghost."))
+    }
+
+    // MARK: - Agent memory (Turn 2)
+
+    func testSpawnAndPromptRecordAgentActivity() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let exec = makeExecutor(store, terminals)
+        _ = exec.execute(.spawnAgents(count: 1, kind: .claudeCode, names: ["ember"]))
+        let id = store.state.cards.first { $0.title == "ember" }!.id
+        XCTAssertEqual(exec.memory.activity(for: id), "just started")
+        _ = exec.execute(.sendPrompt(target: "ember", text: "fix the build"))
+        XCTAssertEqual(exec.memory.activity(for: id), "asked to fix the build")
+    }
+
+    func testRelayReadsSourceOutputAndSendsToTarget() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let fromID = store.addTitledCard(kind: .agent, title: "ember")
+        let toID = store.addTitledCard(kind: .agent, title: "slate")
+        terminals.outputByCard[fromID] = ["found the bug in Store.swift"]
+        let result = makeExecutor(store, terminals).execute(.relayBetweenAgents(from: "ember", to: "slate"))
+        XCTAssertEqual(result, .success(narration: "Relayed ember → slate"))
+        XCTAssertEqual(terminals.sent.last?.cardID, toID)
+        XCTAssertTrue(terminals.sent.last?.text.contains("found the bug in Store.swift") == true)
+    }
+
+    func testRelayToSameAgentIsRejected() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        store.addTitledCard(kind: .agent, title: "ember")
+        let result = makeExecutor(store, terminals).execute(.relayBetweenAgents(from: "ember", to: "ember"))
+        XCTAssertEqual(result, .needsClarification(question: "Relay needs two different agents."))
+    }
+
+    func testBriefSendsRosterOfOtherAgents() {
+        let store = makeStore(); let terminals = MockAgentTerminals()
+        let exec = makeExecutor(store, terminals)
+        _ = exec.execute(.spawnAgents(count: 2, kind: .claudeCode, names: ["ember", "slate"]))
+        _ = exec.execute(.sendPrompt(target: "slate", text: "fix the build"))
+        let result = exec.execute(.briefAgent(target: "ember"))
+        XCTAssertEqual(result, .success(narration: "Briefed ember on the others"))
+        let briefing = terminals.sent.last!
+        XCTAssertTrue(briefing.text.contains("slate: asked to fix the build"))
+        XCTAssertFalse(briefing.text.contains("ember:"))
     }
 }
 

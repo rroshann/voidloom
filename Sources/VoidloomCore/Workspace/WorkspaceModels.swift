@@ -18,6 +18,10 @@ public struct WorkspaceCard: Codable, Equatable, Identifiable, Sendable {
     public var size: CardSize
     public var title: String
     public var content: String
+    /// For agent cards: which provider CLI this card runs (claude, codex, …),
+    /// so a fresh session after an app restart can relaunch it. Optional and
+    /// absent from legacy JSON — nil means a plain shell.
+    public var agentProvider: MediatorAgentKind?
 
     public init(
         id: UUID = UUID(),
@@ -25,7 +29,8 @@ public struct WorkspaceCard: Codable, Equatable, Identifiable, Sendable {
         position: CanvasPoint,
         size: CardSize,
         title: String,
-        content: String
+        content: String,
+        agentProvider: MediatorAgentKind? = nil
     ) {
         self.id = id
         self.kind = kind
@@ -33,6 +38,7 @@ public struct WorkspaceCard: Codable, Equatable, Identifiable, Sendable {
         self.size = size
         self.title = title
         self.content = content
+        self.agentProvider = agentProvider
     }
 }
 
@@ -112,6 +118,23 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         textElements = try container.decodeIfPresent([TextElement].self, forKey: .textElements) ?? []
         selectedTextID = try container.decodeIfPresent(UUID.self, forKey: .selectedTextID)
         space = try container.decodeIfPresent(SpaceConfig.self, forKey: .space)
+
+        // Migration: unify free-arrange placement onto card.position/size. Older
+        // files stored it in SpaceConfig.freeFrames (screen points); at the identity
+        // viewport a screen point equals a canvas point, so copy each frame onto its
+        // card. card.position/size is the source of truth going forward; freeFrames
+        // is then cleared in memory so a re-save (which no longer writes frames) can
+        // never re-clobber a card the user has since moved. The placement ledger
+        // (space.freePlaced) already captured these ids during SpaceConfig decode.
+        if let frames = space?.freeFrames, !frames.isEmpty {
+            for i in cards.indices {
+                if let frame = frames[cards[i].id] {
+                    cards[i].position = CanvasPoint(x: frame.origin.x, y: frame.origin.y)
+                    cards[i].size = CardSize(width: frame.size.x, height: frame.size.y)
+                }
+            }
+            space?.freeFrames = [:]
+        }
     }
 
     /// Normalizes two opposite corners into a top-left origin and a positive
@@ -461,7 +484,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         // Drop any connection that referenced the removed card so dangling
         // edges never render or persist.
         connections.removeAll { $0.from == id || $0.to == id }
-        space?.freeFrames[id] = nil
+        space?.freePlaced.remove(id)
 
         if selectedCardID == id {
             selectedCardID = nil
@@ -479,7 +502,7 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         guard !ids.isEmpty else { return }
         cards.removeAll { ids.contains($0.id) }
         connections.removeAll { ids.contains($0.from) || ids.contains($0.to) }
-        for id in ids { space?.freeFrames[id] = nil }
+        space?.freePlaced.subtract(ids)
         if let selected = selectedCardID, ids.contains(selected) {
             selectedCardID = nil
         }
@@ -824,6 +847,12 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         return kept + appended
     }
 
+    /// The Board (free-arrange) pan/zoom, identity until the user pans/zooms.
+    /// Board render + move math key off THIS, never `viewport` (the Canvas one).
+    public var spaceViewport: CanvasViewport {
+        space?.viewport ?? CanvasViewport()
+    }
+
     /// Materializes a default `SpaceConfig` on first edit; never overwrites an
     /// existing one.
     public mutating func ensureSpaceConfig() {
@@ -876,36 +905,115 @@ public struct WorkspaceState: Codable, Equatable, Sendable {
         space?.layoutMode = mode
     }
 
-    /// Seeds free-arrange frames for cards that don't have one yet, never
-    /// overwriting an existing frame — a card the user has placed stays put.
+    /// Pans the Board viewport by a screen-space translation (materializing it).
+    public mutating func panSpaceViewport(by screenTranslation: CanvasVector) {
+        ensureSpaceConfig()
+        var vp = spaceViewport
+        vp.pan(by: screenTranslation)
+        space?.viewport = vp
+    }
+
+    /// Pinch-zooms the Board viewport, keeping `anchor`'s canvas point pinned.
+    public mutating func zoomSpaceViewport(by magnification: Double, anchoredAt anchor: ScreenPoint) {
+        ensureSpaceConfig()
+        var vp = spaceViewport
+        vp.zoom(by: magnification, anchoredAt: anchor)
+        space?.viewport = vp
+    }
+
+    /// Discrete Board zoom step (the dock +/- and ⌘=/⌘-), snapping to 100%.
+    public mutating func zoomStepSpaceViewport(by magnification: Double, anchoredAt anchor: ScreenPoint) {
+        ensureSpaceConfig()
+        var vp = spaceViewport
+        vp.zoomStep(by: magnification, anchoredAt: anchor)
+        space?.viewport = vp
+    }
+
+    /// Resets the Board viewport to identity (⌘0).
+    public mutating func resetSpaceViewport() {
+        ensureSpaceConfig()
+        space?.viewport = CanvasViewport()
+    }
+
+    /// Pans the Board viewport so `point` (canvas) appears at the viewport center,
+    /// preserving zoom. Drives minimap recenter.
+    public mutating func centerSpaceViewport(on point: CanvasPoint, viewportSize: ScreenPoint) {
+        guard viewportSize.x > 0, viewportSize.y > 0 else { return }
+        ensureSpaceConfig()
+        var vp = spaceViewport
+        vp.pan(soCanvasPoint: point, appearsAt: ScreenPoint(x: viewportSize.x / 2, y: viewportSize.y / 2))
+        space?.viewport = vp
+    }
+
+    /// Writes a grid-derived free-arrange frame onto the card at `index` (identity
+    /// mapping: a screen point equals a canvas point) and records it as placed.
+    private mutating func placeFreeCard(at index: Int, frame: SpaceFreeFrame) {
+        cards[index].position = CanvasPoint(x: frame.origin.x, y: frame.origin.y)
+        cards[index].size = CardSize(width: frame.size.x, height: frame.size.y)
+        space?.freePlaced.insert(cards[index].id)
+    }
+
+    /// Seeds a grid-derived position/size onto each card in `defaults` not yet
+    /// placed, marking it placed — a card the user has already moved stays put.
     public mutating func seedMissingFreeFrames(_ defaults: [UUID: SpaceFreeFrame]) {
         guard !defaults.isEmpty else { return }
         ensureSpaceConfig()
-        space?.freeFrames.merge(defaults) { existing, _ in existing }
+        for (id, frame) in defaults {
+            guard space?.freePlaced.contains(id) == false,
+                  let index = cards.firstIndex(where: { $0.id == id }) else { continue }
+            placeFreeCard(at: index, frame: frame)
+        }
     }
 
-    /// Replaces every free-arrange frame — drives "Re-tile" in free mode,
-    /// snapping all cards back to a computed arrangement.
+    /// Snaps every listed card to its frame and marks it placed — drives "Re-tile"
+    /// in free mode, overwriting even an already-placed card (unlike seeding) so
+    /// the whole field returns to the computed arrangement.
     public mutating func setSpaceFreeFrames(_ frames: [UUID: SpaceFreeFrame]) {
         ensureSpaceConfig()
-        space?.freeFrames = frames
+        for (id, frame) in frames {
+            guard let index = cards.firstIndex(where: { $0.id == id }) else { continue }
+            placeFreeCard(at: index, frame: frame)
+        }
     }
 
-    /// Moves a free-arrange card to `origin`, keeping its size. No-op for a
-    /// card without a seeded frame (unknown or grid-only).
+    /// Moves a free-arrange card to `origin` (screen == canvas at identity),
+    /// keeping its size, and marks it placed. No-op for an unknown card.
     public mutating func moveSpaceCardFreely(id: UUID, to origin: ScreenPoint) {
-        guard space?.freeFrames[id] != nil else { return }
-        space?.freeFrames[id]?.origin = origin
+        guard let index = cards.firstIndex(where: { $0.id == id }) else { return }
+        cards[index].position = CanvasPoint(x: origin.x, y: origin.y)
+        ensureSpaceConfig()
+        space?.freePlaced.insert(id)
     }
 
-    /// Resizes a free-arrange card, keeping its origin (bottom-right handle
-    /// semantics) and clamping to the card minimums so content stays usable.
-    /// No-op for a card without a seeded frame (unknown or grid-only).
+    /// Shifts every card in `ids` by the same screen-space delta, converted to a
+    /// canvas delta through the **Board** viewport (a screen delta is `delta /
+    /// scale` canvas units), marking each placed. Drives header drag for a single
+    /// card (`[id]`) or a marquee group. Uses the Board viewport, never
+    /// `state.viewport` (the dead Canvas one, non-identity on migrated files).
+    /// Unknown ids are ignored; an empty set is a no-op.
+    public mutating func moveSpaceCardsFreely(ids: Set<UUID>, byScreen delta: ScreenPoint) {
+        guard !ids.isEmpty else { return }
+        ensureSpaceConfig()
+        let scale = spaceViewport.scale
+        let dx = delta.x / scale
+        let dy = delta.y / scale
+        for index in cards.indices where ids.contains(cards[index].id) {
+            cards[index].position.x += dx
+            cards[index].position.y += dy
+            space?.freePlaced.insert(cards[index].id)
+        }
+    }
+
+    /// Resizes a free-arrange card, keeping its position (bottom-right handle
+    /// semantics) and clamping to the card minimums so content stays usable, and
+    /// marks it placed. No-op for an unknown card.
     public mutating func resizeSpaceCardFreely(id: UUID, to size: ScreenPoint) {
-        guard space?.freeFrames[id] != nil else { return }
-        space?.freeFrames[id]?.size = ScreenPoint(
-            x: max(size.x, CardSize.minimumWidth),
-            y: max(size.y, CardSize.minimumHeight)
+        guard let index = cards.firstIndex(where: { $0.id == id }) else { return }
+        cards[index].size = CardSize(
+            width: max(size.x, CardSize.minimumWidth),
+            height: max(size.y, CardSize.minimumHeight)
         )
+        ensureSpaceConfig()
+        space?.freePlaced.insert(id)
     }
 }

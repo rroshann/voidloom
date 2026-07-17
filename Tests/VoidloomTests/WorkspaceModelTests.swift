@@ -526,6 +526,58 @@ final class WorkspaceModelTests: XCTestCase {
         )
     }
 
+    func testWorkspaceCardDecodesLegacyJSONWithoutAgentProvider() throws {
+        let legacy = Data("""
+        {"id":"\(UUID().uuidString)","kind":"agent","position":{"x":0,"y":0},
+         "size":{"width":100,"height":100},"title":"ember","content":""}
+        """.utf8)
+        let card = try JSONDecoder().decode(WorkspaceCard.self, from: legacy)
+        XCTAssertNil(card.agentProvider)
+    }
+
+    func testWorkspaceCardRoundTripsAgentProvider() throws {
+        var card = WorkspaceCard(
+            kind: .agent, position: .zero,
+            size: CardSize(width: 100, height: 100), title: "ember", content: ""
+        )
+        card.agentProvider = .claudeCode
+        let decoded = try JSONDecoder().decode(WorkspaceCard.self, from: JSONEncoder().encode(card))
+        XCTAssertEqual(decoded.agentProvider, .claudeCode)
+    }
+
+    @MainActor
+    func testDeleteWorkspaceReturnsItsCardIDsForSessionCleanup() throws {
+        let baseDirectory = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: baseDirectory) }
+
+        let libraryURL = baseDirectory.appendingPathComponent("library.json")
+        let workspacesDirectory = baseDirectory.appendingPathComponent("workspaces", isDirectory: true)
+
+        let store = WorkspaceStore(
+            libraryURL: libraryURL,
+            workspacesDirectoryURL: workspacesDirectory,
+            legacyStorageURL: baseDirectory.appendingPathComponent("workspace.json")
+        )
+        let firstID = store.library.selectedWorkspaceID
+        let firstCardIDs = Set(store.state.cards.map(\.id))
+
+        store.createWorkspace(named: "Disposable")
+        let disposableID = store.library.selectedWorkspaceID
+        let disposableCardIDs = Set(store.state.cards.map(\.id))
+
+        // Active workspace: IDs come from the live state.
+        XCTAssertEqual(Set(store.deleteWorkspace(id: disposableID)), disposableCardIDs)
+
+        // Non-active workspace: IDs are read back from its file on disk.
+        store.createWorkspace(named: "Other")
+        XCTAssertNotEqual(store.library.selectedWorkspaceID, firstID)
+        XCTAssertEqual(Set(store.deleteWorkspace(id: firstID)), firstCardIDs)
+
+        // Unknown workspace: nothing to clean up.
+        XCTAssertEqual(store.deleteWorkspace(id: UUID()), [])
+    }
+
     @MainActor
     func testDeleteWorkspaceCanRemoveTheLastOne() throws {
         let baseDirectory = FileManager.default.temporaryDirectory
@@ -2222,6 +2274,13 @@ final class WorkspaceModelTests: XCTestCase {
 
     func testBrowserResolverLenientResolveAlwaysReturnsURL() {
         XCTAssertNotNil(BrowserURLResolver.resolve(from: ""))   // fallback, never nil
+    }
+
+    func testBrowserResolverEmptyResolvesToBlankNotAFakeDomain() {
+        // Empty/invalid input must resolve to a clean blank page — not a made-up
+        // domain that DNS-errors in the web view (the new-browser-card impression).
+        XCTAssertEqual(BrowserURLResolver.resolve(from: "").absoluteString, "about:blank")
+        XCTAssertEqual(BrowserURLResolver.resolve(from: "not a url at all").absoluteString, "about:blank")
     }
 
     // MARK: - C1: Chat models + reducer

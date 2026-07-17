@@ -40,6 +40,14 @@ struct FileBrowserCardContentView: View {
                         .onTapGesture(count: 2) {
                             if !node.isDirectory { NSWorkspace.shared.open(node.url) }
                         }
+                        .contextMenu {
+                            if !node.isDirectory {
+                                Button("Open") { NSWorkspace.shared.open(node.url) }
+                            }
+                            Button("Reveal in Finder") {
+                                NSWorkspace.shared.activateFileViewerSelecting([node.url])
+                            }
+                        }
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
                 }

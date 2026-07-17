@@ -40,6 +40,34 @@ final class LlamaBrainIntegrationTests: XCTestCase {
         wait(for: [exp], timeout: 30)
     }
 
+    /// The abstain path, live: chat-like input must make the model pick
+    /// {"none":{}}, which surfaces as `.unparseable` so the coordinator routes
+    /// the utterance to the conversational backend instead of forcing a command.
+    func testChatLikeInputAbstainsToUnparseable() throws {
+        let url = try modelURLOrSkip()
+        let engine = CllamaEngine()
+        try engine.load(modelPath: url, config: LlamaEngineConfig(contextLength: 2048))
+        defer { engine.unload() }
+        let brain = LlamaBrain(engine: engine)
+
+        let chatLike = ["hi", "what cards do I have open?", "thanks, that helps"]
+        let exp = expectation(description: "abstain")
+        Task {
+            for utterance in chatLike {
+                do {
+                    let cmd = try await brain.command(for: utterance)
+                    XCTFail("\(utterance) should abstain, but produced \(cmd)")
+                } catch let error as BrainError {
+                    guard case .unparseable = error else {
+                        return XCTFail("\(utterance) -> \(error), expected .unparseable")
+                    }
+                }
+            }
+            exp.fulfill()
+        }
+        wait(for: [exp], timeout: 30)
+    }
+
     /// Warm end-of-utterance -> command-dispatch latency against the spec's
     /// ≤1s bar (spike-measured warm: 0.15-0.26s). The first call pays the cold
     /// Metal-load + first-eval cost (spike: ~0.66s + ~0.35s) and is discarded;

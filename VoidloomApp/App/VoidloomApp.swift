@@ -8,27 +8,38 @@ import VoidloomCore
 struct VoidloomApp: App {
     @StateObject private var store = WorkspaceStore()
     @StateObject private var agentSessionManager = AgentSessionManager()
-    @StateObject private var interaction = CanvasInteractionModel()
+    /// App-scoped (not window-scoped) so closing the window and reopening it
+    /// drops back into the workspace that was open — pairing with the agent
+    /// sessions that survive the window. A cold launch still shows the launcher.
+    @StateObject private var appSession = AppSession()
+    /// App-scoped so the Settings scene can drive voice previews with the same
+    /// speaker (and interrupt rules) the workspace uses.
+    @StateObject private var speaker = AssistantSpeaker()
     @StateObject private var modelAssets: ModelAssetManager
     @StateObject private var conversationStore: ConversationStore
+    /// The launch-time chat backend, shared by the sidebar and the mediator's
+    /// conversational fallback so both always answer with the same voice.
+    private let chatProvider: ResponseProvider
 
     init() {
         let assets = ModelAssetManager()
         _modelAssets = StateObject(wrappedValue: assets)
 
+        let persona = AssistantIdentity.systemPrompt()
+        let provider: ResponseProvider
         if #available(macOS 26, *), AppleTierAvailability.foundationModelsAvailable {
-            _conversationStore = StateObject(wrappedValue: ConversationStore(
-                provider: FoundationModelsResponseProvider()))
+            provider = FoundationModelsResponseProvider(systemPrompt: persona)
         } else if assets.state(of: LocalModelManifest.chatModel) == .ready,
                   let url = assets.localURL(of: LocalModelManifest.chatModel) {
             let engine = LazyLoadingEngine(
                 modelURL: url,
                 config: LlamaEngineConfig(contextLength: 4096))
-            _conversationStore = StateObject(wrappedValue: ConversationStore(
-                provider: LocalResponseProvider(engine: engine)))
+            provider = LocalResponseProvider(engine: engine, systemPrompt: persona)
         } else {
-            _conversationStore = StateObject(wrappedValue: ConversationStore())
+            provider = StubResponseProvider()
         }
+        chatProvider = provider
+        _conversationStore = StateObject(wrappedValue: ConversationStore(provider: provider))
     }
 
     var body: some Scene {
@@ -40,8 +51,10 @@ struct VoidloomApp: App {
                 store: store,
                 sessionManager: agentSessionManager,
                 conversationStore: conversationStore,
-                interaction: interaction,
-                modelAssets: modelAssets
+                modelAssets: modelAssets,
+                chatProvider: chatProvider,
+                session: appSession,
+                speaker: speaker
             )
         }
         .windowStyle(.hiddenTitleBar)
@@ -53,6 +66,7 @@ struct VoidloomApp: App {
                 .environmentObject(modelAssets)
                 .environmentObject(store)
                 .environmentObject(agentSessionManager)
+                .environmentObject(speaker)
         }
     }
 }
@@ -65,11 +79,14 @@ private struct RootThemeHost: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var sessionManager: AgentSessionManager
     @ObservedObject var conversationStore: ConversationStore
-    @ObservedObject var interaction: CanvasInteractionModel
     @ObservedObject var modelAssets: ModelAssetManager
+    let chatProvider: ResponseProvider
 
     /// Launch shows the startup screen; opening/creating a workspace flips this.
-    @StateObject private var session = AppSession()
+    /// Owned by the App (not this window-scoped view), so it survives window
+    /// close/reopen.
+    @ObservedObject var session: AppSession
+    @ObservedObject var speaker: AssistantSpeaker
 
     @Environment(\.colorScheme) private var systemColorScheme
 
@@ -104,8 +121,9 @@ private struct RootThemeHost: View {
                     store: store,
                     sessionManager: sessionManager,
                     conversationStore: conversationStore,
-                    interaction: interaction,
-                    modelAssets: modelAssets
+                    modelAssets: modelAssets,
+                    chatProvider: chatProvider,
+                    speaker: speaker
                 )
             } else {
                 StartupView(store: store)

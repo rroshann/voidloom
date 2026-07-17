@@ -10,7 +10,7 @@ import Foundation
 public enum MediatorCommandSchema {
     public struct Parameter: Equatable, Sendable {
         public enum Kind: String, Sendable {
-            case string, integer, stringArray, agentKind, arrangeStyle, cardKind, backgroundSpec
+            case string, integer, bool, stringArray, agentKind, arrangeStyle, cardKind, backgroundSpec
         }
         public let name: String
         public let kind: Kind
@@ -59,6 +59,38 @@ public enum MediatorCommandSchema {
         Case(name: "setBackground", parameters: [
             Parameter(name: "spec", kind: .backgroundSpec, required: true),
         ]),
+        Case(name: "renameCard", parameters: [
+            Parameter(name: "target", kind: .string, required: true),
+            Parameter(name: "newName", kind: .string, required: true),
+        ]),
+        Case(name: "deleteCard", parameters: [
+            Parameter(name: "target", kind: .string, required: true),
+        ]),
+        Case(name: "editNote", parameters: [
+            Parameter(name: "target", kind: .string, required: true),
+            Parameter(name: "content", kind: .string, required: true),
+            Parameter(name: "append", kind: .bool, required: true),
+        ]),
+        Case(name: "addTodoItem", parameters: [
+            Parameter(name: "target", kind: .string, required: true),
+            Parameter(name: "text", kind: .string, required: true),
+        ]),
+        Case(name: "setTodoItemDone", parameters: [
+            Parameter(name: "target", kind: .string, required: true),
+            Parameter(name: "text", kind: .string, required: true),
+            Parameter(name: "done", kind: .bool, required: true),
+        ]),
+        Case(name: "delegate", parameters: [
+            Parameter(name: "question", kind: .string, required: true),
+            Parameter(name: "target", kind: .string, required: false),
+        ]),
+        Case(name: "relayBetweenAgents", parameters: [
+            Parameter(name: "from", kind: .string, required: true),
+            Parameter(name: "to", kind: .string, required: true),
+        ]),
+        Case(name: "briefAgent", parameters: [
+            Parameter(name: "target", kind: .string, required: true),
+        ]),
     ]
 
     /// One canonical wire sample per case. Every sample must decode into
@@ -72,6 +104,14 @@ public enum MediatorCommandSchema {
         "createCard": #"{"createCard":{"kind":"note","content":"standup"}}"#,
         "switchSpace": #"{"switchSpace":{"name":"research"}}"#,
         "setBackground": ##"{"setBackground":{"spec":{"solid":{"hex":"#102030FF"}}}}"##,
+        "renameCard": #"{"renameCard":{"target":"ember","newName":"scout"}}"#,
+        "deleteCard": #"{"deleteCard":{"target":"standup"}}"#,
+        "editNote": #"{"editNote":{"target":"standup","content":"ship it","append":true}}"#,
+        "addTodoItem": #"{"addTodoItem":{"target":"chores","text":"buy milk"}}"#,
+        "setTodoItemDone": #"{"setTodoItemDone":{"target":"chores","text":"buy milk","done":true}}"#,
+        "delegate": #"{"delegate":{"question":"how does persistence work","target":"ember"}}"#,
+        "relayBetweenAgents": #"{"relayBetweenAgents":{"from":"ember","to":"slate"}}"#,
+        "briefAgent": #"{"briefAgent":{"target":"ember"}}"#,
     ]
 
     /// Allowed values for `.agentKind` parameters — the grammar constrains

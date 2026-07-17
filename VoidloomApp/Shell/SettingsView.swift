@@ -17,9 +17,6 @@ struct SettingsView: View {
             AppearanceSettingsTab()
                 .tabItem { Label("Appearance", systemImage: "paintbrush") }
 
-            CanvasSettingsTab()
-                .tabItem { Label("Canvas", systemImage: "square.grid.3x3") }
-
             SpacesSettingsTab()
                 .tabItem { Label("Spaces", systemImage: "rectangle.grid.2x2") }
 
@@ -215,81 +212,14 @@ private struct AccentSwatch: View {
     }
 }
 
-// MARK: - Canvas
-
-private struct CanvasSettingsTab: View {
-    @AppStorage("canvas.scrollZooms") private var scrollZooms = true
-    @AppStorage("canvas.invertPan") private var invertPan = false
-    @AppStorage("canvas.zoomSensitivity") private var zoomSensitivity = 1.0
-    @AppStorage("canvas.zoomTowardCursor") private var zoomTowardCursor = true
-    @AppStorage("canvas.defaultZoom") private var defaultZoom = 100
-    @AppStorage("canvas.momentumPanning") private var momentumPanning = true
-    @AppStorage("canvas.selectionBoxModifier") private var selectionBoxModifier: SelectionBoxModifier = .none
-
-    var body: some View {
-        Form {
-            Section("Navigation") {
-                Toggle("Scroll wheel zooms", isOn: $scrollZooms)
-                Toggle("Invert pan direction", isOn: $invertPan)
-
-                LabeledContent("Zoom sensitivity") {
-                    Slider(value: $zoomSensitivity, in: 0.25...3.0) {
-                        Text("Zoom sensitivity")
-                    } minimumValueLabel: {
-                        Text("Slow")
-                    } maximumValueLabel: {
-                        Text("Fast")
-                    }
-                    .frame(width: 240)
-                }
-
-                Toggle("Zoom toward cursor", isOn: $zoomTowardCursor)
-
-                Picker("Selection box modifier", selection: $selectionBoxModifier) {
-                    ForEach(SelectionBoxModifier.allCases) { Text($0.label).tag($0) }
-                }
-                .pickerStyle(.menu)
-
-                Text("None: a plain mouse drag draws a selection box. Pick a modifier to keep plain drag as pan and require that key for the selection box. Two-finger trackpad always pans.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section("View") {
-                Stepper(value: $defaultZoom, in: 25...400, step: 25) {
-                    LabeledContent("Default zoom level", value: "\(defaultZoom)%")
-                }
-
-                Toggle("Momentum panning", isOn: $momentumPanning)
-
-                KeyboardShortcutRow(title: "Reset view", keys: ["⌘", "0"])
-                KeyboardShortcutRow(title: "Zoom to fit", keys: ["⇧", "⌘", "0"])
-            }
-        }
-        .formStyle(.grouped)
-    }
-}
-
 // MARK: - Spaces
 
 private struct SpacesSettingsTab: View {
-    @AppStorage("app.mode") private var appMode: AppMode = .canvas
     @AppStorage("spaces.defaultColumns") private var defaultColumns = 0   // 0 = auto
     @AppStorage("spaces.defaultRows") private var defaultRows = 0         // 0 = auto / no pagination
 
     var body: some View {
         Form {
-            Section("Mode") {
-                Picker("Workspace mode", selection: $appMode) {
-                    ForEach(AppMode.allCases) { Text($0.label).tag($0) }
-                }
-                .pickerStyle(.segmented)
-
-                Text("Canvas is the free pan/zoom board. Spaces tiles your cards full-screen over a background and is driven by the top space bar.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-
             Section("Spaces Layout") {
                 Picker("Columns", selection: $defaultColumns) {
                     Text("Auto").tag(0)
@@ -379,7 +309,8 @@ private struct AISettingsTab: View {
     @AppStorage("ai.memory") private var memory: Memory = .session
     @AppStorage("ai.sendSelectedCard") private var sendSelectedCard = true
     @AppStorage("ai.customInstructions") private var customInstructions = ""
-    @State private var persistConversations = false
+    @AppStorage("agent.provider") private var agentProvider: MediatorAgentKind = .claudeCode
+    @AppStorage("conversations.persist") private var persistConversations = true
     @EnvironmentObject private var modelAssets: ModelAssetManager
 
     var body: some View {
@@ -393,6 +324,24 @@ private struct AISettingsTab: View {
                 .pickerStyle(.segmented)
 
                 Toggle("Send selected card as context", isOn: $sendSelectedCard)
+            }
+
+            Section("Agents") {
+                Picker("Delegation provider", selection: $agentProvider) {
+                    ForEach(MediatorAgentKind.aiKinds) { Text($0.displayName).tag($0) }
+                }
+                Text("When you don't name an agent, Sunday delegates repo questions to this provider. Delegation uses your own account.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+
+                DisclosureGroup("Launch commands") {
+                    ForEach(MediatorAgentKind.aiKinds) { kind in
+                        LaunchCommandRow(kind: kind)
+                    }
+                    Text("Run when you spawn that kind of agent — add flags here, e.g. \"claude --dangerously-skip-permissions\".")
+                        .font(.caption2)
+                        .foregroundStyle(.tertiary)
+                }
             }
 
             Section("System Prompt") {
@@ -420,13 +369,30 @@ private struct AISettingsTab: View {
     }
 }
 
+/// A per-provider launch-command field. Its AppStorage key is derived from the
+/// kind at init, so each provider persists its own override independently.
+private struct LaunchCommandRow: View {
+    let kind: MediatorAgentKind
+    @AppStorage private var command: String
+
+    init(kind: MediatorAgentKind) {
+        self.kind = kind
+        _command = AppStorage(wrappedValue: kind.defaultLaunchCommand ?? "", "agent.launch.\(kind.rawValue)")
+    }
+
+    var body: some View {
+        LabeledContent(kind.displayName) {
+            TextField(kind.defaultLaunchCommand ?? "", text: $command)
+                .textFieldStyle(.roundedBorder)
+                .font(.system(.body, design: .monospaced))
+                .frame(minWidth: 240)
+        }
+    }
+}
+
 // MARK: - Storage
 
 private struct StorageSettingsTab: View {
-    @AppStorage("storage.autosave") private var autosave = true
-    @AppStorage("storage.autosaveDelay") private var autosaveDelay = 0.75
-    @AppStorage("storage.prettyPrint") private var prettyPrint = false
-
     @EnvironmentObject private var store: WorkspaceStore
     @EnvironmentObject private var sessionManager: AgentSessionManager
 
@@ -465,16 +431,6 @@ private struct StorageSettingsTab: View {
                     .disabled(true)
                     .help("Not supported yet — the data folder is fixed for now.")
                 }
-            }
-
-            Section("Persistence") {
-                Toggle("Autosave changes", isOn: $autosave)
-
-                Stepper(value: $autosaveDelay, in: 0.25...5.0, step: 0.25) {
-                    LabeledContent("Autosave delay", value: String(format: "%.2f s", autosaveDelay))
-                }
-
-                Toggle("Pretty-print JSON", isOn: $prettyPrint)
             }
 
             Section("Library") {
@@ -567,6 +523,10 @@ private struct AboutSettingsTab: View {
         Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
     }
 
+    private func openURL(_ string: String) {
+        if let url = URL(string: string) { NSWorkspace.shared.open(url) }
+    }
+
     var body: some View {
         Form {
             Section("Voidloom") {
@@ -598,17 +558,12 @@ private struct AboutSettingsTab: View {
 
             Section("Resources") {
                 Button("Release notes") {
-                    // Placeholder: opens changelog.
-                }
-                .buttonStyle(.link)
-
-                Button("Acknowledgements") {
-                    // Placeholder: opens open-source licenses sheet.
+                    openURL("https://github.com/rroshann/voidloom/releases")
                 }
                 .buttonStyle(.link)
 
                 Button("Report an issue") {
-                    // Placeholder: opens issue tracker.
+                    openURL("https://github.com/rroshann/voidloom/issues")
                 }
                 .buttonStyle(.link)
             }

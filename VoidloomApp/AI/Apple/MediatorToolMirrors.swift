@@ -11,6 +11,8 @@ enum MediatorToolMirrors {
     static let mirrorCaseNames: [String] = [
         "spawnAgents", "sendPrompt", "readOutput", "closeTerminal",
         "arrange", "createCard", "switchSpace", "setBackground",
+        "renameCard", "deleteCard", "editNote", "addTodoItem", "setTodoItemDone",
+        "delegate", "relayBetweenAgents", "briefAgent",
     ]
 
     /// Canonical mirror instance per schema sample (for round-trip parity tests).
@@ -32,6 +34,22 @@ enum MediatorToolMirrors {
             return SwitchSpaceMirror(name: "research")
         case "setBackground":
             return SetBackgroundMirror(spec: BackgroundSpecMirror(solid: SolidBackgroundMirror(hex: "#102030FF")))
+        case "renameCard":
+            return RenameCardMirror(target: "ember", newName: "scout")
+        case "deleteCard":
+            return DeleteCardMirror(target: "standup")
+        case "editNote":
+            return EditNoteMirror(target: "standup", content: "ship it", append: true)
+        case "addTodoItem":
+            return AddTodoItemMirror(target: "chores", text: "buy milk")
+        case "setTodoItemDone":
+            return SetTodoItemDoneMirror(target: "chores", text: "buy milk", done: true)
+        case "delegate":
+            return DelegateMirror(question: "how does persistence work", target: "ember")
+        case "relayBetweenAgents":
+            return RelayBetweenAgentsMirror(from: "ember", to: "slate")
+        case "briefAgent":
+            return BriefAgentMirror(target: "ember")
         default:
             return nil
         }
@@ -170,6 +188,94 @@ struct SetBackgroundMirror: MediatorCommandMirroring {
     }
 }
 
+@available(macOS 26, *)
+@Generable
+struct RenameCardMirror: MediatorCommandMirroring {
+    var target: String
+    var newName: String
+
+    func toCommand() throws -> MediatorCommand {
+        .renameCard(target: target, newName: newName)
+    }
+}
+
+@available(macOS 26, *)
+@Generable
+struct DeleteCardMirror: MediatorCommandMirroring {
+    var target: String
+
+    func toCommand() throws -> MediatorCommand {
+        .deleteCard(target: target)
+    }
+}
+
+@available(macOS 26, *)
+@Generable
+struct EditNoteMirror: MediatorCommandMirroring {
+    var target: String
+    var content: String
+    var append: Bool
+
+    func toCommand() throws -> MediatorCommand {
+        .editNote(target: target, content: content, append: append)
+    }
+}
+
+@available(macOS 26, *)
+@Generable
+struct AddTodoItemMirror: MediatorCommandMirroring {
+    var target: String
+    var text: String
+
+    func toCommand() throws -> MediatorCommand {
+        .addTodoItem(target: target, text: text)
+    }
+}
+
+@available(macOS 26, *)
+@Generable
+struct SetTodoItemDoneMirror: MediatorCommandMirroring {
+    var target: String
+    var text: String
+    var done: Bool
+
+    func toCommand() throws -> MediatorCommand {
+        .setTodoItemDone(target: target, text: text, done: done)
+    }
+}
+
+@available(macOS 26, *)
+@Generable
+struct DelegateMirror: MediatorCommandMirroring {
+    var question: String
+    var target: String?
+
+    func toCommand() throws -> MediatorCommand {
+        .delegate(question: question, target: target)
+    }
+}
+
+@available(macOS 26, *)
+@Generable
+struct RelayBetweenAgentsMirror: MediatorCommandMirroring {
+    var from: String
+    var to: String
+
+    func toCommand() throws -> MediatorCommand {
+        .relayBetweenAgents(from: from, to: to)
+    }
+}
+
+@available(macOS 26, *)
+@Generable
+struct BriefAgentMirror: MediatorCommandMirroring {
+    var target: String
+
+    func toCommand() throws -> MediatorCommand {
+        .briefAgent(target: target)
+    }
+}
+
 // MARK: - Top-level guided-generation container (one wire case active)
 
 @available(macOS 26, *)
@@ -183,11 +289,21 @@ struct MediatorCommandMirror {
     var createCard: CreateCardMirror?
     var switchSpace: SwitchSpaceMirror?
     var setBackground: SetBackgroundMirror?
+    var renameCard: RenameCardMirror?
+    var deleteCard: DeleteCardMirror?
+    var editNote: EditNoteMirror?
+    var addTodoItem: AddTodoItemMirror?
+    var setTodoItemDone: SetTodoItemDoneMirror?
+    var delegate: DelegateMirror?
+    var relayBetweenAgents: RelayBetweenAgentsMirror?
+    var briefAgent: BriefAgentMirror?
 
     func toCommand() throws -> MediatorCommand {
         let mirrors: [(any MediatorCommandMirroring)?] = [
             spawnAgents, sendPrompt, readOutput, closeTerminal,
             arrange, createCard, switchSpace, setBackground,
+            renameCard, deleteCard, editNote, addTodoItem, setTodoItemDone,
+            delegate, relayBetweenAgents, briefAgent,
         ]
         let selected = mirrors.compactMap { $0 }
         guard selected.count == 1, let mirror = selected.first else {

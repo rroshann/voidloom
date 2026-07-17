@@ -45,13 +45,37 @@ public final class FastPathBrain: MediatorBrain {
         case "spawn", "start", "open", "launch":
             return parseSpawn(Array(words.dropFirst()))
         case "ask", "tell", "prompt":
+            // "ask ember about <q>" delegates a question; "ask ember to <text>"
+            // types <text> into the shell. The connector disambiguates.
+            if let (agent, question) = splitOnConnector("about", in: originalWords, firstOccurrence: true) {
+                return .delegate(question: question, target: agent)
+            }
             return parseSendPrompt(Array(words.dropFirst()), original: Array(originalWords.dropFirst()))
+        case "research", "delegate", "investigate":
+            let question = originalWords.dropFirst().joined(separator: " ").trimmingCharacters(in: .whitespaces)
+            return question.isEmpty ? nil : .delegate(question: question, target: nil)
+        case "relay":
+            guard let (from, to) = splitOnConnector("to", in: originalWords, firstOccurrence: true) else { return nil }
+            return .relayBetweenAgents(from: from, to: to)
+        case "have":
+            // "have ember tell slate" / "have ember brief slate" → relay.
+            if let (from, to) = splitOnConnector("tell", in: originalWords, firstOccurrence: true) {
+                return .relayBetweenAgents(from: from, to: to)
+            }
+            if let (from, to) = splitOnConnector("brief", in: originalWords, firstOccurrence: true) {
+                return .relayBetweenAgents(from: from, to: to)
+            }
+            return nil
+        case "brief", "catch-up":
+            guard words.count >= 2 else { return nil }
+            let target = words.dropFirst().filter { $0 != "up" }.joined(separator: " ")
+            return target.isEmpty ? nil : .briefAgent(target: target)
         case "read", "show":
             guard words.count >= 2 else { return nil }
             return .readOutput(target: strippedName(words[1]))
         case "close", "kill", "terminate":
             guard words.count >= 2 else { return nil }
-            return .closeTerminal(target: strippedName(words[1]))
+            return .closeTerminal(target: strippedName(words.dropFirst().joined(separator: " ")))
         case "focus":
             let rest = words.dropFirst().filter { $0 != "on" }
             guard let name = rest.first else { return nil }
@@ -73,9 +97,47 @@ public final class FastPathBrain: MediatorBrain {
             let content = original.dropFirst(head.count)
                 .trimmingCharacters(in: CharacterSet(charactersIn: ": "))
             return .createCard(kind: kind, content: content.isEmpty ? nil : content)
+
+        // Phase B — card CRUD. Payloads (new names, note text, todo items) keep
+        // original case; only the verb and connector words are matched lowercased.
+        case "rename":
+            guard let (target, newName) = splitOnConnector("to", in: originalWords, firstOccurrence: true) else { return nil }
+            return .renameCard(target: target, newName: newName)
+        case "delete", "remove":
+            let target = originalWords.dropFirst().joined(separator: " ").trimmingCharacters(in: .whitespaces)
+            return target.isEmpty ? nil : .deleteCard(target: target)
+        case "append":
+            guard let (content, target) = splitOnConnector("to", in: originalWords, firstOccurrence: false) else { return nil }
+            return .editNote(target: target, content: content, append: true)
+        case "add":
+            guard let (text, target) = splitOnConnector("to", in: originalWords, firstOccurrence: false) else { return nil }
+            return .addTodoItem(target: target, text: text)
+        case "check", "complete":
+            guard let (text, target) = splitOnConnector("in", in: originalWords, firstOccurrence: false) else { return nil }
+            return .setTodoItemDone(target: target, text: text, done: true)
+        case "uncheck", "uncomplete":
+            guard let (text, target) = splitOnConnector("in", in: originalWords, firstOccurrence: false) else { return nil }
+            return .setTodoItemDone(target: target, text: text, done: false)
+
         default:
             return nil
         }
+    }
+
+    /// Splits the words after the verb around a connector token ("to"/"in"),
+    /// preserving case on both sides. `firstOccurrence` chooses which connector
+    /// splits when several appear — first for "rename X to Y" (name at end),
+    /// last for "append X to Y" (target at end, payload may contain the word).
+    private static func splitOnConnector(
+        _ connector: String, in originalWords: [String], firstOccurrence: Bool
+    ) -> (before: String, after: String)? {
+        let rest = Array(originalWords.dropFirst())
+        let positions = rest.enumerated().filter { $0.element.lowercased() == connector }.map(\.offset)
+        guard let index = firstOccurrence ? positions.first : positions.last else { return nil }
+        let before = rest[..<index].joined(separator: " ").trimmingCharacters(in: .whitespaces)
+        let after = rest[(index + 1)...].joined(separator: " ").trimmingCharacters(in: .whitespaces)
+        guard !before.isEmpty, !after.isEmpty else { return nil }
+        return (before, after)
     }
 
     private static func parseSpawn(_ words: [String]) -> MediatorCommand? {
@@ -87,7 +149,8 @@ public final class FastPathBrain: MediatorBrain {
         // Only words up to the name marker can name the process kind, so an
         // agent NAMED "shell" no longer flips a claude agent to a shell (carry-over #5).
         let kindScan = nameMarker.map { Array(words[..<$0]) } ?? words
-        let kind: MediatorAgentKind = kindScan.contains("shell") ? .shell : .claudeCode
+        // First provider keyword before the name wins; default to Claude.
+        let kind = MediatorAgentKind.allCases.first { kindScan.contains($0.rawValue) } ?? .claudeCode
 
         var names: [String]? = nil
         if let namedIdx = nameMarker {

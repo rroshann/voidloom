@@ -165,4 +165,20 @@ final class MediatorSessionTests: XCTestCase {
     func testConfirmationWindowIsThirtySeconds() {
         XCTAssertEqual(MediatorSessionMachine.confirmationTimeout, 30)
     }
+
+    func testCancelDuringExecutingAbortsDelegation() {
+        var machine = MediatorSessionMachine.executing(.delegate(question: "how does X work", target: nil))
+        XCTAssertEqual(machine.handle(.cancelRequested), [.narrate("Cancelled")])
+        XCTAssertEqual(machine.state, .idle)
+    }
+
+    func testChatReplyWhileParsingNarratesAndReturnsToIdle() {
+        var machine = MediatorSessionMachine()
+        _ = machine.handle(.typedUtterance("hi"))
+        XCTAssertEqual(machine.handle(.chatReply("Hey — ready when you are.")),
+                       [.narrate("Hey — ready when you are.")])
+        XCTAssertEqual(machine.state, .idle)
+        // Stale replies after the pipeline moved on never disturb it.
+        XCTAssertEqual(machine.handle(.chatReply("stale")), [])
+    }
 }

@@ -38,11 +38,13 @@ final class MediatorCommandTests: XCTestCase {
 }
 
 final class MediatorCommandSchemaTests: XCTestCase {
-    func testSchemaFreezesTheEightCommandCasesInOrder() {
+    func testSchemaFreezesTheCommandCasesInOrder() {
         XCTAssertEqual(
             MediatorCommandSchema.cases.map(\.name),
             ["spawnAgents", "sendPrompt", "readOutput", "closeTerminal",
-             "arrange", "createCard", "switchSpace", "setBackground"]
+             "arrange", "createCard", "switchSpace", "setBackground",
+             "renameCard", "deleteCard", "editNote", "addTodoItem", "setTodoItemDone",
+             "delegate", "relayBetweenAgents", "briefAgent"]
         )
     }
 
@@ -72,6 +74,7 @@ final class SchemaAgentKindTests: XCTestCase {
             MediatorCommandSchema.agentKindValues,
             MediatorAgentKind.allCases.map(\.rawValue)
         )
-        XCTAssertEqual(MediatorCommandSchema.agentKindValues, ["claude", "shell"])
+        XCTAssertEqual(MediatorCommandSchema.agentKindValues,
+                       ["claude", "codex", "grok", "opencode", "cursor", "shell"])
     }
 }

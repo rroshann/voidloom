@@ -69,6 +69,13 @@ final class FoundationModelsResponseProvider: ResponseProvider, @unchecked Senda
         activeGenerations[workspaceID] = task
     }
 
+    /// Drops the per-workspace session so its accumulated turn history is gone —
+    /// the next message starts a fresh conversation. Backs "clear history".
+    @MainActor
+    func resetConversation(workspaceID: UUID) {
+        sessions[workspaceID] = nil
+    }
+
     @MainActor
     private func session(for workspaceID: UUID) -> LanguageModelSession {
         if let existing = sessions[workspaceID] { return existing }

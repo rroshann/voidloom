@@ -10,6 +10,8 @@ import VoidloomCore
 struct SpaceBottomDock: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var sessionManager: AgentSessionManager
+    /// The armed-tool spine, driving Board tool highlights + arming.
+    @ObservedObject var interaction: CanvasInteractionModel
     let onReTile: () -> Void
     /// Creates a card of the given kind (Spaces appends + handles the page jump).
     let onAddCard: (CardKind) -> Void
@@ -17,6 +19,17 @@ struct SpaceBottomDock: View {
     let errorMessage: String?
     let isAIActive: Bool
     let onToggleAI: () -> Void
+    /// Board zoom, shown only in Board mode (nil ⇒ grid mode, no zoom controls).
+    var boardZoomScale: Double? = nil
+    var onZoomIn: () -> Void = {}
+    var onZoomOut: () -> Void = {}
+    var onResetZoom: () -> Void = {}
+    /// Board connect tool (nil ⇒ grid mode, no connect tool).
+    var isConnecting: Bool = false
+    var onToggleConnect: (() -> Void)? = nil
+    /// Board minimap toggle (nil ⇒ grid mode, no minimap).
+    var isMinimapVisible: Bool = false
+    var onToggleMinimap: (() -> Void)? = nil
 
     @State private var showBackgroundPopover = false
     @State private var showLayoutPopover = false
@@ -24,6 +37,7 @@ struct SpaceBottomDock: View {
     @State private var showGitUnavailable = false
 
     @Environment(\.theme) private var theme
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @AppStorage("spaces.defaultColumns") private var defaultColumns = 0
     @AppStorage("spaces.defaultRows") private var defaultRows = 0
@@ -66,8 +80,6 @@ struct SpaceBottomDock: View {
         // top — never per-icon glass, per Apple's "no stacked glass" rule. Groups
         // (switcher · space controls · card tools) separated by wider spacing.
         HStack(spacing: DockMetrics.groupGap) {
-            DockModeSwitch()
-
             DockWorkspaceMenu(store: store, sessionManager: sessionManager)
 
             // Card-creation tools: terminal, notes, todo, browser, files, git.
@@ -80,14 +92,9 @@ struct SpaceBottomDock: View {
                 barButton("arrow.triangle.branch", help: "Add git card") { addGitCard() }
             }
 
-            // Space customization: layout mode, re-tile, layout, background.
+            // Space layout: mode switcher, re-tile, layout, background.
             HStack(spacing: DockMetrics.iconGap) {
-                barButton(
-                    layoutMode == .pagedGrid ? "rectangle.3.group" : "square.grid.2x2",
-                    help: layoutMode == .pagedGrid ? "Free-arrange" : "Grid"
-                ) {
-                    store.setSpaceLayoutMode(layoutMode == .pagedGrid ? .freeArrange : .pagedGrid)
-                }
+                DockLayoutModeSwitcher(mode: layoutMode) { store.setSpaceLayoutMode($0) }
                 barButton("rectangle.grid.2x2", help: "Re-tile", action: onReTile)
                 barButton("square.grid.3x3", help: "Layout") { showLayoutPopover = true }
                     .popover(isPresented: $showLayoutPopover, arrowEdge: .top) {
@@ -99,6 +106,54 @@ struct SpaceBottomDock: View {
                     .popover(isPresented: $showBackgroundPopover, arrowEdge: .top) {
                         backgroundPopover.padding(16).frame(width: 260)
                     }
+            }
+
+            // Canvas tools — a distinct cluster from layout so the Board dock reads
+            // as ordered groups, not one long run: connect, and (Board only) text,
+            // brush, eraser, minimap.
+            if onToggleConnect != nil || layoutMode == .freeArrange {
+                HStack(spacing: DockMetrics.iconGap) {
+                    if let onToggleConnect {
+                        DockIconButton(icon: "link", help: "Connect cards",
+                                       isActive: isConnecting, activeColor: theme.accent,
+                                       action: onToggleConnect)
+                    }
+                    if layoutMode == .freeArrange {
+                        DockIconButton(icon: "textformat", help: "Text",
+                                       isActive: interaction.isArmed(.placingText),
+                                       activeColor: theme.accent, action: { interaction.armText() })
+                        DockIconButton(icon: "paintbrush.pointed", help: "Brush",
+                                       isActive: interaction.isArmed(.drawing),
+                                       activeColor: theme.accent, action: { interaction.armBrush() })
+                        DockIconButton(icon: "eraser", help: "Eraser",
+                                       isActive: interaction.isArmed(.erasing),
+                                       activeColor: theme.accent, action: { interaction.armEraser() })
+                        if let onToggleMinimap {
+                            DockIconButton(icon: "map", help: "Minimap",
+                                           isActive: isMinimapVisible,
+                                           activeColor: theme.accent, action: onToggleMinimap)
+                        }
+                    }
+                }
+                .transition(.scale(scale: 0.6).combined(with: .opacity))
+            }
+
+            // Board zoom (Board mode only): out / percentage-resets / in.
+            if let boardZoomScale {
+                HStack(spacing: DockMetrics.iconGap) {
+                    barButton("minus.magnifyingglass", help: "Zoom out", action: onZoomOut)
+                    Button(action: onResetZoom) {
+                        Text("\(Int((boardZoomScale * 100).rounded()))%")
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
+                            .foregroundStyle(theme.ink(0.72))
+                            .frame(minWidth: 40)
+                    }
+                    .buttonStyle(.plain)
+                    .pointerCursor()
+                    .help("Reset zoom to 100%")
+                    barButton("plus.magnifyingglass", help: "Zoom in", action: onZoomIn)
+                }
+                .transition(.scale(scale: 0.6).combined(with: .opacity))
             }
 
             DockIconButton(
@@ -119,6 +174,14 @@ struct SpaceBottomDock: View {
         }
         .padding(.horizontal, 8)
         .padding(.vertical, 6)
+        // One fast spring keyed to the mode drives the capsule's expand/contract
+        // and the tool clusters' scale+fade in a single pass — no per-cluster
+        // animation state to hold.
+        .animation(reduceMotion ? nil : .spring(response: 0.28, dampingFraction: 0.85),
+                   value: layoutMode)
+        // Exiting tool clusters fade out slower than the capsule shrinks; clip to
+        // the capsule so they never show outside the glass mid-contraction.
+        .clipShape(Capsule())
         .modifier(DockGlass(shape: Capsule()))
         .shadow(color: .black.opacity(0.25), radius: 14, x: 0, y: 6)
         .alert("Import failed", isPresented: $showImportError) {

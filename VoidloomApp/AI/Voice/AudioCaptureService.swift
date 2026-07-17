@@ -20,6 +20,10 @@ final class AudioCaptureService: @unchecked Sendable {
     /// Invoked on the realtime audio thread with converted PCM buffers.
     var onPCMBuffer: (@Sendable (AVAudioPCMBuffer) -> Void)?
 
+    /// Invoked on the realtime audio thread with a normalized (0…1) input level
+    /// (loudness) per buffer — drives the "it's listening" visual reaction.
+    var onLevel: (@Sendable (Float) -> Void)?
+
     init() {
         targetFormat = AVAudioFormat(
             commonFormat: .pcmFormatFloat32,
@@ -91,9 +95,23 @@ final class AudioCaptureService: @unchecked Sendable {
     }
 
     private func handleTap(_ buffer: AVAudioPCMBuffer) {
-        guard let converter, let onPCMBuffer else { return }
+        guard let converter else { return }
         guard let converted = convert(buffer, using: converter) else { return }
-        onPCMBuffer(converted)
+        onPCMBuffer?(converted)
+        if let onLevel { onLevel(Self.normalizedLevel(of: converted)) }
+    }
+
+    /// RMS of the buffer mapped to a perceptual 0…1 range. Cheap enough for the
+    /// realtime thread; the ~‑50 dB floor keeps quiet-room noise near zero.
+    private static func normalizedLevel(of buffer: AVAudioPCMBuffer) -> Float {
+        guard let data = buffer.floatChannelData?[0], buffer.frameLength > 0 else { return 0 }
+        let n = Int(buffer.frameLength)
+        var sumSquares: Float = 0
+        for i in 0..<n { let s = data[i]; sumSquares += s * s }
+        let rms = (sumSquares / Float(n)).squareRoot()
+        let db = 20 * log10(max(rms, 1e-7))          // ~‑140…0 dB
+        let floor: Float = -50
+        return max(0, min(1, (db - floor) / -floor))  // ‑50 dB→0, 0 dB→1
     }
 
     private func convert(_ input: AVAudioPCMBuffer, using converter: AVAudioConverter) -> AVAudioPCMBuffer? {

@@ -29,6 +29,13 @@ final class LlamaBrainTests: XCTestCase {
         await XCTAssertThrowsBrainError(.unparseable("")) { try await brain.command(for: "x") }
     }
 
+    func testAbstainSentinelThrowsUnparseableSoChatCanAnswer() async {
+        // The grammar can emit {"none":{}} for non-commands; it has no command
+        // case, so it surfaces as .unparseable and the utterance goes to chat.
+        let brain = LlamaBrain(engine: FakeEngine(.success(#"{"none":{}}"#)))
+        await XCTAssertThrowsBrainError(.unparseable("")) { try await brain.command(for: "what cards are open") }
+    }
+
     func testEngineFailureMapsToBackendFailure() async {
         let brain = LlamaBrain(engine: FakeEngine(.failure(LlamaBrainStubError.boom)))
         do { _ = try await brain.command(for: "x"); XCTFail() }

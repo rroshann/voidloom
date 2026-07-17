@@ -16,13 +16,15 @@ enum DockMetrics {
 struct DockGlass<S: Shape>: ViewModifier {
     let shape: S
 
+    @Environment(\.theme) private var theme
+
     func body(content: Content) -> some View {
         if #available(macOS 26.0, *) {
             content.glassEffect(.clear, in: shape)
         } else {
             content
                 .background(shape.fill(.ultraThinMaterial).opacity(0.7))
-                .overlay(shape.stroke(.white.opacity(0.12), lineWidth: 1))
+                .overlay(shape.stroke(theme.ink(0.12), lineWidth: 1))
         }
     }
 }
@@ -40,9 +42,9 @@ struct DockIconGlyph: View {
     @State private var hovering = false
 
     private var glyphColor: Color {
-        if !isEnabled { return .white.opacity(0.32) }
+        if !isEnabled { return theme.ink(0.32) }
         if isActive { return activeColor ?? theme.accent }
-        return .white.opacity(0.95)
+        return theme.ink(0.95)
     }
 
     private var fillOpacity: Double {
@@ -57,7 +59,7 @@ struct DockIconGlyph: View {
             .foregroundStyle(glyphColor)
             .frame(width: side, height: side)
             .background(
-                Circle().fill(.white.opacity(fillOpacity))
+                Circle().fill(theme.surface(fillOpacity))
             )
             .contentShape(Circle())
             .onHover { hovering = $0 }
@@ -71,6 +73,7 @@ struct DockWorkspaceMenu: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var sessionManager: AgentSessionManager
     @EnvironmentObject private var session: AppSession
+    @Environment(\.theme) private var theme
 
     private var activeName: String {
         store.library.workspaces.first { $0.id == store.library.selectedWorkspaceID }?.name ?? "Space"
@@ -88,7 +91,9 @@ struct DockWorkspaceMenu: View {
             ForEach(store.library.workspaces) { ws in
                 Button {
                     guard ws.id != store.library.selectedWorkspaceID else { return }
-                    sessionManager.terminateAllSessions()
+                    // Sessions persist across workspace switches; the terminals
+                    // reattach when this workspace is reopened. Only ⌘Q (app
+                    // termination) or deleting the workspace shuts them down.
                     store.switchWorkspace(id: ws.id)
                 } label: {
                     if ws.id == store.library.selectedWorkspaceID {
@@ -115,10 +120,10 @@ struct DockWorkspaceMenu: View {
                 Text(activeName.uppercased())
                     .font(.system(size: 12, weight: .bold, design: .monospaced))
                     .tracking(0.8)
-                    .foregroundStyle(.white.opacity(0.95))
+                    .foregroundStyle(theme.ink(0.95))
                 Image(systemName: "chevron.up")
                     .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.6))
+                    .foregroundStyle(theme.ink(0.6))
             }
             .padding(.horizontal, 12).frame(height: DockMetrics.iconSide)
         }
@@ -126,56 +131,61 @@ struct DockWorkspaceMenu: View {
     }
 }
 
-/// Compact Canvas ⇄ Spaces menu for the bottom dock. Writes the
-/// persisted `app.mode` AppStorage key on tap; RootView observes the same key.
-struct DockModeSwitch: View {
-    @AppStorage("app.mode") private var appMode: AppMode = .canvas
+/// Text segmented switcher for the space layout mode (GRID ⇄ BOARD). Spells out
+/// the current mode instead of a glyph, so which view is active is never
+/// ambiguous. Stateless apart from per-segment hover; the highlight animates via
+/// the dock's layout-mode keyed animation.
+struct DockLayoutModeSwitcher: View {
+    let mode: SpaceLayoutMode
+    let onSelect: (SpaceLayoutMode) -> Void
+
     @Environment(\.theme) private var theme
 
     var body: some View {
-        Menu {
-            modeItem(.canvas)
-            modeItem(.spaces)
-        } label: {
-            HStack(spacing: 6) {
-                Image(systemName: currentIcon)
-                    .font(.system(size: DockMetrics.glyphSize, weight: .semibold))
-                    .foregroundStyle(.white.opacity(0.92))
-                Text(appMode.label)
-                    .font(.system(size: 12, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.92))
-                Image(systemName: "chevron.up")
-                    .font(.system(size: 9, weight: .bold))
-                    .foregroundStyle(.white.opacity(0.6))
-            }
-            .padding(.horizontal, 12)
-            .frame(height: DockMetrics.iconSide)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(.white.opacity(0.08))
-            )
+        HStack(spacing: 2) {
+            segment("GRID", .pagedGrid)
+            segment("BOARD", .freeArrange)
         }
-        .menuStyle(.borderlessButton)
-        .menuIndicator(.hidden)
-        .fixedSize()
-        .accessibilityLabel("View: \(appMode.label)")
+        .padding(2)
+        .background(Capsule().fill(theme.surface(0.08)))
+        .frame(height: DockMetrics.iconSide)
     }
 
-    private var currentIcon: String {
-        appMode == .canvas ? "rectangle.on.rectangle" : "square.grid.2x2"
-    }
-
-    @ViewBuilder
-    private func modeItem(_ mode: AppMode) -> some View {
-        Button {
-            appMode = mode
-        } label: {
-            if appMode == mode {
-                Label(mode.label, systemImage: "checkmark")
-            } else {
-                Text(mode.label)
-            }
+    private func segment(_ title: String, _ target: SpaceLayoutMode) -> some View {
+        DockModeSegment(title: title, isActive: mode == target) {
+            if mode != target { onSelect(target) }
         }
+    }
+}
+
+private struct DockModeSegment: View {
+    let title: String
+    let isActive: Bool
+    let action: () -> Void
+
+    @State private var hovering = false
+    @Environment(\.theme) private var theme
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: 10, weight: .bold, design: .monospaced))
+                .tracking(0.6)
+                .foregroundStyle(theme.ink(isActive ? 0.95 : 0.55))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 5)
+                .background(
+                    Capsule().fill(theme.surface(isActive ? 0.18 : (hovering ? 0.1 : 0)))
+                )
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .pointerCursor()
+        .onHover { hovering = $0 }
+        .animation(.easeOut(duration: 0.12), value: hovering)
+        .help(isActive ? "\(title.capitalized) view (current)" : "Switch to \(title.capitalized) view")
+        .accessibilityLabel("\(title.capitalized) view")
+        .accessibilityAddTraits(isActive ? .isSelected : [])
     }
 }
 

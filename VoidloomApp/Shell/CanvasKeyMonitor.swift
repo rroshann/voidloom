@@ -4,7 +4,7 @@ import SwiftUI
 /// A window-scoped `.keyDown` monitor that forwards each event to `onKeyDown`,
 /// which returns `true` when it consumed the event (so the key is swallowed) or
 /// `false` to let it fall through. Mirrors the `.scrollWheel` monitor pattern in
-/// `CanvasWorkspaceView`.
+/// `SpaceTrackpadPanView`.
 ///
 /// This exists because the canvas Delete shortcut must fire for a single
 /// tap-selected card and a marquee group, yet still let a focused text editor

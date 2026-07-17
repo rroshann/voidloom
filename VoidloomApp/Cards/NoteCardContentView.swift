@@ -27,6 +27,20 @@ struct NoteCardContentView: View {
             .foregroundStyle(theme.ink(0.78))
             .scrollContentBackground(.hidden)
             .padding(12)
+            // TextEditor has no native placeholder; overlay a grayed prompt while
+            // empty so a new note guides the user without pre-filling text they must
+            // delete (and without that prompt leaking into Sunday's context as if it
+            // were the note's real content).
+            .overlay(alignment: .topLeading) {
+                if draft.isEmpty {
+                    Text("Capture spatial context here.")
+                        .font(.system(size: 13 * theme.fontScale, weight: .semibold, design: .rounded))
+                        .foregroundStyle(theme.ink(0.3))
+                        .padding(.leading, 17)
+                        .padding(.top, 20)
+                        .allowsHitTesting(false)
+                }
+            }
             .focused($isEditorFocused)
             // Esc ends editing (resign focus + persist) and is consumed here, so
             // it never bubbles to the window — which in native full screen would

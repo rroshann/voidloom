@@ -6,6 +6,12 @@ struct SpacesShellView: View {
     @ObservedObject var store: WorkspaceStore
     @ObservedObject var sessionManager: AgentSessionManager
     @ObservedObject var conversationStore: ConversationStore
+    @EnvironmentObject private var assistantContext: AssistantContextProvider
+    @Environment(\.theme) private var theme
+
+    /// The armed-tool spine for Board mode. Stage 7 uses only its connect state;
+    /// stage 8 extends it to text/brush/eraser.
+    @StateObject private var interaction = CanvasInteractionModel()
 
     @AppStorage("spaces.defaultColumns") private var defaultColumns = 0
     @AppStorage("spaces.defaultRows") private var defaultRows = 0
@@ -43,6 +49,37 @@ struct SpacesShellView: View {
     @State private var marqueeAdditive = false
     @State private var isAIConversationVisible = false
 
+    /// Live pointer (shell-local coords), tracked while idle so a Board pinch can
+    /// anchor at the cursor. Nil when the pointer isn't over the empty background.
+    @State private var hoverLocation: CGPoint?
+    /// Pinch anchor captured once on the first magnification tick, so the zoom
+    /// stays anchored at one point for the whole gesture instead of drifting.
+    @State private var pinchAnchor: CGPoint?
+    /// Previous cumulative pinch magnification, so each tick applies only its delta.
+    @State private var lastMagnification: CGFloat = 1
+    /// What an empty-background drag resolved to, decided once on its first move.
+    @State private var idleDragMode: BoardIdleDragMode = .none
+    /// Cumulative pan translation, so each event applies only its delta.
+    @State private var lastPanTranslation: CGSize = .zero
+
+    /// Points (canvas space) accumulated for the brush stroke being drawn; empty
+    /// when no draw is in progress.
+    @State private var liveStrokePoints: [CanvasPoint] = []
+    /// Live pointer (screen coords) while the eraser is armed, driving the ring.
+    @State private var eraserCursor: CGPoint?
+    /// Previous erase sample within a drag, so fast drags erase the swept path.
+    @State private var lastErasePoint: CGPoint?
+    /// Minimum spacing (canvas units) between accumulated brush points.
+    private let minStrokePointSpacing: Double = 1.5
+
+    /// Whether the Board minimap overview is shown (dock toggle / ⌘⇧M).
+    @State private var isMinimapVisible = false
+    /// Right-click location (shell-local) for the create-card context menu, or nil.
+    @State private var contextMenuLocation: CGPoint?
+    /// Command palette (⌘K) visibility + live query.
+    @State private var isCommandPaletteVisible = false
+    @State private var paletteQuery = ""
+
     /// Extra top clearance above the tiling margin. Zero makes the top gap equal the
     /// side margin (symmetric card field); the tiling margin alone already clears the
     /// traffic-light buttons of the hidden-titlebar window, so cards sit as high as
@@ -50,6 +87,10 @@ struct SpacesShellView: View {
     private static let topPadding: CGFloat = 0
     private static let bottomPadding: CGFloat = 12
     private static let dockGap: CGFloat = 16
+    /// Width of the assistant conversation sidebar (matches AIConversationSidebar's
+    /// fixed frame). The bottom dock shifts left by this when the sidebar is open,
+    /// so its right-side controls never hide behind the panel.
+    private static let aiSidebarWidth: CGFloat = 340
 
     private var topInset: Double { Double(Self.topPadding) }
     private var bottomInset: Double { Double(dockHeight + Self.bottomPadding + Self.dockGap) }
@@ -68,6 +109,16 @@ struct SpacesShellView: View {
         let s = store.state.linkedContext(for: id)
         return s.isEmpty ? nil : s
     }
+
+    private var chatContext: String {
+        assistantContext.snapshot(selectedCardContext: selectedCardContext)
+    }
+
+    private func handleMenuAction(_ note: Notification) {
+        guard case .toggleAIConversation? = note.object as? MenuAction else { return }
+        withAnimation(.easeInOut(duration: 0.24)) { isAIConversationVisible.toggle() }
+    }
+
 
     /// Builds a tiling from the global Settings defaults, used when a space has no
     /// tiling of its own. Columns 0 = Auto (fit all); Rows 0 = no pagination.
@@ -134,15 +185,86 @@ struct SpacesShellView: View {
                         // terminal can't keep swallowing keystrokes.
                         NSApp.keyWindow?.makeFirstResponder(nil)
                     }
+                    .onContinuousHover(coordinateSpace: .local) { phase in
+                        if case let .active(point) = phase { hoverLocation = point }
+                        else { hoverLocation = nil }
+                    }
                     .gesture(marqueeGesture(
                         paged: paged, orderedIDs: orderedIDs,
                         freeFrames: layoutMode == .freeArrange ? freeFrames : nil
                     ))
+                    .simultaneousGesture(boardZoomGesture(viewportSize: geo.size))
+
+                // Two-finger trackpad pan for Board mode only — exactly one
+                // scroll monitor, mounted here and torn down when Board exits.
+                if layoutMode == .freeArrange {
+                    SpaceTrackpadPanView { translation, cursorInView in
+                        // Over the selected card, yield the scroll to that card's
+                        // own scroll view instead of panning the Board.
+                        if let cursorInView, cursorOverSelectedCard(cursorInView, freeFrames: freeFrames) {
+                            return false
+                        }
+                        store.panSpaceViewport(by: translation)
+                        return true
+                    }
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .allowsHitTesting(false)
+                }
+
+                // Right-click on empty Board opens a create-card menu at the point.
+                if layoutMode == .freeArrange {
+                    CanvasRightClickCatcher { point in contextMenuLocation = point }
+                        .frame(width: geo.size.width, height: geo.size.height)
+                }
 
                 if orderedIDs.isEmpty {
-                    Text("No cards yet — add one from the dock below.")
-                        .font(.system(size: 15, design: .rounded))
-                        .foregroundStyle(.white.opacity(0.5))
+                    WorkspaceEmptyState()
+                }
+
+                // Brush strokes render in screen space THROUGH the Board viewport,
+                // below the cards. Persisted layer is `.equatable()` so a live
+                // draw doesn't force every committed stroke to redraw.
+                if layoutMode == .freeArrange {
+                    CanvasDrawingLayer(
+                        strokes: store.state.strokes,
+                        liveStroke: nil,
+                        viewport: store.state.spaceViewport
+                    )
+                    .equatable()
+                    .frame(width: geo.size.width, height: geo.size.height)
+
+                    CanvasDrawingLayer(
+                        strokes: [],
+                        liveStroke: liveStroke,
+                        viewport: store.state.spaceViewport
+                    )
+                    .equatable()
+                    .frame(width: geo.size.width, height: geo.size.height)
+                }
+
+                // Connections render in screen space THROUGH the Board viewport,
+                // below the cards (edges stay glued to cards during pan/zoom/drag).
+                if layoutMode == .freeArrange {
+                    ConnectionsLayer(
+                        connections: store.state.connections,
+                        cards: store.state.cards,
+                        viewport: store.state.spaceViewport,
+                        selectedConnectionID: interaction.selectedConnectionID,
+                        isDark: theme.isDark
+                    )
+                    .frame(width: geo.size.width, height: geo.size.height)
+
+                    ConnectionHitLayer(
+                        interaction: interaction,
+                        connections: store.state.connections,
+                        cards: store.state.cards,
+                        viewport: store.state.spaceViewport,
+                        onSelect: { id in
+                            store.clearSelection()
+                            interaction.selectedConnectionID = id
+                        }
+                    )
+                    .frame(width: geo.size.width, height: geo.size.height)
                 }
 
                 if layoutMode == .freeArrange {
@@ -151,8 +273,10 @@ struct SpacesShellView: View {
                         sessionManager: sessionManager,
                         orderedIDs: orderedIDs,
                         cardsByID: cardsByID,
-                        effectiveFrames: freeFrames,
-                        viewportSize: geo.size
+                        viewport: store.state.spaceViewport,
+                        viewportSize: geo.size,
+                        textElements: store.state.textElements,
+                        editingTextID: $interaction.editingTextID
                     )
                 } else {
                 // Single ForEach + zIndex (Canvas gotcha #1 discipline: never split
@@ -242,6 +366,65 @@ struct SpacesShellView: View {
                 ))
                 }
 
+                // Armed-tool input capture for draw/erase/place-text (Board only).
+                // Sits above the cards so the tool drag is intercepted before a
+                // card drag. NOT mounted for connect (that's click-based via the
+                // ContentClickMonitor path) or idle.
+                if layoutMode == .freeArrange, boardToolArmed {
+                    CanvasInteractionOverlay(
+                        mode: interaction.mode,
+                        onMouseDown: handleOverlayDown,
+                        onMouseDragged: handleOverlayDragged,
+                        onMouseMoved: handleOverlayMoved,
+                        onMouseUp: handleOverlayUp
+                    )
+                    .frame(width: geo.size.width, height: geo.size.height)
+                    .canvasToolCursor(for: interaction.mode)
+                }
+
+                if layoutMode == .freeArrange, interaction.mode == .erasing,
+                   !interaction.isAdjustingEraserSize, let point = eraserCursor {
+                    let diameter = CGFloat(interaction.eraserThickness) * CGFloat(store.state.spaceViewport.scale)
+                    EraserFootprintRing(diameter: diameter)
+                        .position(point)
+                }
+
+                // Board minimap overview, pinned bottom-right (dock is centered).
+                if layoutMode == .freeArrange, isMinimapVisible {
+                    MinimapPanel(
+                        store: store,
+                        viewportSize: geo.size,
+                        viewport: store.state.spaceViewport,
+                        onRecenter: { point in
+                            store.centerSpaceViewport(
+                                on: point,
+                                viewportSize: ScreenPoint(x: geo.size.width, y: geo.size.height)
+                            )
+                        }
+                    )
+                    .padding(.trailing, 16)
+                    .padding(.bottom, 16)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
+                    .transition(.opacity)
+                }
+
+                // Right-click create-card menu at the click point.
+                if layoutMode == .freeArrange, let location = contextMenuLocation {
+                    Color.clear
+                        .frame(width: geo.size.width, height: geo.size.height)
+                        .contentShape(Rectangle())
+                        .onTapGesture { contextMenuLocation = nil }
+                    CanvasContextMenu { kind in
+                        let canvas = store.state.spaceViewport.canvasPoint(
+                            forScreenPoint: ScreenPoint(x: location.x, y: location.y)
+                        )
+                        store.addCard(kind: kind, centeredAt: canvas)
+                        contextMenuLocation = nil
+                    }
+                    .offset(x: clampedMenuX(location.x, in: geo.size.width),
+                            y: clampedMenuY(location.y, in: geo.size.height))
+                }
+
                 if let s = marqueeStart, let c = marqueeCurrent {
                     let rect = CGRect(x: min(s.x, c.x), y: min(s.y, c.y),
                                       width: abs(c.x - s.x), height: abs(c.y - s.y))
@@ -253,27 +436,98 @@ struct SpacesShellView: View {
                         .allowsHitTesting(false)
                 }
 
+                // Connect tool: highlight the pending source card and draw a
+                // dashed follow-line from it to the cursor while picking a target.
+                if layoutMode == .freeArrange,
+                   case let .connecting(source) = interaction.mode,
+                   let source, let rect = freeFrames[source].map({
+                       CGRect(x: $0.origin.x, y: $0.origin.y, width: $0.size.x, height: $0.size.y)
+                   }) {
+                    let accent = store.state.cards.first { $0.id == source }
+                        .map { CardPalette(kind: $0.kind, isDark: theme.isDark).accent } ?? Color.accentColor
+                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                        .stroke(accent, lineWidth: 2)
+                        .frame(width: rect.width, height: rect.height)
+                        .position(x: rect.midX, y: rect.midY)
+                        .allowsHitTesting(false)
+                    if let cursor = hoverLocation {
+                        Path { p in
+                            p.move(to: CGPoint(x: rect.midX, y: rect.midY))
+                            p.addLine(to: cursor)
+                        }
+                        .stroke(accent.opacity(0.6), style: StrokeStyle(lineWidth: 2, dash: [6, 4]))
+                        .allowsHitTesting(false)
+                    }
+                }
+
+                // Floating delete control at the selected edge's screen midpoint.
+                if layoutMode == .freeArrange,
+                   let id = interaction.selectedConnectionID,
+                   let mid = connectionMidpointScreen(id) {
+                    ConnectionDeleteButton {
+                        store.deleteConnection(id: id)
+                        interaction.selectedConnectionID = nil
+                    }
+                    .position(x: mid.x, y: mid.y)
+                }
+
                 if isAIConversationVisible {
                     AIConversationSidebar(
                         messages: conversationStore.messages(for: activeWorkspaceID),
-                        onSubmit: { conversationStore.submit(workspaceID: activeWorkspaceID, text: $0, context: selectedCardContext) },
+                        onSubmit: { conversationStore.submit(workspaceID: activeWorkspaceID, text: $0, context: chatContext) },
                         onRetry: { conversationStore.retry(workspaceID: activeWorkspaceID, messageID: $0) },
                         onClose: {
                             withAnimation(.easeInOut(duration: 0.24)) {
                                 isAIConversationVisible = false
                             }
-                        }
+                        },
+                        onClearHistory: { conversationStore.clear(workspaceID: activeWorkspaceID) }
                     )
                     .transition(.move(edge: .trailing).combined(with: .opacity))
                     .zIndex(1)
                 }
 
+                if isCommandPaletteVisible {
+                    CommandPaletteView(
+                        query: $paletteQuery,
+                        commands: paletteCommands(viewportSize: geo.size),
+                        onAskAI: { text in
+                            withAnimation(.easeInOut(duration: 0.24)) { isAIConversationVisible = true }
+                            conversationStore.submit(workspaceID: activeWorkspaceID, text: text, context: chatContext)
+                            withAnimation(.easeInOut(duration: 0.15)) { isCommandPaletteVisible = false }
+                        },
+                        onClose: {
+                            withAnimation(.easeInOut(duration: 0.15)) { isCommandPaletteVisible = false }
+                        }
+                    )
+                    .zIndex(10)
+                }
+
                 VStack(spacing: 12) {
                     Spacer()
                     if layoutMode == .pagedGrid, paged.pageCount > 1 { pager(paged) }
+
+                    // Board tool option panels, surfaced above the dock while the
+                    // matching tool is armed (or a text element is selected).
+                    if layoutMode == .freeArrange {
+                        if interaction.isArmed(.drawing) {
+                            BrushOptionsPanel(interaction: interaction)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                        if interaction.isArmed(.erasing) {
+                            EraserOptionsPanel(interaction: interaction)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                        if interaction.isArmed(.placingText) || store.state.selectedTextID != nil {
+                            TextOptionsPanel(store: store, interaction: interaction)
+                                .transition(.move(edge: .bottom).combined(with: .opacity))
+                        }
+                    }
+
                     SpaceBottomDock(
                         store: store,
                         sessionManager: sessionManager,
+                        interaction: interaction,
                         onReTile: {
                             reTile(orderedIDs: orderedIDs, tiling: tiling, viewport: geo.size)
                         },
@@ -307,13 +561,29 @@ struct SpacesShellView: View {
                         },
                         errorMessage: store.lastPersistenceError,
                         isAIActive: isAIConversationVisible,
-                        onToggleAI: { isAIConversationVisible.toggle() }
+                        onToggleAI: { isAIConversationVisible.toggle() },
+                        boardZoomScale: layoutMode == .freeArrange ? store.state.spaceViewport.scale : nil,
+                        onZoomIn: { store.zoomStepSpaceViewport(by: 1.2, anchoredAt: boardZoomCenter) },
+                        onZoomOut: { store.zoomStepSpaceViewport(by: 1 / 1.2, anchoredAt: boardZoomCenter) },
+                        onResetZoom: { store.resetSpaceViewport() },
+                        isConnecting: interaction.isArmed(.connecting(source: nil)),
+                        onToggleConnect: layoutMode == .freeArrange
+                            ? { interaction.armConnect(preselectedSource: store.state.selectedCardID) }
+                            : nil,
+                        isMinimapVisible: isMinimapVisible,
+                        onToggleMinimap: layoutMode == .freeArrange
+                            ? { isMinimapVisible.toggle() }
+                            : nil
                     )
                     .background(GeometryReader { p in
                         Color.clear.preference(key: SpacesDockHeightKey.self, value: p.size.height)
                     })
                     .padding(.bottom, Self.bottomPadding)
                 }
+                // Keep the dock + its tool panels out of the assistant sidebar's
+                // fixed lane, so the right-side controls (zoom, AI toggle) never
+                // hide behind it when it's open.
+                .padding(.trailing, isAIConversationVisible ? Self.aiSidebarWidth : 0)
             }
             .onChange(of: paged.pageCount, initial: true) { _, newCount in
                 pageCount = newCount
@@ -324,6 +594,7 @@ struct SpacesShellView: View {
                            paged: paged, orderedIDs: orderedIDs, freeFrames: freeFrames)
             })
             .onChange(of: store.library.selectedWorkspaceID) { _, _ in currentPage = 0 }
+            .onReceive(NotificationCenter.default.publisher(for: MenuAction.notification), perform: handleMenuAction)
             .onChange(of: store.state.space?.tiling) { _, _ in currentPage = 0 }
             .onChange(of: layoutMode, initial: true) { _, _ in
                 seedFreeFramesIfNeeded(orderedIDs: orderedIDs, tiling: tiling, viewport: geo.size)
@@ -342,6 +613,8 @@ struct SpacesShellView: View {
         .onPreferenceChange(ShellFrameKey.self) { shellFrame = $0 }
         .onPreferenceChange(SpacesDockHeightKey.self) { dockHeight = $0 }
         .animation(.easeInOut(duration: 0.24), value: isAIConversationVisible)
+        .animation(.easeInOut(duration: 0.22), value: interaction.mode)
+        .animation(.easeInOut(duration: 0.22), value: store.state.selectedTextID)
     }
 
     /// Window-scoped key handling for Spaces. Delete/Backspace removes the marquee
@@ -364,9 +637,26 @@ struct SpacesShellView: View {
                 store.deleteCard(id: id)
                 return true
             }
+            if let textID = store.state.selectedTextID {
+                store.deleteTextElement(id: textID)
+                return true
+            }
+            if let edgeID = interaction.selectedConnectionID {
+                store.deleteConnection(id: edgeID)
+                interaction.selectedConnectionID = nil
+                return true
+            }
             return false
         case 53:        // escape
             guard !typing else { return false }
+            if interaction.mode != .idle {
+                interaction.disarm()
+                return true
+            }
+            if interaction.selectedConnectionID != nil {
+                interaction.selectedConnectionID = nil
+                return true
+            }
             store.clearSelection()
             return true
         case 123:   // left arrow
@@ -377,8 +667,291 @@ struct SpacesShellView: View {
             guard !typing, pageCount > 1, isPagedGrid else { return false }
             goToPage(currentPage + 1)
             return true
+        case 24:    // ⌘= / ⌘+ → Board zoom in
+            guard !typing, event.modifierFlags.contains(.command), !isPagedGrid else { return false }
+            store.zoomStepSpaceViewport(by: 1.2, anchoredAt: boardZoomCenter)
+            return true
+        case 27:    // ⌘- → Board zoom out
+            guard !typing, event.modifierFlags.contains(.command), !isPagedGrid else { return false }
+            store.zoomStepSpaceViewport(by: 1 / 1.2, anchoredAt: boardZoomCenter)
+            return true
+        case 29:    // ⌘0 → reset Board zoom
+            guard !typing, event.modifierFlags.contains(.command), !isPagedGrid else { return false }
+            store.resetSpaceViewport()
+            return true
+        case 46:    // ⌘⇧M → toggle Board minimap
+            guard !typing, event.modifierFlags.contains(.command),
+                  event.modifierFlags.contains(.shift), !isPagedGrid else { return false }
+            isMinimapVisible.toggle()
+            return true
+        case 40:    // ⌘K → command palette
+            guard !typing, event.modifierFlags.contains(.command) else { return false }
+            paletteQuery = ""
+            withAnimation(.easeInOut(duration: 0.15)) { isCommandPaletteVisible = true }
+            return true
         default:
             return false
+        }
+    }
+
+    /// The Board-zoom anchor for keyboard/dock zoom: the center of the shell.
+    private var boardZoomCenter: ScreenPoint {
+        ScreenPoint(x: shellFrame.width / 2, y: shellFrame.height / 2)
+    }
+
+    /// Keeps the right-click context menu fully on-screen (~196×220).
+    private func clampedMenuX(_ x: CGFloat, in width: CGFloat) -> CGFloat {
+        max(8, min(x, width - 196 - 8))
+    }
+    private func clampedMenuY(_ y: CGFloat, in height: CGFloat) -> CGFloat {
+        max(8, min(y, height - 220 - 8))
+    }
+
+    private func openSettings() {
+        NSApp.sendAction(Selector(("showSettingsWindow:")), to: nil, from: nil)
+    }
+
+    /// Command palette (⌘K) actions for the current state, grouped by section.
+    /// View/zoom/text entries are Board-only; the dead Canvas "switch mode" entry
+    /// is gone (Spaces is the only shell).
+    private func paletteCommands(viewportSize size: CGSize) -> [PaletteCommand] {
+        let isBoard = (store.state.space?.layoutMode ?? .pagedGrid) == .freeArrange
+        let zoomAnchor = ScreenPoint(x: size.width / 2, y: size.height / 2)
+        let boardCenter = store.state.spaceViewport.canvasPoint(forScreenPoint: zoomAnchor)
+        var commands: [PaletteCommand] = []
+
+        // Create
+        let cardKinds: [(CardKind, String, String)] = [
+            (.agent, "New Terminal Card", "terminal"),
+            (.note, "New Note Card", "note.text"),
+            (.todo, "New Todo Card", "checklist"),
+            (.browser, "New Browser Card", "safari"),
+            (.fileBrowser, "New File Browser Card", "folder"),
+            (.git, "New Git Card", "arrow.triangle.branch"),
+        ]
+        for (kind, title, icon) in cardKinds {
+            commands.append(PaletteCommand(id: "new-\(kind.rawValue)", title: title, section: .create,
+                                           systemImage: icon, keywords: ["add", "create"]) {
+                store.addCard(kind: kind)
+            })
+        }
+        if isBoard {
+            commands.append(PaletteCommand(id: "new-text", title: "New Text", section: .create,
+                                           systemImage: "textformat", keywords: ["add", "label", "annotation"]) {
+                interaction.editingTextID = store.addTextElement(
+                    centeredAt: boardCenter,
+                    fontSize: interaction.textFontSize,
+                    colorHex: interaction.textColor.hexStringRGBA,
+                    fontName: interaction.textFontName
+                )
+            })
+        }
+
+        // Workspaces
+        commands.append(PaletteCommand(id: "new-workspace", title: "New Workspace", section: .workspaces,
+                                       systemImage: "plus.rectangle.on.rectangle", keywords: ["add", "create"]) {
+            store.createWorkspace(named: "New Space")
+        })
+        for workspace in store.library.workspaces where workspace.id != activeWorkspaceID {
+            commands.append(PaletteCommand(id: "switch-\(workspace.id)", title: "Switch to \(workspace.name)",
+                                           section: .workspaces, systemImage: "rectangle.on.rectangle",
+                                           keywords: ["open", "go"]) {
+                store.switchWorkspace(id: workspace.id)
+            })
+        }
+
+        // View
+        commands.append(PaletteCommand(id: "toggle-layout",
+                                       title: isBoard ? "Switch to Grid" : "Switch to Board",
+                                       section: .view,
+                                       systemImage: isBoard ? "square.grid.2x2" : "rectangle.3.group") {
+            store.setSpaceLayoutMode(isBoard ? .pagedGrid : .freeArrange)
+        })
+        if isBoard {
+            commands.append(PaletteCommand(id: "reset-zoom", title: "Reset Zoom", section: .view,
+                                           systemImage: "scope", keywords: ["fit", "center"]) {
+                store.resetSpaceViewport()
+            })
+            commands.append(PaletteCommand(id: "zoom-in", title: "Zoom In", section: .view,
+                                           systemImage: "plus.magnifyingglass") {
+                store.zoomStepSpaceViewport(by: 1.2, anchoredAt: zoomAnchor)
+            })
+            commands.append(PaletteCommand(id: "zoom-out", title: "Zoom Out", section: .view,
+                                           systemImage: "minus.magnifyingglass") {
+                store.zoomStepSpaceViewport(by: 1 / 1.2, anchoredAt: zoomAnchor)
+            })
+            commands.append(PaletteCommand(id: "toggle-minimap",
+                                           title: isMinimapVisible ? "Hide Minimap" : "Show Minimap",
+                                           section: .view, systemImage: "map") {
+                isMinimapVisible.toggle()
+            })
+        }
+
+        // Go to card
+        for card in store.state.cards {
+            let cardPalette = CardPalette(kind: card.kind)
+            let trimmed = card.title.trimmingCharacters(in: .whitespacesAndNewlines)
+            let title = trimmed.isEmpty ? cardPalette.eyebrow : trimmed
+            let cardID = card.id
+            let center = CanvasPoint(x: card.position.x + card.size.width / 2,
+                                     y: card.position.y + card.size.height / 2)
+            commands.append(PaletteCommand(id: "goto-\(card.id)", title: title, section: .cards,
+                                           systemImage: cardPalette.symbol,
+                                           keywords: [trimmed, cardPalette.eyebrow, "go", "card"].filter { !$0.isEmpty }) {
+                store.selectCard(id: cardID)
+                if isBoard {
+                    store.centerSpaceViewport(on: center, viewportSize: ScreenPoint(x: size.width, y: size.height))
+                }
+            })
+        }
+
+        // App
+        commands.append(PaletteCommand(id: "open-settings", title: "Open Settings", section: .app,
+                                       systemImage: "gearshape", keywords: ["preferences"]) {
+            openSettings()
+        })
+        commands.append(PaletteCommand(id: "open-ai", title: "Open AI Conversation", section: .app,
+                                       systemImage: "bubble.left.and.bubble.right", keywords: ["chat", "assistant"]) {
+            withAnimation(.easeInOut(duration: 0.24)) { isAIConversationVisible = true }
+        })
+
+        return commands
+    }
+
+    /// The selected connection edge's midpoint in shell-local screen coords
+    /// (through the Board viewport), or nil if the edge/its cards are gone.
+    private func connectionMidpointScreen(_ id: UUID) -> CGPoint? {
+        guard let connection = store.state.connections.first(where: { $0.id == id }),
+              let fromCard = store.state.cards.first(where: { $0.id == connection.from }),
+              let toCard = store.state.cards.first(where: { $0.id == connection.to }) else { return nil }
+        let endpoints = connectionEndpoints(
+            from: CanvasRect(origin: fromCard.position, size: fromCard.size),
+            to: CanvasRect(origin: toCard.position, size: toCard.size)
+        )
+        let mid = CanvasPoint(x: (endpoints.start.x + endpoints.end.x) / 2,
+                              y: (endpoints.start.y + endpoints.end.y) / 2)
+        let screen = store.state.spaceViewport.screenPoint(forCanvasPoint: mid)
+        return CGPoint(x: screen.x, y: screen.y)
+    }
+
+    // MARK: - Board armed tools (text / brush / eraser)
+
+    /// Whether a freehand/place tool owns Board input this frame — so the shell's
+    /// click-selection stays out of the way while the overlay captures the drag.
+    private var boardToolArmed: Bool {
+        switch interaction.mode {
+        case .drawing, .erasing, .placingText: return true
+        default: return false
+        }
+    }
+
+    private func handleOverlayDown(_ point: CGPoint) {
+        switch interaction.mode {
+        case .drawing:
+            liveStrokePoints = [canvasPoint(from: point)]
+        case .erasing:
+            eraserCursor = point
+            erase(at: point)
+        default:
+            break
+        }
+    }
+
+    private func handleOverlayDragged(_ point: CGPoint) {
+        switch interaction.mode {
+        case .drawing:
+            appendLivePoint(canvasPoint(from: point))
+        case .erasing:
+            eraserCursor = point
+            erase(at: point)
+        default:
+            break
+        }
+    }
+
+    private func handleOverlayMoved(_ point: CGPoint) {
+        if interaction.mode == .erasing { eraserCursor = point }
+    }
+
+    private func handleOverlayUp(_ point: CGPoint) {
+        switch interaction.mode {
+        case .drawing:
+            appendLivePoint(canvasPoint(from: point))
+            commitLiveStroke()
+        case .erasing:
+            erase(at: point)
+            store.flushErase()
+            lastErasePoint = nil
+        case .placingText:
+            let id = store.addTextElement(
+                centeredAt: canvasPoint(from: point),
+                fontSize: interaction.textFontSize,
+                colorHex: interaction.textColor.hexStringRGBA,
+                fontName: interaction.textFontName
+            )
+            interaction.editingTextID = id
+            interaction.disarm()
+        default:
+            break
+        }
+    }
+
+    /// Converts an overlay view point into canvas space via the Board viewport.
+    private func canvasPoint(from view: CGPoint) -> CanvasPoint {
+        store.state.spaceViewport.canvasPoint(forScreenPoint: ScreenPoint(x: view.x, y: view.y))
+    }
+
+    private func appendLivePoint(_ point: CanvasPoint) {
+        guard interaction.mode == .drawing else { return }
+        if let last = liveStrokePoints.last,
+           hypot(point.x - last.x, point.y - last.y) < minStrokePointSpacing { return }
+        liveStrokePoints.append(point)
+    }
+
+    private func commitLiveStroke() {
+        defer { liveStrokePoints = [] }
+        guard liveStrokePoints.count >= 2 else { return }
+        store.addStroke(
+            DrawingStroke(points: liveStrokePoints, color: currentBrushRGBA(), thickness: interaction.brushThickness)
+        )
+    }
+
+    private var liveStroke: DrawingStroke? {
+        guard interaction.mode == .drawing, !liveStrokePoints.isEmpty else { return nil }
+        return DrawingStroke(points: liveStrokePoints, color: currentBrushRGBA(), thickness: interaction.brushThickness)
+    }
+
+    private func currentBrushRGBA() -> RGBAColor {
+        let resolved = NSColor(interaction.brushColor).usingColorSpace(.sRGB) ?? NSColor.white
+        return RGBAColor(
+            red: Double(resolved.redComponent),
+            green: Double(resolved.greenComponent),
+            blue: Double(resolved.blueComponent),
+            opacity: interaction.brushOpacity
+        )
+    }
+
+    /// Erases under the eraser disc, sampling along the segment from the previous
+    /// sample so a fast drag erases the whole swept path (no gaps).
+    private func erase(at view: CGPoint) {
+        let radius = interaction.eraserThickness / 2
+        let mode = interaction.eraserMode
+        defer { lastErasePoint = view }
+        guard let last = lastErasePoint else {
+            store.erase(at: canvasPoint(from: view), radius: radius, mode: mode)
+            return
+        }
+        let distance = hypot(view.x - last.x, view.y - last.y)
+        let radiusScreen = CGFloat(radius) * CGFloat(store.state.spaceViewport.scale)
+        let step = max(radiusScreen / 2, 1)
+        let samples = max(Int((distance / step).rounded(.up)), 1)
+        for index in 1...samples {
+            let fraction = CGFloat(index) / CGFloat(samples)
+            let sample = CGPoint(
+                x: last.x + ((view.x - last.x) * fraction),
+                y: last.y + ((view.y - last.y) * fraction)
+            )
+            store.erase(at: canvasPoint(from: sample), radius: radius, mode: mode)
         }
     }
 
@@ -392,7 +965,10 @@ struct SpacesShellView: View {
 
     private func reTile(orderedIDs: [UUID], tiling: SpaceTiling, viewport: CGSize) {
         if (store.state.space?.layoutMode ?? .pagedGrid) == .freeArrange {
-            // Snap every free-arranged card back to the tidy fit-all grid.
+            // Snap every Board card back to the tidy fit-all grid. Reset the Board
+            // viewport to identity first so the grid slots (screen space) land on
+            // the matching canvas coordinates and the whole field is back in view.
+            store.resetSpaceViewport()
             store.setSpaceFreeFrames(
                 defaultFreeFrames(orderedIDs: orderedIDs, tiling: tiling, viewport: viewport)
             )
@@ -426,25 +1002,81 @@ struct SpacesShellView: View {
         return frames
     }
 
-    /// Persisted free frames overlaid on grid-derived defaults, so a card that
-    /// hasn't been seeded yet still renders somewhere sensible this frame.
+    /// The on-screen rect of each card THIS frame — a placed card's `position`
+    /// mapped through the Board viewport (`screenPoint`, size ×scale), overlaid on
+    /// grid-derived defaults for cards not yet seeded. Screen-space, so the shell's
+    /// marquee/click/hit-testing all agree with where cards render.
     private func effectiveFreeFrames(
         orderedIDs: [UUID], tiling: SpaceTiling, viewport: CGSize
     ) -> [UUID: SpaceFreeFrame] {
+        let vp = store.state.spaceViewport
         var frames = defaultFreeFrames(orderedIDs: orderedIDs, tiling: tiling, viewport: viewport)
-        frames.merge(store.state.space?.freeFrames ?? [:]) { _, persisted in persisted }
+        let placed = store.state.space?.freePlaced ?? []
+        for card in store.state.cards where placed.contains(card.id) {
+            let screen = vp.screenPoint(forCanvasPoint: card.position)
+            frames[card.id] = SpaceFreeFrame(
+                origin: ScreenPoint(x: screen.x, y: screen.y),
+                size: ScreenPoint(x: card.size.width * vp.scale, y: card.size.height * vp.scale)
+            )
+        }
         return frames
     }
 
-    /// Persists default frames for any free-arrange card that lacks one. Runs on
-    /// mode entry and card additions; never touches an existing frame.
+    /// Seeds a grid-derived position onto any Board card not yet placed. Runs on
+    /// mode entry and card additions; never touches a placed card. The grid slots
+    /// are computed in screen space, so map each through the Board viewport into
+    /// canvas space before storing (identity ⇒ screen == canvas, unchanged).
     private func seedFreeFramesIfNeeded(orderedIDs: [UUID], tiling: SpaceTiling, viewport: CGSize) {
         guard (store.state.space?.layoutMode ?? .pagedGrid) == .freeArrange else { return }
-        let persisted = store.state.space?.freeFrames ?? [:]
+        let vp = store.state.spaceViewport
+        let placed = store.state.space?.freePlaced ?? []
         let missing = defaultFreeFrames(orderedIDs: orderedIDs, tiling: tiling, viewport: viewport)
-            .filter { persisted[$0.key] == nil }
+            .filter { !placed.contains($0.key) }
         guard !missing.isEmpty else { return }
-        store.seedSpaceFreeFrames(missing)
+        var canvasFrames: [UUID: SpaceFreeFrame] = [:]
+        for (id, frame) in missing {
+            let origin = vp.canvasPoint(forScreenPoint: frame.origin)
+            canvasFrames[id] = SpaceFreeFrame(
+                origin: ScreenPoint(x: origin.x, y: origin.y),
+                size: ScreenPoint(x: frame.size.x / vp.scale, y: frame.size.y / vp.scale)
+            )
+        }
+        store.seedSpaceFreeFrames(canvasFrames)
+    }
+
+    /// Pinch-to-zoom the Board, anchored at the cursor. Applies each tick's delta
+    /// magnification (the anchor is captured once so it doesn't drift). Inert in
+    /// grid mode. Commits per tick — fine for a Board of cards; the Canvas
+    /// live-preview optimization matters once strokes/connections land (stage 8).
+    private func boardZoomGesture(viewportSize: CGSize) -> some Gesture {
+        MagnificationGesture()
+            .onChanged { value in
+                guard (store.state.space?.layoutMode ?? .pagedGrid) == .freeArrange, value > 0 else { return }
+                let anchor: CGPoint
+                if let captured = pinchAnchor {
+                    anchor = captured
+                } else {
+                    anchor = hoverLocation ?? CGPoint(x: viewportSize.width / 2, y: viewportSize.height / 2)
+                    pinchAnchor = anchor
+                    lastMagnification = 1
+                }
+                let delta = value / lastMagnification
+                store.zoomSpaceViewport(by: Double(delta), anchoredAt: ScreenPoint(x: anchor.x, y: anchor.y))
+                lastMagnification = value
+            }
+            .onEnded { _ in
+                pinchAnchor = nil
+                lastMagnification = 1
+            }
+    }
+
+    /// Whether `point` (shell-local coords) is inside the selected card's on-screen
+    /// rect, so a two-finger scroll there scrolls the card instead of panning.
+    private func cursorOverSelectedCard(_ point: CGPoint, freeFrames: [UUID: SpaceFreeFrame]) -> Bool {
+        guard let id = store.state.selectedCardID ?? store.state.activeCardID,
+              let frame = freeFrames[id] else { return false }
+        let rect = CGRect(x: frame.origin.x, y: frame.origin.y, width: frame.size.x, height: frame.size.y)
+        return rect.contains(point)
     }
 
     /// Animated, direction-aware page change (drives the horizontal slide between
@@ -470,6 +1102,10 @@ struct SpacesShellView: View {
         paged: SpaceGrid.PagedLayout, orderedIDs: [UUID],
         freeFrames: [UUID: SpaceFreeFrame]
     ) {
+        // A freehand/place tool owns Board input via the overlay; ignore the
+        // click here so drawing/erasing/placing doesn't also select a card.
+        if boardToolArmed { return }
+
         let hitID: UUID?
         let tileTopY: CGFloat
         if isPagedGrid {
@@ -498,12 +1134,31 @@ struct SpacesShellView: View {
         }
         guard let hitID else { return }
 
+        // Connect tool: a click picks the source card, then a distinct target,
+        // then disarms. Takes precedence over normal select/activate.
+        if case let .connecting(source) = interaction.mode {
+            if let source {
+                if source != hitID {
+                    store.addConnection(from: source, to: hitID)
+                    interaction.disarm()
+                }
+            } else {
+                interaction.setConnectSource(hitID)
+            }
+            return
+        }
+
         if commandHeld {
             store.toggleCardInSelection(id: hitID)
             return
         }
 
-        let inHeader = point.y - tileTopY < WorkspaceCardView.approximateHeaderHeight
+        // The header band scales with the Board zoom (grid tiles never zoom), so
+        // the select-vs-activate split lands on the visible header at any zoom.
+        let headerBand = isPagedGrid
+            ? WorkspaceCardView.approximateHeaderHeight
+            : WorkspaceCardView.approximateHeaderHeight * store.state.spaceViewport.scale
+        let inHeader = point.y - tileTopY < headerBand
         if inHeader {
             if store.state.selectedCardID != hitID
                 || store.state.activeCardID != nil
@@ -539,33 +1194,55 @@ struct SpacesShellView: View {
         return nil
     }
 
-    /// Left-drag on empty background draws a selection box; ⌘-drag extends the
-    /// existing selection. Coordinates are `.local` to the shell, matching the
+    /// Empty-background drag, resolved once on its first move. In Board mode an
+    /// ⌥-drag pans the surface (mouse users' pan, alongside two-finger trackpad
+    /// pan); every other drag draws a selection box (⌘ extends it). Grid mode is
+    /// marquee-only. Coordinates are `.local` to the shell, matching the
     /// `SpaceGrid` tile origins used by `tileIndices`.
     private func marqueeGesture(
         paged: SpaceGrid.PagedLayout,
         orderedIDs: [UUID],
         freeFrames: [UUID: SpaceFreeFrame]?
     ) -> some Gesture {
-        DragGesture(minimumDistance: 1)
+        let isBoard = freeFrames != nil
+        return DragGesture(minimumDistance: 1)
             .onChanged { value in
-                if marqueeStart == nil {
-                    marqueeStart = value.startLocation
-                    marqueeAdditive = NSEvent.modifierFlags.contains(.command)
-                    if marqueeAdditive {
-                        var base = store.state.marqueeSelectedCardIDs
-                        if let single = store.state.selectedCardID { base.insert(single) }
-                        marqueeBase = base
+                if idleDragMode == .none {
+                    if isBoard && NSEvent.modifierFlags.contains(.option) {
+                        idleDragMode = .pan
+                        lastPanTranslation = .zero
                     } else {
-                        marqueeBase = []
+                        idleDragMode = .marquee
+                        marqueeStart = value.startLocation
+                        marqueeAdditive = NSEvent.modifierFlags.contains(.command)
+                        if marqueeAdditive {
+                            var base = store.state.marqueeSelectedCardIDs
+                            if let single = store.state.selectedCardID { base.insert(single) }
+                            marqueeBase = base
+                        } else {
+                            marqueeBase = []
+                        }
                     }
                 }
-                marqueeCurrent = value.location
-                let hits = marqueeHits(start: value.startLocation, current: value.location,
-                                       paged: paged, orderedIDs: orderedIDs, freeFrames: freeFrames)
-                store.selectCardsInSpace(ids: marqueeAdditive ? marqueeBase.union(hits) : hits)
+
+                switch idleDragMode {
+                case .pan:
+                    let delta = CGSize(width: value.translation.width - lastPanTranslation.width,
+                                       height: value.translation.height - lastPanTranslation.height)
+                    store.panSpaceViewport(by: CanvasVector(dx: delta.width, dy: delta.height))
+                    lastPanTranslation = value.translation
+                case .marquee:
+                    marqueeCurrent = value.location
+                    let hits = marqueeHits(start: value.startLocation, current: value.location,
+                                           paged: paged, orderedIDs: orderedIDs, freeFrames: freeFrames)
+                    store.selectCardsInSpace(ids: marqueeAdditive ? marqueeBase.union(hits) : hits)
+                case .none:
+                    break
+                }
             }
             .onEnded { _ in
+                idleDragMode = .none
+                lastPanTranslation = .zero
                 marqueeStart = nil
                 marqueeCurrent = nil
                 marqueeBase = []
@@ -618,6 +1295,13 @@ struct SpacesShellView: View {
         .overlay(Capsule().stroke(.white.opacity(0.12), lineWidth: 1))
         .shadow(color: .black.opacity(0.3), radius: 16, y: 8)
     }
+}
+
+/// What an empty-background drag resolved to, decided once on its first move.
+private enum BoardIdleDragMode {
+    case none
+    case pan
+    case marquee
 }
 
 struct ShellFrameKey: PreferenceKey {

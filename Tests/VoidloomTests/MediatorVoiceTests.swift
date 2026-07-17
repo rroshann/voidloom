@@ -43,6 +43,7 @@ final class MediatorVoiceTests: XCTestCase {
         for _ in 0..<2000 {
             if c.state == .idle, !c.narration.isEmpty { return }
             await Task.yield()
+            try? await Task.sleep(nanoseconds: 2_000_000)
         }
     }
 
@@ -133,6 +134,65 @@ final class MediatorVoiceTests: XCTestCase {
         c.wakeDetected()
         XCTAssertEqual(transcriber.startCount, 1)
         guard case .capturing = c.state else { return XCTFail("expected capturing") }
+    }
+
+    private func waitForState(_ c: MediatorSessionCoordinator, _ target: MediatorState) async {
+        for _ in 0..<2000 {
+            if c.state == target { return }
+            try? await Task.sleep(nanoseconds: 2_000_000)
+        }
+    }
+
+    func testReleaseWithoutEngineFinalPromotesLastPartial() async {
+        // The engine stall that wedged real push-to-talk: after stopUtterance()
+        // the transcriber never emits .final. Release must still finalize the
+        // captured partial after a short grace, not sit in .capturing forever.
+        let store = makeStore()
+        let terminals = MockAgentTerminals()
+        let transcriber = FakeTranscriber()
+        let c = MediatorSessionCoordinator(
+            brain: FastPathBrain(),
+            executor: CommandExecutor(store: store, terminals: terminals, namePool: AgentNamePool()),
+            transcriber: transcriber,
+            finalizeGrace: 0.05
+        )
+
+        c.pushToTalkPressed()
+        transcriber.emit(.partial("start 1 claude agent"))
+        c.pushToTalkReleased()
+        await waitForIdle(c)
+
+        XCTAssertEqual(store.state.cards.filter { $0.kind == .agent }.count, 1)
+    }
+
+    func testReleaseWithNoSpeechReturnsToIdle() async {
+        // A quick click (release before any speech) must cancel cleanly, leaving
+        // the mic usable — not leave the machine capturing with a hot mic.
+        let transcriber = FakeTranscriber()
+        let c = MediatorSessionCoordinator(
+            brain: FastPathBrain(),
+            executor: CommandExecutor(store: makeStore(), terminals: MockAgentTerminals(), namePool: AgentNamePool()),
+            transcriber: transcriber,
+            finalizeGrace: 0.05
+        )
+
+        c.pushToTalkPressed()
+        c.pushToTalkReleased()
+        await waitForState(c, .idle)
+
+        XCTAssertEqual(c.state, .idle)
+    }
+
+    func testEmptyEngineFinalWhileCapturingCancelsToIdle() {
+        // An empty .final used to be silently dropped, wedging the machine in
+        // .capturing. It must cancel back to idle instead.
+        let transcriber = FakeTranscriber()
+        let c = makeCoordinator(makeStore(), MockAgentTerminals(), transcriber: transcriber)
+
+        c.pushToTalkPressed()
+        transcriber.emit(.final("   "))
+
+        XCTAssertEqual(c.state, .idle)
     }
 
     func testPushToTalkReleasedStopsUtterance() {

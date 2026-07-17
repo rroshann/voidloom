@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import SwiftUI
 import VoidloomCore
@@ -29,6 +30,12 @@ struct GitCardContentView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: folderPath) { await reload() }
+        // Refresh when the app regains focus — git state often changes while you
+        // work in a terminal card or an external editor, so the card shouldn't sit
+        // on stale status until you reload it by hand.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            Task { await reload() }
+        }
     }
 
     @ViewBuilder
