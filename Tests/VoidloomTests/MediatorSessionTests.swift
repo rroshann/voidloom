@@ -68,13 +68,13 @@ final class MediatorSessionTests: XCTestCase {
         // An empty payload (e.g. `.unparseable`) falls back to the generic prompt.
         var empty = MediatorSessionMachine.parsing("mumble mumble")
         XCTAssertEqual(empty.handle(.parseFailed("")),
-                       [.narrate("Didn't catch that — try rephrasing.")])
+                       [.narrate(MediatorSessionMachine.rephrasePrompt)])
         XCTAssertEqual(empty.state, .idle)
     }
 
     func testParsingTimesOutAndCanBeCancelled() {
         var timedOut = MediatorSessionMachine.parsing("slow brain")
-        XCTAssertEqual(timedOut.handle(.timeout), [.narrate("Didn't catch that — try rephrasing.")])
+        XCTAssertEqual(timedOut.handle(.timeout), [.narrate(MediatorSessionMachine.rephrasePrompt)])
         XCTAssertEqual(timedOut.state, .idle)
 
         var cancelled = MediatorSessionMachine.parsing("slow brain")
@@ -101,7 +101,7 @@ final class MediatorSessionTests: XCTestCase {
     func testCaptureTimeoutAndCancelReturnToIdle() {
         var machine = MediatorSessionMachine()
         _ = machine.handle(.wakeDetected)
-        XCTAssertEqual(machine.handle(.timeout), [.stopCapture, .narrate("Didn't catch that — try rephrasing.")])
+        XCTAssertEqual(machine.handle(.timeout), [.stopCapture, .narrate(MediatorSessionMachine.rephrasePrompt)])
         XCTAssertEqual(machine.state, .idle)
 
         var cancelled = MediatorSessionMachine()

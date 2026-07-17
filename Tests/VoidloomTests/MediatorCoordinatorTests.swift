@@ -48,7 +48,7 @@ final class MediatorCoordinatorTests: XCTestCase {
         let c = makeCoordinator(makeStore(), MockAgentTerminals())
         c.submitTyped("do the thing")
         await waitForIdle(c)
-        XCTAssertEqual(c.narration, "Didn't catch that — try rephrasing.")
+        XCTAssertEqual(c.narration, MediatorSessionMachine.rephrasePrompt)
     }
 
     func testDestructiveCommandAwaitsThenExecutesTypedConfirmation() async {
@@ -225,7 +225,7 @@ extension MediatorCoordinatorTests {
         c.chatFallback = { _, _ in throw BrainError.backendFailure("chat down") }
         c.submitTyped("hi")
         for _ in 0..<4000 where c.narration.isEmpty { await Task.yield() }
-        XCTAssertEqual(c.narration, "Didn't catch that — try rephrasing.")
+        XCTAssertEqual(c.narration, MediatorSessionMachine.rephrasePrompt)
         XCTAssertEqual(c.state, .idle)
     }
 

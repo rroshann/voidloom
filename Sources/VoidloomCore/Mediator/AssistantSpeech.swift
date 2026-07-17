@@ -8,7 +8,7 @@ public enum AssistantSpeech {
         let cleaned = stripNoise(text)
         guard !cleaned.isEmpty else { return "" }
 
-        let sentences = splitSentences(cleaned)
+        let sentences = SentenceSplitter.split(cleaned)
         guard sentences.count > maxSentences else { return cleaned }
         let head = sentences.prefix(maxSentences).joined(separator: " ")
         return head + " There's more on screen."
@@ -34,23 +34,5 @@ public enum AssistantSpeech {
         s = s.replacingOccurrences(of: "[*_#>]", with: "", options: .regularExpression)
         s = s.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
         return s.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    /// Splits on sentence terminators, keeping the terminator. Deliberately
-    /// simple — good enough to bound spoken length, not linguistically perfect.
-    private static func splitSentences(_ text: String) -> [String] {
-        var sentences: [String] = []
-        var current = ""
-        for character in text {
-            current.append(character)
-            if character == "." || character == "!" || character == "?" {
-                let trimmed = current.trimmingCharacters(in: .whitespaces)
-                if !trimmed.isEmpty { sentences.append(trimmed) }
-                current = ""
-            }
-        }
-        let tail = current.trimmingCharacters(in: .whitespaces)
-        if !tail.isEmpty { sentences.append(tail) }
-        return sentences
     }
 }
