@@ -95,40 +95,54 @@ private final class ControllableBrain: MediatorBrain, @unchecked Sendable {
     var outcome: Outcome
     let started = AsyncStream<Void>.makeStream()
     private let lock = NSLock()
-    private var release: CheckedContinuation<Void, Never>?
+    private var release: CheckedContinuation<Outcome, Never>?
     private var released = false
+    private var latchedOutcome: Outcome?
 
     init(_ outcome: Outcome) { self.outcome = outcome }
 
     /// Safe to call before the brain reaches its suspension point: the release
     /// is latched, so the continuation resumes immediately when stored. Closes
     /// the lost-wakeup window that made the busy-queue test flaky on slow CI.
+    /// Snapshots `outcome` at release so a waiter isn't poisoned if the test
+    /// re-arms `.hang` for the next turn before this call resumes on MainActor.
+    /// When a waiter is already pending, resume it without latching — same as
+    /// `ControllablePhraser.releaseNow` — so the next hang still waits.
     func releaseNow() {
         lock.lock()
-        released = true
         let pending = release
         release = nil
+        let value = outcome
+        if pending == nil {
+            released = true
+            latchedOutcome = value
+        }
         lock.unlock()
-        pending?.resume()
+        pending?.resume(returning: value)
     }
 
     func command(for utterance: String) async throws -> MediatorCommand {
         started.continuation.yield(())
+        let resolved: Outcome
         if case .hang = outcome {
-            await withCheckedContinuation { (cont: CheckedContinuation<Void, Never>) in
+            resolved = await withCheckedContinuation { (cont: CheckedContinuation<Outcome, Never>) in
                 lock.lock()
                 if released {
                     released = false
+                    let result = latchedOutcome ?? outcome
+                    latchedOutcome = nil
                     lock.unlock()
-                    cont.resume()
+                    cont.resume(returning: result)
                 } else {
                     release = cont
                     lock.unlock()
                 }
             }
             try Task.checkCancellation()
+        } else {
+            resolved = outcome
         }
-        switch outcome {
+        switch resolved {
         case .success(let c): return c
         case .failure(let e): throw e
         case .hang: throw CancellationError()
@@ -301,10 +315,12 @@ private final class ControllablePhraser: @unchecked Sendable {
 
     func releaseNow(_ value: String?) {
         lock.lock()
-        released = true
-        latchedResult = value
         let pending = release
         release = nil
+        if pending == nil {
+            released = true
+            latchedResult = value
+        }
         lock.unlock()
         pending?.resume(returning: value)
     }
@@ -424,6 +440,38 @@ extension MediatorCoordinatorTests {
         for _ in 0..<2000 { await Task.yield() }
         XCTAssertEqual(c.narration, "Created a todo")
         XCTAssertNotEqual(c.narration, "Note's up!")
+        for _ in 0..<4000 where c.spokenReply?.text != "Created a todo" { await Task.yield() }
+        XCTAssertEqual(c.spokenReply?.text, "Created a todo")
+    }
+
+    func testStaleSpokenReplyDroppedWhenQueuedUtteranceDrains() async {
+        let phraser = ControllablePhraser()
+        phraser.mode = .hangFirstOnly
+        let store = makeStore()
+        let terminals = MockAgentTerminals()
+        let brain = ControllableBrain(.hang)
+        let c = MediatorSessionCoordinator(
+            brain: brain,
+            executor: CommandExecutor(store: store, terminals: terminals, namePool: AgentNamePool()))
+        c.phraser = { fact in await phraser.phrase(fact) }
+        c.submitTyped("note")
+        var it = brain.started.stream.makeAsyncIterator()
+        _ = await it.next()
+        c.submitTyped("todo")
+        XCTAssertEqual(c.queuedUtterance, "todo")
+        brain.outcome = .success(.createCard(kind: .note, content: nil))
+        brain.releaseNow()
+        brain.outcome = .hang
+        var phraserIt = phraser.started.stream.makeAsyncIterator()
+        let firstFact = await phraserIt.next()
+        XCTAssertEqual(firstFact, "Created a note")
+        XCTAssertNil(c.queuedUtterance)
+        phraser.releaseNow("Stale note phrase!")
+        for _ in 0..<2000 { await Task.yield() }
+        XCTAssertNotEqual(c.spokenReply?.text, "Stale note phrase!")
+        brain.outcome = .success(.createCard(kind: .todo, content: nil))
+        brain.releaseNow()
+        for _ in 0..<4000 where c.narration != "Created a todo" { await Task.yield() }
         for _ in 0..<4000 where c.spokenReply?.text != "Created a todo" { await Task.yield() }
         XCTAssertEqual(c.spokenReply?.text, "Created a todo")
     }

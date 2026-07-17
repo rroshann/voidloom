@@ -103,6 +103,9 @@ public final class MediatorSessionCoordinator: ObservableObject {
     private var delegateTask: Task<Void, Never>?
     private var phrasingTask: Task<Void, Never>?
     private var finalizeTask: Task<Void, Never>?
+    /// Monotonic turn counter; phrasing tasks capture the value before
+    /// `send(.executionFinished)` so a drained queue can't settle stale speech.
+    private var turnID = 0
     /// Skips the immediate `spokenReply` publish from the next `.narrate` so a
     /// success+phraser turn can settle once phrasing finishes.
     private var suppressNextSpokenReply = false
@@ -177,6 +180,7 @@ public final class MediatorSessionCoordinator: ObservableObject {
             case .typedUtterance, .transcriptFinal, .wakeDetected, .pushToTalkPressed:
                 phrasingTask?.cancel()
                 phrasingTask = nil
+                turnID &+= 1
             default:
                 break
             }
@@ -355,8 +359,9 @@ public final class MediatorSessionCoordinator: ObservableObject {
                 let result = executor.execute(command, confirmed: confirmed)
                 if case .success(let fact) = result, phraser != nil {
                     suppressNextSpokenReply = true
+                    let turn = turnID
                     send(.executionFinished(result))
-                    startPhrasing(fact: fact)
+                    startPhrasing(fact: fact, turn: turn)
                 } else {
                     send(.executionFinished(result))
                 }
@@ -382,15 +387,16 @@ public final class MediatorSessionCoordinator: ObservableObject {
         }
     }
 
-    private func startPhrasing(fact: String) {
+    private func startPhrasing(fact: String, turn: Int) {
         guard let phraser else { return }
         phrasingTask?.cancel()
         phrasingTask = Task { [weak self] in
             guard let self else { return }
             let phrase = await phraser(fact)
             guard !Task.isCancelled else { return }
+            guard self.turnID == turn else { return }
             let spoken = phrase.flatMap { $0.isEmpty ? nil : $0 } ?? fact
-            if self.state == .idle, self.narration == fact, let phrase, !phrase.isEmpty {
+            if self.narration == fact, let phrase, !phrase.isEmpty {
                 self.narration = phrase
             }
             self.spokenReply = SpokenReply(text: spoken)
