@@ -43,6 +43,7 @@ final class MediatorVoiceTests: XCTestCase {
         for _ in 0..<2000 {
             if c.state == .idle, !c.narration.isEmpty { return }
             await Task.yield()
+            try? await Task.sleep(nanoseconds: 2_000_000)
         }
     }
 
